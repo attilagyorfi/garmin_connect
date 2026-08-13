@@ -6,3 +6,8 @@ __pycache__/
 .ruff_cache/
 .garmin_tokens/
 data/
+*.db
+*.sqlite
+*.sqlite3
+garmin_cache.json
+exports/
