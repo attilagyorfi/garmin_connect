@@ -1,49 +1,97 @@
-# Hybrid Performance Dashboard
+# Hybrid Training Decision System
 
-A personal Streamlit dashboard that reads Garmin Connect data, caches it locally, and combines training load with recovery signals.
+Személyre szabott, magyararázható Streamlit döntéstámogató rendszer futáshoz, strength/functional edzéshez és trekkinghez. A fő kérdése: **mit eddzek ma, milyen intenzitással, mennyi ideig és milyen adatok alapján?**
 
-## Structure
+> Sportteljesítményi segédeszköz, nem orvosi eszköz. Nem diagnosztizál és nem helyettesít orvost vagy szakképzett edzőt.
+
+## Fő funkciók
+
+- 90 napos, determinisztikus demo mód Garmin-fiók nélkül
+- kézi, read-only Garmin-szinkron és konfigurálható JSON-cache TTL
+- személyes 21–60 napos robusztus baseline (alapérték: 28 nap)
+- külön cardio, strength/functional, musculoskeletal és normalizált Hybrid Load
+- τ=7 napos ATL, τ=42 napos CTL és előző napi TSB mindhárom fő loadhoz
+- 0–100 explainable readiness komponensenkénti ponttal, súllyal és eltéréssel
+- adatminőségi pontszám és magas/közepes/alacsony confidence
+- konkrét napi edzéstípus, időtartam, pulzuszóna, RPE, alternatíva és kerülendő terhelés
+- fájdalom- és betegség-felülbírálás, prioritásos red flagek
+- módosítható napi wellness check-in és aktivitásonkénti session RPE
+- naptár, terhelési trendek, egyensúly és determinisztikus heti összefoglaló
+- verziózott SQLite-séma manuális és generált adatokhoz
+
+## Könyvtárstruktúra
 
 ```text
-.
-├── app.py                  # Streamlit UI and charts
-├── analytics.py            # ATL/CTL/TSB, readiness, modality logic
-├── garmin_sync.py          # Garmin auth, read-only sync, JSON cache
-├── requirements.txt
-├── Procfile
-├── railway.toml
-└── .streamlit/config.toml
+app.py               Streamlit navigáció és UI
+analytics.py         tiszta baseline/load/readiness/döntési függvények
+garmin_sync.py       read-only Garmin-lekérés és JSON cache
+storage.py           verziózott SQLite adattár
+tests/               unit-, integrációs és Streamlit AppTest tesztek
+ARCHITECTURE.md       adatfolyam, modulhatárok és audit
+METHODOLOGY.md        algoritmusok, súlyok, küszöbök és korlátok
+ROADMAP.md            a későbbi P2–P4 fejlesztések
 ```
 
-## Local setup
+## Helyi futtatás
 
-Python 3.12+ is required by current `garminconnect` releases.
+Python 3.12+ szükséges.
 
 ```bash
-python3.12 -m venv .venv
-source .venv/bin/activate
+python -m venv .venv
+source .venv/bin/activate       # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
-export GARMIN_EMAIL="you@example.com"
-export GARMIN_PASSWORD="your-password"
 streamlit run app.py
 ```
 
-The app starts in Demo mode when `GARMIN_EMAIL` is absent. Turn Demo mode off and select **Sync Garmin now** for live data. Never commit `.env`, token, cache, or exported health data.
+Hitelesítő adatok nélkül az app automatikusan demo módban indul. A demo 90+ nap konzisztens cardio, strength és trekking adatot, check-int, RPE-t, fáradási és betegségpéldát tartalmaz.
+
+## Környezeti változók
+
+Másold a `.env.example` tartalmát saját, Gitből kizárt `.env` fájlba vagy állítsd be a platformon:
+
+| Változó | Jelentés | Alapérték |
+|---|---|---|
+| `GARMIN_EMAIL` | Garmin-fiók e-mail | nincs |
+| `GARMIN_PASSWORD` | Garmin-jelszó | nincs |
+| `CACHE_DIR` | JSON, token és SQLite könyvtár | `data` |
+| `CACHE_TTL_HOURS` | friss cache időtartama | `12` |
+| `BASELINE_DAYS` | személyes baseline ablaka | `28` |
+
+A `.env`, tokenkönyvtár, cache, SQLite, export és egészségadat Gitből kizárt. A repóba soha ne commitolj valódi hitelesítőt vagy személyes egészségadatot.
+
+## Garmin-szinkron és MFA
+
+Az app kizárólag lekérő metódusokat használ: `get_activities_by_date`, `get_hrv_data`, `get_sleep_data`, `get_heart_rates`. A szinkron csak a felhasználó gombnyomására fut; rerenderkor nem. Részleges végponthiba nem állítja le a teljes folyamatot, teljes sikertelenségnél pedig az utolsó érvényes cache marad látható.
+
+A `garminconnect` a Garmin nem hivatalos webes szolgáltatásait használja, ezért API-változás előfordulhat. MFA esetén az első bejelentkezést interaktív helyi környezetben végezd, majd a tokenkönyvtárat biztonságosan tartsd a perzisztens volume-on. A token jelszóértékű adat.
 
 ## Railway deployment
 
-1. Create a private GitHub repository and push these files.
-2. In Railway, choose **New Project → Deploy from GitHub Repo**.
-3. Add service variables `GARMIN_EMAIL`, `GARMIN_PASSWORD`, and `CACHE_DIR=/data`.
-4. Add a Railway volume mounted at `/data`; without it, tokens and cache can disappear on redeploy.
-5. Deploy. `railway.toml` supplies the start command and health check.
+1. Deploy from GitHub Repo.
+2. Állítsd be a fenti környezeti változókat.
+3. Adj Railway volume-ot `/data` mountponttal.
+4. Állítsd `CACHE_DIR=/data` értékre.
+5. A `railway.toml` és `Procfile` változatlanul Streamlitet indít és health checket ad.
 
-If Garmin requests MFA during initial authentication, the headless deployment cannot answer an interactive prompt. Run one login locally first, or temporarily perform the first sync in an interactive environment, then place the resulting token store on the mounted volume. Treat the token file as a password.
+Volume nélkül a token, cache, check-in és RPE új deploynál elveszhet. A Railway marad az elsődleges platform; a projekt nincs Vercelre optimalizálva.
 
-## Vercel note
+## Adatmodell és manuális bevitel
 
-Streamlit is a persistent Python server, while Vercel's normal runtime is serverless. Railway is the correct fit for this build. A Vercel deployment would require replacing Streamlit with a separate frontend/API architecture and external persistent storage.
+Az SQLite táblák Garmin-aktivitást, wellness/normalizált napi metrikát, napi check-int, session feedbacket, célt/eseményt, ajánlást, heti összefoglalót, sync metaadatot és adatminőségi flaget támogatnak. A `schema_meta` egyszerű verziózást biztosít. A jelenlegi UI a check-int és session feedbacket írja; a többi tábla stabil P2-bővítési határ.
 
-## Important limitations
+Session load: `edzésidő percben × RPE`. Strength/functional aktivitásnál ez elsődleges, ha van RPE.
 
-`garminconnect` is an unofficial client for Garmin's web services and may break when Garmin changes private endpoints. Calorie-based stress is useful for trends but is not equivalent to TSS; future calibration should use heart-rate zones, elevation, duration, and strength volume. The recommendations are not medical advice.
+## Tesztelés
+
+```bash
+pytest -q
+python -m py_compile app.py analytics.py garmin_sync.py storage.py
+```
+
+A tesztek nem használnak valódi Garmin-fiókot. Lefedik a baseline-t, robust z-score-t, load fallbacket, session/musculoskeletal loadot, ATL/CTL/TSB-t, confidence-t, readiness újrasúlyozást, red flageket, biztonsági override-okat, heti összefoglalót, SQLite-ot, cache-t, demo módot és a főképernyő AppTest renderét.
+
+## További dokumentáció
+
+- [Architektúra és audit](ARCHITECTURE.md)
+- [Módszertan](METHODOLOGY.md)
+- [Roadmap és ismert korlátok](ROADMAP.md)
