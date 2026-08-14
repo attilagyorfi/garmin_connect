@@ -12,5 +12,5 @@ data/
 garmin_cache.json
 exports/
 output/
-streamlit-audit*.log
+streamlit-*.log
 .pytest-tmp-*/
