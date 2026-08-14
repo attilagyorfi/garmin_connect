@@ -19,9 +19,11 @@ baseline → data quality → readiness → red flags → daily decision
 ## Modulok
 
 - `garmin_sync.py`: autentikáció, explicit kézi szinkron, részleges hibagyűjtés, atomic JSON-cache és determinisztikus demo.
-- `storage.py`: kontextuskezelt SQLite-kapcsolat, schema-versioning, check-in és session feedback upsert.
+- `storage.py`: kontextuskezelt SQLite-kapcsolat, schema-versioning, check-in, edzés-visszajelzés, cél/esemény és napi terv CRUD.
 - `analytics.py`: mellékhatásmentes normalizálás, baseline, terhelés, PMC, readiness, riasztás, döntés és heti összefoglaló.
 - `app.py`: csak workflow-összeállítás, űrlapok és megjelenítés.
+
+A napi tervek kézi aktivitásazonosítóval vagy azonos nap + modalitás alapján párosulnak. A terv–tény eltérés külön visszacsatolásként lép be a következő napi döntésbe; a nyers Garmin-adatot nem módosítja.
 
 ## Használt Garmin-végpontok
 

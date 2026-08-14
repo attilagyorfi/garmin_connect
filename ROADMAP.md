@@ -14,12 +14,23 @@
 - billentyűzetes és képernyőolvasós accessibility audit valódi böngészőben
 - a generált snapshotok külön historikus UI-ja
 
-## P2 – Célok és tervezés
+## Elkészült P2 – Célok és tervezés
 
-- esemény/cél CRUD a már létrehozott `goals_events` táblán
-- heti rendelkezésre állás, pihenőnap és cardio–strength célarány
-- tervezett kontra tényleges edzés és Garmin-aktivitás párosítás
-- szabályalapú deload/taper keretek; automatikus teljes edzésterv nélkül
+- esemény/cél CRUD heti rendelkezésre állással, pihenőnappal és kardió–erő célaránnyal
+- napi edzésterv modalitással, idővel, intenzitással, céllal és RPE-vel
+- tervezett kontra tényleges edzés automatikus vagy kézi Garmin-aktivitás párosítással
+- terveltérés visszacsatolása a következő ajánlásba
+
+## Következő P2 finomítások
+
+- több edzés együttes mozgatása
+- a heti sablon egyedi napkiosztásának szerkesztése mentés előtt
+
+## Elkészült P2 finomítások
+
+- magyar, szabályalapú deload/taper javaslat aktivált szabályokkal és volumencsökkentéssel
+- heti tervsablon a heti időkeret, a kardio–erő arány és a pihenőnap alapján
+- eseményspecifikus 28 napos táv-, szint-, hosszú edzés- és erőedzés-hiányok
 
 ## P3 – Mountain Readiness
 
@@ -41,4 +52,4 @@
 - A Garmin nem hivatalos web API-ja változhat; nincs élő accountos CI.
 - A jelenlegi cardio zóna-load akkor elsődleges, ha a payload már tartalmaz zónaperceket; külön részletlekérés még nincs.
 - A demo Mountain példákat ad, de a külön Mountain UI/score P3.
-- A célkezelő táblaséma kész, a UI és döntési integráció P2.
+- A cél- és tervkezelés elkészült; eseményspecifikus periodizáció még nincs.

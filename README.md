@@ -20,6 +20,8 @@ Személyre szabott, magyararázható Streamlit döntéstámogató rendszer futá
 - módosítható napi wellness check-in és aktivitásonkénti session RPE
 - reszponzív havi kártyás naptár, terhelési trendek, egyensúly és determinisztikus heti összefoglaló
 - automatikus napi ajánlás- és heti összefoglaló-snapshot SQLite-ban
+- cél- és eseménykezelés heti időkerettel, pihenőnappal és kardió–erő célaránnyal
+- napi edzéstervezés, automatikus/kézi Garmin-párosítás és terv–tény visszacsatolás
 - verziózott SQLite-séma manuális és generált adatokhoz
 
 ## Könyvtárstruktúra
@@ -80,7 +82,7 @@ Volume nélkül a token, cache, check-in és RPE új deploynál elveszhet. A Rai
 
 ## Adatmodell és manuális bevitel
 
-Az SQLite táblák Garmin-aktivitást, wellness/normalizált napi metrikát, napi check-int, session feedbacket, célt/eseményt, ajánlást, heti összefoglalót, sync metaadatot és adatminőségi flaget támogatnak. A `schema_meta` egyszerű verziózást biztosít. A jelenlegi UI a check-int és session feedbacket írja; a többi tábla stabil P2-bővítési határ.
+Az SQLite táblák Garmin-aktivitást, wellness/normalizált napi metrikát, napi check-int, edzés-visszajelzést, célt/eseményt, napi tervet, ajánlást, heti összefoglalót, szinkronmetaadatot és adatminőségi jelzést támogatnak. A `schema_meta` egyszerű verziózást biztosít. A felületen a check-in, edzés-visszajelzés, cél/esemény és napi edzésterv létrehozható, módosítható és törölhető.
 
 Session load: `edzésidő percben × RPE`. Strength/functional aktivitásnál ez elsődleges, ha van RPE.
 

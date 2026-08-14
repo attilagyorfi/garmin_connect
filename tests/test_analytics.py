@@ -3,9 +3,11 @@ import pandas as pd
 
 from analytics import (
     ReadinessResult, build_daily_frames, cardio_load, data_quality, extract_hr_zone_minutes,
+    deload_taper_recommendation, evaluate_training_plans, event_preparation_analysis,
     exponential_load, explainable_readiness, modality, musculoskeletal_load,
+    plan_adjustment_message, plan_completion_status,
     performance_management, personal_baseline, red_flags, robust_z_score,
-    strength_load, training_decision, weekly_summary,
+    strength_load, training_decision, weekly_plan_template, weekly_summary,
 )
 from garmin_sync import demo_data
 
@@ -123,3 +125,64 @@ def test_consecutive_lower_body_load_triggers_recovery_flag():
     frame.loc[frame.index[-4], "lower_body_load"] = 50
     frame.loc[frame.index[-2:], "lower_body_load"] = 100
     assert any("alsótest" in item["title"].lower() for item in red_flags(frame))
+
+
+def test_plan_completion_boundaries():
+    assert plan_completion_status(60, 0) == "elmaradt"
+    assert plan_completion_status(60, 40) == "részben teljesült"
+    assert plan_completion_status(60, 60) == "teljesült"
+    assert plan_completion_status(60, 90) == "túlteljesült"
+
+
+def test_plans_match_manual_first_then_same_day_modality():
+    activities = pd.DataFrame([
+        {"activity_id": "11", "date": pd.Timestamp("2026-08-14"), "modality": "Cardio", "duration_min": 70},
+        {"activity_id": "12", "date": pd.Timestamp("2026-08-14"), "modality": "Strength / Functional", "duration_min": 45},
+    ])
+    plans = [
+        {"id": 1, "planned_date": "2026-08-14", "modality": "Cardio", "duration_min": 60, "intensity": "közepes", "matched_activity_id": None},
+        {"id": 2, "planned_date": "2026-08-14", "modality": "Cardio", "duration_min": 45, "intensity": "magas", "matched_activity_id": "12"},
+    ]
+    evaluated = evaluate_training_plans(plans, activities)
+    assert evaluated[0]["actual_activity_id"] == "11"
+    assert evaluated[0]["status"] == "teljesült"
+    assert evaluated[1]["actual_activity_id"] == "12"
+    assert evaluated[1]["match_method"] == "kézi"
+
+
+def test_plan_adjustment_does_not_recommend_catching_up_missed_sessions():
+    plans = [{"planned_date": "2026-08-01", "status": "elmaradt", "intensity": "közepes"}] * 2
+    assert "Ne próbáld egyszerre bepótolni" in plan_adjustment_message(plans)
+
+
+def test_near_event_triggers_explainable_taper():
+    _, frame, _ = demo_frames()
+    result = deload_taper_recommendation(frame, [{"event_date": "2026-08-20"}], today="2026-08-14")
+    assert result["type"] == "taper"
+    assert result["reduction_pct"] == 40
+    assert "közelgő_esemény" in result["rules"]
+
+
+def test_multiple_fatigue_signals_trigger_deload():
+    _, frame, _ = demo_frames()
+    frame.loc[frame.index[-7:], "hybrid_tsb"] = -25
+    feedback = {str(index): {"rpe": 9} for index in range(3)}
+    result = deload_taper_recommendation(frame, [], feedback=feedback, today=frame.index[-1])
+    assert result["type"] == "deload"
+    assert result["duration_days"] == 7
+
+
+def test_event_analysis_reports_specific_gaps():
+    activities = pd.DataFrame([{"date": pd.Timestamp("2026-08-10"), "modality": "Cardio", "distance_km": 5, "ascent_m": 100, "duration_min": 45}])
+    goal = {"event_date": "2026-10-01", "event_type": "terepfutás", "distance_km": 30, "elevation_m": 1500}
+    result = event_preparation_analysis(goal, activities, today="2026-08-14")
+    assert result["status"] == "hiányos"
+    assert len(result["gaps"]) >= 3
+
+
+def test_weekly_template_honors_rest_day_and_time_budget():
+    goal = {"weekly_hours": 5, "cardio_target_pct": 60, "rest_day": "szerda"}
+    plans = weekly_plan_template(goal, "2026-08-17")
+    assert len(plans) == 5
+    assert all(pd.Timestamp(plan["planned_date"]).weekday() != 2 for plan in plans)
+    assert sum(plan["duration_min"] for plan in plans) <= 300

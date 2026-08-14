@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any, Iterator
 
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 
 class Database:
@@ -67,6 +67,13 @@ class Database:
                 CREATE TABLE IF NOT EXISTS goals_events (
                     id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, event_date TEXT,
                     event_type TEXT NOT NULL, payload_json TEXT NOT NULL DEFAULT '{}'
+                );
+                CREATE TABLE IF NOT EXISTS training_plans (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT, planned_date TEXT NOT NULL,
+                    modality TEXT NOT NULL, duration_min INTEGER NOT NULL,
+                    intensity TEXT NOT NULL, purpose TEXT NOT NULL DEFAULT '',
+                    target_rpe INTEGER, note TEXT NOT NULL DEFAULT '',
+                    matched_activity_id TEXT, updated_at TEXT NOT NULL
                 );
                 CREATE TABLE IF NOT EXISTS daily_recommendations (
                     day TEXT PRIMARY KEY, payload_json TEXT NOT NULL, generated_at TEXT NOT NULL
@@ -135,6 +142,79 @@ class Database:
         with self.connect() as db:
             rows = db.execute("SELECT * FROM session_feedback").fetchall()
         return {row["activity_id"]: dict(row) for row in rows}
+
+    def save_goal(self, goal_id: int | None = None, **values: Any) -> int:
+        payload = {key: value for key, value in values.items() if key not in {"name", "event_date", "event_type"}}
+        with self.connect() as db:
+            if goal_id is None:
+                cursor = db.execute(
+                    "INSERT INTO goals_events(name,event_date,event_type,payload_json) VALUES(?,?,?,?)",
+                    (values["name"], values.get("event_date"), values["event_type"], json.dumps(payload, ensure_ascii=False)),
+                )
+                return int(cursor.lastrowid)
+            db.execute(
+                "UPDATE goals_events SET name=?,event_date=?,event_type=?,payload_json=? WHERE id=?",
+                (values["name"], values.get("event_date"), values["event_type"], json.dumps(payload, ensure_ascii=False), goal_id),
+            )
+            return goal_id
+
+    def list_goals(self) -> list[dict[str, Any]]:
+        with self.connect() as db:
+            rows = db.execute("SELECT * FROM goals_events ORDER BY event_date IS NULL,event_date,id").fetchall()
+        return [{"id": row["id"], "name": row["name"], "event_date": row["event_date"], "event_type": row["event_type"], **json.loads(row["payload_json"])} for row in rows]
+
+    def delete_goal(self, goal_id: int) -> None:
+        with self.connect() as db:
+            db.execute("DELETE FROM goals_events WHERE id=?", (goal_id,))
+
+    def save_plan(self, plan_id: int | None = None, **values: Any) -> int:
+        record = (
+            str(values["planned_date"]), values["modality"], int(values["duration_min"]),
+            values["intensity"], values.get("purpose", ""), values.get("target_rpe"),
+            values.get("note", ""), values.get("matched_activity_id"), datetime.now().astimezone().isoformat(),
+        )
+        with self.connect() as db:
+            if plan_id is None:
+                cursor = db.execute(
+                    """INSERT INTO training_plans
+                    (planned_date,modality,duration_min,intensity,purpose,target_rpe,note,matched_activity_id,updated_at)
+                    VALUES(?,?,?,?,?,?,?,?,?)""", record,
+                )
+                return int(cursor.lastrowid)
+            db.execute(
+                """UPDATE training_plans SET planned_date=?,modality=?,duration_min=?,intensity=?,
+                purpose=?,target_rpe=?,note=?,matched_activity_id=?,updated_at=? WHERE id=?""",
+                (*record, plan_id),
+            )
+            return plan_id
+
+    def list_plans(self) -> list[dict[str, Any]]:
+        with self.connect() as db:
+            rows = db.execute("SELECT * FROM training_plans ORDER BY planned_date,id").fetchall()
+        return [dict(row) for row in rows]
+
+    def save_plans(self, plans: list[dict[str, Any]]) -> list[int]:
+        """Insert a set of plans atomically."""
+        stamp = datetime.now().astimezone().isoformat()
+        ids: list[int] = []
+        with self.connect() as db:
+            for values in plans:
+                cursor = db.execute(
+                    """INSERT INTO training_plans
+                    (planned_date,modality,duration_min,intensity,purpose,target_rpe,note,matched_activity_id,updated_at)
+                    VALUES(?,?,?,?,?,?,?,?,?)""",
+                    (str(values["planned_date"]), values["modality"], int(values["duration_min"]), values["intensity"], values.get("purpose", ""), values.get("target_rpe"), values.get("note", ""), values.get("matched_activity_id"), stamp),
+                )
+                ids.append(int(cursor.lastrowid))
+        return ids
+
+    def match_plan(self, plan_id: int, activity_id: str | None) -> None:
+        with self.connect() as db:
+            db.execute("UPDATE training_plans SET matched_activity_id=?,updated_at=? WHERE id=?", (activity_id, datetime.now().astimezone().isoformat(), plan_id))
+
+    def delete_plan(self, plan_id: int) -> None:
+        with self.connect() as db:
+            db.execute("DELETE FROM training_plans WHERE id=?", (plan_id,))
 
     def save_json(self, table: str, key_column: str, key: str, payload: dict[str, Any]) -> None:
         allowed = {
