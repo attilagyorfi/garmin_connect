@@ -366,25 +366,25 @@ def training_decision(result: ReadinessResult, frame: pd.DataFrame, checkin: dic
     flags = flags or []
     rules: list[str] = []
     if checkin and checkin.get("illness"):
-        choice = ("Teljes pihenő", "0–20 perc", "nagyon könnyű", "Z1", "1–2", "intenzív cardio és strength", "könnyű séta, ha jól esik")
+        choice = ("Teljes pihenő", "0–20 perc", "nagyon könnyű", "Z1", "1–2", "intenzív kardió és erőedzés", "könnyű séta, ha jól esik")
         rules.append("illness_override")
     elif checkin and checkin.get("pain") == "significant":
         choice = ("Mobilitás / prehab", "15–30 perc", "fájdalommentes", "Z1", "1–3", "magas intenzitás és fájdalmas mozgás", "teljes pihenő")
         rules.append("significant_pain_override")
     elif result.confidence == "alacsony":
-        choice = ("Aktív regeneráció", "20–45 perc", "könnyű", "Z1–Z2", "2–4", "VO2max és nehéz strength", "mobilitás")
+        choice = ("Aktív regeneráció", "20–45 perc", "könnyű", "Z1–Z2", "2–4", "VO2max és nehéz erőedzés", "mobilitás")
         rules.append("low_confidence_guardrail")
     elif any(f["title"] == "Három kemény nap egymás után" for f in flags) or score < 45:
         choice = ("Aktív regeneráció", "25–45 perc", "könnyű", "Z1–Z2", "2–3", "küszöb, intervallum és nehéz láb", "mobilitás / prehab")
         rules.append("fatigue_recovery")
     elif score >= 80 and float(frame.iloc[-1].get("hybrid_tsb", 0)) > -10:
-        choice = ("Minőségi hibrid edzés", "45–75 perc", "kemény, kontrollált", "Z2–Z5", "7–8", "maximális volumen", "nehéz strength vagy intervallum, de nem mindkettő")
+        choice = ("Minőségi hibrid edzés", "45–75 perc", "kemény, kontrollált", "Z2–Z5", "7–8", "maximális volumen", "nehéz erőedzés vagy intervallum, de nem mindkettő")
         rules.append("high_readiness_quality")
     elif score >= 60:
-        choice = ("Zone 2 alapozás", "45–70 perc", "közepes", "Z2", "4–6", "VO2max és nagy excentrikus lábterhelés", "közepes felsőtest-strength")
+        choice = ("Zone 2 alapozás", "45–70 perc", "közepes", "Z2", "4–6", "VO2max és nagy excentrikus lábterhelés", "közepes felsőtest-erőedzés")
         rules.append("moderate_readiness_base")
     else:
-        choice = ("Könnyű technikai strength", "30–50 perc", "könnyű–közepes", "Z1–Z2", "3–5", "bukásig végzett sorozatok", "könnyű Zone 2")
+        choice = ("Könnyű technikai erőedzés", "30–50 perc", "könnyű–közepes", "Z1–Z2", "3–5", "bukásig végzett sorozatok", "könnyű Zone 2")
         rules.append("conservative_training")
     return {"type": choice[0], "duration": choice[1], "max_intensity": choice[2], "heart_rate_zone": choice[3], "rpe": choice[4], "avoid": choice[5], "alternative": choice[6], "confidence": result.confidence, "rules": rules, "rationale": "; ".join((result.positives[:2] + result.negatives[:2])) or "A rendelkezésre álló adatok konzervatív értékelése."}
 
@@ -400,7 +400,7 @@ def weekly_summary(frame: pd.DataFrame, activities: pd.DataFrame, flags: list[di
     if change is not None and change > 20:
         recommendations.append("Stabilizáld a terhelést; ne növeld tovább a következő héten.")
     if strength_sessions < 2:
-        recommendations.append("Ha a célod engedi, tervezz két strength/functional alkalmat.")
+        recommendations.append("Ha a célod engedi, tervezz két erő- vagy funkcionális edzést.")
     if flags:
         recommendations.append("A hét elején kezeld a kiemelt red flageket.")
     zone2 = current["zone2_min"].sum(min_count=1) if "zone2_min" in current else np.nan
@@ -541,7 +541,7 @@ def event_preparation_analysis(goal: dict[str, Any], activities: pd.DataFrame, t
     if any(term in event_type for term in ("terep", "trek", "hegy")) and target_ascent and ascent < target_ascent * 1.5:
         gaps.append("kevés szintemelkedés az utóbbi 4 héten")
     if any(term in event_type for term in ("trek", "hibrid")) and strength_count < 4:
-        gaps.append("kevés erő/functional alkalom az utóbbi 4 héten")
+        gaps.append("kevés erő- vagy funkcionális edzés az utóbbi 4 héten")
     status = "lejárt" if days_left is not None and days_left < 0 else "taper" if days_left is not None and days_left <= 14 else "hiányos" if gaps else "irányban"
     return {"days_left": days_left, "status": status, "distance_28d_km": round(distance, 1), "ascent_28d_m": round(ascent), "longest_session_min": round(longest), "strength_sessions_28d": strength_count, "gaps": gaps or ["nincs egyértelmű eseményspecifikus hiány a rendelkezésre álló adatokban"]}
 
@@ -584,7 +584,7 @@ def mountain_readiness(activities: pd.DataFrame, feedback: dict[str, dict[str, A
         ("Táv", min(100, distance / max(target_distance * 1.5, 1) * 100), 20),
         ("Szintemelkedés", min(100, ascent / max(target_ascent * 1.5, 1) * 100), 25),
         ("Hosszú nap", min(100, longest / 180 * 100), 20),
-        ("Back-to-back", min(100, back_to_back / 2 * 100), 15),
+        ("Egymást követő hosszú napok", min(100, back_to_back / 2 * 100), 15),
         ("Lejtmeneti kitettség", min(100, descent / max(target_ascent * 1.5, 1) * 100), 10),
         ("Erőalap", min(100, strength_sessions / 4 * 100), 10),
     ]

@@ -31,6 +31,7 @@ st.markdown("""
 .block-container {max-width: 1450px; padding-top: 1.4rem}
 [data-testid="stMetric"] {background:#151b25; border:1px solid #2c3748; border-radius:12px; padding:14px}
 .decision {padding:1.2rem 1.4rem;border-radius:14px;background:linear-gradient(135deg,#14263a,#18201f);border:1px solid #36556f}
+.decision h2,.decision p {overflow-wrap:anywhere}
 .muted {color:#aeb9c8;font-size:.92rem}
 .calendar-grid {display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:.45rem}
 .calendar-head {text-align:center;color:#aeb9c8;font-size:.8rem;font-weight:700;padding:.35rem}
@@ -38,8 +39,18 @@ st.markdown("""
 .calendar-day.today {border-color:#63b3ff;box-shadow:0 0 0 1px #63b3ff inset}
 .calendar-day.empty {background:transparent;border-color:transparent}
 .calendar-number {font-weight:800;margin-bottom:.35rem}.calendar-meta {font-size:.74rem;line-height:1.35;color:#c8d2df}
-@media(max-width:700px){.block-container{padding:0.8rem}.decision{padding:1rem}}
+*:focus-visible {outline:3px solid #63b3ff!important;outline-offset:3px}
+@media(max-width:700px){
+  .block-container{max-width:100%;padding:0.8rem}
+  h1{font-size:2.15rem!important;line-height:1.12!important;white-space:normal!important;overflow-wrap:anywhere}
+  .decision{max-width:100%;padding:1rem;overflow:hidden}
+  .decision h2{font-size:1.65rem;line-height:1.25;margin-bottom:.8rem}
+  [data-testid="stHorizontalBlock"]{flex-wrap:wrap}
+  [data-testid="column"]{min-width:100%!important;flex:1 1 100%!important}
+  button{min-height:44px}
+}
 @media(max-width:700px){.calendar-grid{grid-template-columns:repeat(7,minmax(70px,1fr));overflow-x:auto}.calendar-day{min-height:98px}}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;transition-duration:.01ms!important}}
 </style>
 """, unsafe_allow_html=True)
 
@@ -49,7 +60,7 @@ db = Database(CACHE_DIR / "training.sqlite3")
 sync = GarminSync(CACHE_DIR)
 
 with st.sidebar:
-    st.title("HIBRID // EDZŐ")
+    st.markdown('<div style="font-size:1.55rem;font-weight:800;letter-spacing:.02em">HIBRID // EDZŐ</div>', unsafe_allow_html=True)
     page = st.radio("Navigáció", ["Ma", "Terhelés és trendek", "Naptár", "Egyensúly", "Hegyi felkészültség", "Mi működik nálam?", "Célok és tervek", "Heti jelentés", "Beállítások és módszertan"])
     st.divider()
     demo = st.toggle("Bemutató mód", value=not bool(os.getenv("GARMIN_EMAIL")), help="Legalább 90 nap determinisztikus mintaadat.")
@@ -116,6 +127,20 @@ LOAD_METHOD_HU = {
     "volume_duration": "Volumen és idő",
 }
 CONFIDENCE_HU = {"high": "magas", "medium": "közepes", "low": "alacsony"}
+RULE_HU = {
+    "illness_override": "betegség miatti felülbírálás",
+    "significant_pain_override": "jelentős fájdalom miatti felülbírálás",
+    "low_confidence_guardrail": "alacsony bizonyosságú védőkorlát",
+    "fatigue_recovery": "fáradtság miatti regeneráció",
+    "high_readiness_quality": "magas készültségű minőségi edzés",
+    "moderate_readiness_base": "közepes készültségű alapozás",
+    "conservative_training": "konzervatív edzés",
+    "missing_data": "hiányzó adatok",
+}
+
+
+def hungarian_rules(rules: list[str]) -> str:
+    return ", ".join(RULE_HU.get(rule, rule.replace("_", " ")) for rule in rules)
 
 
 def hungarian_activity_table(frame: pd.DataFrame) -> pd.DataFrame:
@@ -286,8 +311,8 @@ if page == "Ma":
     st.title("Mai edzésdöntés")
     st.caption("Konkrét, determinisztikus ajánlás a személyes alapérték, regeneráció és terhelési előzmény alapján.")
     st.markdown(f"""<div class="decision"><h2>{decision['type']} · {decision['duration']}</h2>
-    <p><b>Maximum:</b> {decision['max_intensity']} &nbsp; · &nbsp; <b>Pulzus:</b> {decision['heart_rate_zone']} &nbsp; · &nbsp; <b>RPE:</b> {decision['rpe']}</p>
-    <p>{decision['rationale']}</p><p class="muted">Bizonyosság: {decision['confidence']} · Aktivált szabályok: {', '.join(decision['rules'])}</p></div>""", unsafe_allow_html=True)
+    <p><b>Maximum:</b> {decision['max_intensity']} · <b>Pulzus:</b> {decision['heart_rate_zone']} · <b>RPE:</b> {decision['rpe']}</p>
+    <p>{decision['rationale']}</p><p class="muted">Bizonyosság: {decision['confidence']} · Aktivált szabályok: {hungarian_rules(decision['rules'])}</p></div>""", unsafe_allow_html=True)
     st.write("")
     latest = wellness.iloc[-1]
     zone, _ = tsb_zone(float(latest["hybrid_tsb"]))
@@ -307,7 +332,7 @@ if page == "Ma":
     with left:
         st.subheader("Mi alakította a pontszámot?")
         st.dataframe(pd.DataFrame(readiness.components).rename(columns={"name":"Komponens","score":"Pont","weight":"Súly %","current":"Aktuális","baseline":"Alapérték","deviation":"Eltérés","interpretation":"Értelmezés"}), hide_index=True, use_container_width=True)
-        st.info(f"**Ajánlott:** {decision['type']} vagy {decision['alternative']}  \\n+**Kerüld:** {decision['avoid']}")
+        st.info(f"**Ajánlott:** {decision['type']} vagy {decision['alternative']}  \n**Kerüld:** {decision['avoid']}")
     with right:
         render_checkin(today_key)
 
@@ -481,9 +506,9 @@ elif page == "Hegyi felkészültség":
     selected_mountain_goal = st.selectbox("Hegyi cél", [None] + [int(goal["id"]) for goal in mountain_goals], format_func=lambda value: "Általános hegyi felkészültség" if value is None else next(goal["name"] for goal in mountain_goals if int(goal["id"]) == value))
     mountain_goal = next((goal for goal in mountain_goals if int(goal["id"]) == selected_mountain_goal), None)
     mountain = mountain_readiness(activities, feedback, mountain_goal)
-    st.metric("Mountain score", "—" if mountain["score"] is None else f"{mountain['score']}/100", mountain["confidence"])
+    st.metric("Hegyi felkészültségi pont", "—" if mountain["score"] is None else f"{mountain['score']}/100", mountain["confidence"])
     if mountain["metrics"]:
-        labels = {"distance_28d_km":"28 nap táv (km)", "ascent_28d_m":"Szint fel (m)", "descent_28d_m":"Szint le (m)", "longest_day_min":"Leghosszabb nap (perc)", "back_to_back_pairs":"Back-to-back pár", "strength_sessions":"Erőedzés", "pack_sessions":"Hátizsákos alkalom", "max_pack_kg":"Max. hátizsák (kg)"}
+        labels = {"distance_28d_km":"28 nap táv (km)", "ascent_28d_m":"Szint fel (m)", "descent_28d_m":"Szint le (m)", "longest_day_min":"Leghosszabb nap (perc)", "back_to_back_pairs":"Egymást követő hosszú napok", "strength_sessions":"Erőedzés", "pack_sessions":"Hátizsákos alkalom", "max_pack_kg":"Max. hátizsák (kg)"}
         columns = st.columns(4)
         for index, (key, value) in enumerate(mountain["metrics"].items()):
             columns[index % 4].metric(labels[key], value)
@@ -504,14 +529,14 @@ elif page == "Hegyi felkészültség":
     multiday = multiday_readiness(activities, wellness, feedback)
     st.subheader("Hosszú és többnapos felkészültség")
     c1, c2, c3 = st.columns(3)
-    c1.metric("Többnapos score", f"{multiday['score']}/100", multiday["confidence"])
+    c1.metric("Többnapos felkészültségi pont", f"{multiday['score']}/100", multiday["confidence"])
     c2.metric("120+ perces napok", multiday["metrics"]["long_days_56d"])
     c3.metric("Egymást követő 90+ perces párok", multiday["metrics"]["consecutive_pairs_56d"])
     st.dataframe(pd.DataFrame(multiday["components"]).rename(columns={"name":"Komponens", "score":"Pont", "weight":"Súly %"}), hide_index=True, use_container_width=True)
     st.info(f"**SpO₂-kontextus:** {multiday['spo2_context']}. Ez kizárólag megfigyelési kontextus, nem diagnózis és nem használható önmagában edzésdöntésre.")
     if multiday["gaps"]:
         st.warning("**Többnapos fejlesztendő területek:** " + ", ".join(multiday["gaps"]))
-    st.caption("A score sportteljesítményi iránytű: nem jósol célidőt, nem diagnosztizál, és kevés specifikus adatnál csökkenti a bizonyosságot.")
+    st.caption("A pontszám sportteljesítményi iránytű: nem jósol célidőt, nem diagnosztizál, és kevés specifikus adatnál csökkenti a bizonyosságot.")
 
 elif page == "Heti jelentés":
     st.title("Heti edzői összefoglaló")
