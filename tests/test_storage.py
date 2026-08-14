@@ -24,6 +24,27 @@ def test_generated_snapshots_roundtrip(tmp_path):
     assert rows == [{"day": "2026-08-14", "type": "Zone 2", "confidence": "magas"}]
 
 
+def test_snapshot_history_contains_generation_timestamp(tmp_path):
+    db = Database(tmp_path / "training.sqlite3")
+    db.save_json("daily_recommendations", "day", "2026-08-14", {"type": "Zone 2"})
+    db.save_json("weekly_summaries", "week_start", "2026-08-10", {"total_load": 420})
+    daily = db.list_snapshots("daily_recommendations", "day")
+    weekly = db.list_snapshots("weekly_summaries", "week_start")
+    assert daily[0]["generated_at"]
+    assert daily[0]["type"] == "Zone 2"
+    assert weekly[0]["total_load"] == 420
+
+
+def test_snapshot_history_rejects_unknown_table(tmp_path):
+    db = Database(tmp_path / "training.sqlite3")
+    try:
+        db.list_snapshots("wellness_checkins", "day")
+    except ValueError as exc:
+        assert str(exc) == "Unsupported snapshot target"
+    else:
+        raise AssertionError("Unknown snapshot table must be rejected")
+
+
 def test_goal_and_training_plan_crud(tmp_path):
     db = Database(tmp_path / "training.sqlite3")
     goal_id = db.save_goal(name="Mátra 30", event_date="2026-10-01", event_type="terepfutás", weekly_hours=7, cardio_target_pct=65)

@@ -26,7 +26,7 @@
 
 - pulzuszóna-payloadok anonim, valós eszközfixture-ökkel történő további schema-drift validációja
 - billentyűzetes és képernyőolvasós accessibility audit valódi böngészőben
-- a generált snapshotok külön historikus UI-ja
+- elkészült: a generált napi ajánlások és heti összefoglalók külön historikus UI-ja, grafikonokkal és JSON-exporttal
 
 ## Elkészült P2 – Célok és tervezés
 

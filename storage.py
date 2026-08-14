@@ -276,3 +276,21 @@ class Database:
                 f"SELECT {key_column}, payload_json FROM {table} ORDER BY {key_column} DESC"
             ).fetchall()
         return [{key_column: row[key_column], **json.loads(row["payload_json"])} for row in rows]
+
+    def list_snapshots(self, table: str, key_column: str) -> list[dict[str, Any]]:
+        """Return generated snapshots with their audit timestamp."""
+        allowed = {
+            ("daily_recommendations", "day"): "generated_at",
+            ("weekly_summaries", "week_start"): "generated_at",
+        }
+        stamp_column = allowed.get((table, key_column))
+        if stamp_column is None:
+            raise ValueError("Unsupported snapshot target")
+        with self.connect() as db:
+            rows = db.execute(
+                f"SELECT {key_column}, payload_json, {stamp_column} FROM {table} ORDER BY {key_column} DESC"
+            ).fetchall()
+        return [
+            {key_column: row[key_column], "generated_at": row[stamp_column], **json.loads(row["payload_json"])}
+            for row in rows
+        ]

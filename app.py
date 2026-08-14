@@ -61,7 +61,7 @@ sync = GarminSync(CACHE_DIR)
 
 with st.sidebar:
     st.markdown('<div style="font-size:1.55rem;font-weight:800;letter-spacing:.02em">HIBRID // EDZŐ</div>', unsafe_allow_html=True)
-    page = st.radio("Navigáció", ["Ma", "Terhelés és trendek", "Naptár", "Egyensúly", "Hegyi felkészültség", "Mi működik nálam?", "Célok és tervek", "Heti jelentés", "Beállítások és módszertan"])
+    page = st.radio("Navigáció", ["Ma", "Terhelés és trendek", "Naptár", "Egyensúly", "Hegyi felkészültség", "Mi működik nálam?", "Célok és tervek", "Heti jelentés", "Előzmények", "Beállítások és módszertan"])
     st.divider()
     demo = st.toggle("Bemutató mód", value=not bool(os.getenv("GARMIN_EMAIL")), help="Legalább 90 nap determinisztikus mintaadat.")
     history_choice = st.selectbox("Szinkronizálandó előzmény", [30, 60, 90, 180, 365, 730, "all"], index=2, format_func=lambda value: "Összes rendelkezésre álló adat" if value == "all" else f"{value} nap")
@@ -118,6 +118,8 @@ summary = weekly_summary(wellness, activities, flags)
 week_start = str((wellness.index[-1] - timedelta(days=int(wellness.index[-1].weekday()))).date()) if not wellness.empty else str(date.today())
 db.save_json("daily_recommendations", "day", today_key, decision)
 db.save_json("weekly_summaries", "week_start", week_start, summary)
+daily_snapshots = db.list_snapshots("daily_recommendations", "day")
+weekly_snapshots = db.list_snapshots("weekly_summaries", "week_start")
 
 MODALITY_HU = {"Cardio": "Kardió", "Strength / Functional": "Erő / funkcionális", "Other": "Egyéb"}
 LOAD_METHOD_HU = {
@@ -557,6 +559,44 @@ elif page == "Heti jelentés":
     d1, d2 = st.columns(2)
     d1.download_button("Heti jelentés letöltése (Markdown)", report_markdown, file_name=f"heti-jelentes-{wellness.index[-1].date()}.md", mime="text/markdown", use_container_width=True)
     d2.download_button("Heti adatok letöltése (JSON)", json.dumps(report_payload, ensure_ascii=False, indent=2, default=str), file_name=f"heti-jelentes-{wellness.index[-1].date()}.json", mime="application/json", use_container_width=True)
+
+elif page == "Előzmények":
+    st.title("Döntési és terhelési előzmények")
+    st.caption("A korábban automatikusan eltárolt napi ajánlások és heti összefoglalók idővonala.")
+    daily_tab, weekly_tab = st.tabs(["Napi ajánlások", "Heti összefoglalók"])
+    with daily_tab:
+        if not daily_snapshots:
+            st.info("Még nincs eltárolt napi ajánlás.")
+        else:
+            daily_history = pd.DataFrame([
+                {
+                    "Dátum": item["day"], "Ajánlás": item.get("type", "—"),
+                    "Időtartam": item.get("duration", "—"), "Maximális intenzitás": item.get("max_intensity", "—"),
+                    "Bizonyosság": item.get("confidence", "—"), "Aktivált szabályok": hungarian_rules(item.get("rules", [])),
+                    "Létrehozva": item.get("generated_at", "—"),
+                }
+                for item in daily_snapshots
+            ])
+            recommendation_counts = daily_history["Ajánlás"].value_counts().rename_axis("Ajánlás").reset_index(name="Napok")
+            st.plotly_chart(px.bar(recommendation_counts, x="Ajánlás", y="Napok", color="Ajánlás", title="Ajánlástípusok gyakorisága"), use_container_width=True)
+            st.dataframe(daily_history, hide_index=True, use_container_width=True)
+    with weekly_tab:
+        if not weekly_snapshots:
+            st.info("Még nincs eltárolt heti összefoglaló.")
+        else:
+            weekly_history = pd.DataFrame([
+                {
+                    "Hét kezdete": item["week_start"], "Hibrid terhelés": item.get("total_load"),
+                    "Változás (%)": item.get("change_pct"), "Erőedzések": item.get("strength_sessions"),
+                    "Regeneráló napok": item.get("recovery_days"), "Zone 2 (perc)": item.get("zone2_min"),
+                    "Magas intenzitás (perc)": item.get("high_intensity_min"), "Létrehozva": item.get("generated_at", "—"),
+                }
+                for item in weekly_snapshots
+            ]).sort_values("Hét kezdete")
+            st.plotly_chart(px.line(weekly_history, x="Hét kezdete", y="Hibrid terhelés", markers=True, title="Heti hibrid terhelés története"), use_container_width=True)
+            st.dataframe(weekly_history.sort_values("Hét kezdete", ascending=False), hide_index=True, use_container_width=True)
+    snapshot_export = {"daily_recommendations": daily_snapshots, "weekly_summaries": weekly_snapshots}
+    st.download_button("Teljes előzmény letöltése (JSON)", json.dumps(snapshot_export, ensure_ascii=False, indent=2, default=str), file_name="edzesdontesi-elozmenyek.json", mime="application/json", use_container_width=True)
 
 else:
     st.title("Beállítások és módszertan")
