@@ -7,7 +7,7 @@ from analytics import (
     exponential_load, explainable_readiness, modality, musculoskeletal_load,
     plan_adjustment_message, plan_completion_status,
     performance_management, personal_baseline, red_flags, retraining_recommendation, robust_z_score,
-    model_promotion_decision, mountain_readiness, mountain_weekly_trends, multiday_readiness, pattern_uncertainty, personal_patterns, strength_load, training_decision, validate_recovery_model, weekly_plan_template, weekly_summary,
+    model_promotion_decision, mountain_readiness, mountain_weekly_trends, multiday_readiness, pattern_uncertainty, personal_patterns, strength_load, training_decision, validate_recovery_model, weekly_plan_template, weekly_report_markdown, weekly_summary,
 )
 from garmin_sync import demo_data
 
@@ -117,6 +117,16 @@ def test_red_flags_and_weekly_summary():
     assert summary["total_load"] >= 0
     assert summary["zone2_min"] is not None
     assert isinstance(summary["recommendations"], list)
+
+
+def test_weekly_report_markdown_is_hungarian_and_portable():
+    summary = {"total_load":420, "change_pct":10, "strength_sessions":2, "recovery_days":1, "zone2_min":120, "high_intensity_min":20, "recommendations":["Tarts pihenőnapot."]}
+    decision = {"type":"Zone 2 alapozás", "duration":"50 perc", "rationale":"A regeneráció megfelelő."}
+    report = weekly_report_markdown(summary, "2026-08-14", decision, [{"title":"Jelzés", "trigger":"teszt", "action":"Pihenj."}])
+    assert "# Heti edzésjelentés" in report
+    assert "2026-08-08 – 2026-08-14" in report
+    assert "Zone 2 alapozás" in report
+    assert "nem orvosi diagnózis" in report
 
 
 def test_consecutive_lower_body_load_triggers_recovery_flag():

@@ -1,5 +1,12 @@
 # Roadmap
 
+## Elkészült üzemi megerősítés
+
+- GitHub Actions CI Python 3.11 és 3.13 alatt, teszt- és szintaxisellenőrzéssel
+- letölthető magyar heti jelentés Markdown és JSON formátumban
+- részletes szinkron-, adatlefedettségi és modellverzió-állapot
+- biztonsági mentési és visszaállítási útmutató
+
 ## Elkészült historikus adatkezelés
 
 - korlátlan, lapozott teljes Garmin-aktivitástörténet
