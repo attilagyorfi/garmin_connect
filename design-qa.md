@@ -53,3 +53,16 @@ Fixes: forced and measured the sidebar at 236 px; moved data controls into a col
 ## Final result
 
 final result: passed
+
+## Secondary-view extension — Napló
+
+- Source visual truth: `C:/Users/User/.codex/state/plugins/product-design/assets/hybrid-athlete-desktop/07-naplo.png`.
+- Implementation screenshot: `C:/Users/User/Documents/ChatGPT/Garmin/output/playwright/desktop-naplo-final.png`.
+- Combined comparison: `C:/Users/User/Documents/ChatGPT/Garmin/output/playwright/desktop-naplo-comparison.jpg`.
+- Viewport: 1920 × 1180, dark mode, demo activity history.
+- Compared surfaces: page hierarchy, filter/search placement, table density, date/type/title/duration/HR/RPE/load/adherence fields, sidebar state, colors, typography, spacing, and copy.
+- Fixes made: compact ISO dates, integer duration/heart-rate formatting, explicit column sizing, modality filters, search, plan-adherence mapping, RPE mapping, and a collapsed detail editor.
+- Browser console: no warnings or errors; document width equals viewport width.
+- Automated verification: all 52 tests passed; the final targeted two-page render check also passed.
+- Intentional difference: raw Garmin activity names remain source data and are not automatically translated.
+- Final result for this extension: passed.
