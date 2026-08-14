@@ -117,13 +117,54 @@ class GarminSync:
             errors.append(f"{label}: {type(exc).__name__}")
             return default
 
-    def sync(self, days: int = 90) -> dict[str, Any]:
-        if not 30 <= days <= 180:
-            raise ValueError("days must be between 30 and 180")
+    def _all_activities(self, client: Garmin, errors: list[str], page_size: int = 100) -> list[dict[str, Any]]:
+        """Read every activity through Garmin's paginated read-only endpoint."""
+        activities: list[dict[str, Any]] = []
+        offset = 0
+        for _ in range(10000):
+            page = self._safe_call(lambda start=offset: client.get_activities(start, page_size), [], errors, f"activities-page:{offset}")
+            if not isinstance(page, list) or not page:
+                break
+            activities.extend(item for item in page if isinstance(item, dict))
+            offset += len(page)
+            if len(page) < page_size:
+                break
+        return activities
+
+    @staticmethod
+    def _merge_records(existing: list[dict[str, Any]], incoming: list[dict[str, Any]], key: str) -> list[dict[str, Any]]:
+        merged = {str(item.get(key)): item for item in existing if item.get(key) is not None}
+        for item in incoming:
+            if item.get(key) is None:
+                continue
+            record_key = str(item[key])
+            previous = merged.get(record_key, {})
+            merged[record_key] = {**previous, **{field: value for field, value in item.items() if value is not None}}
+        return list(merged.values())
+
+    def sync(self, days: int | None = 90) -> dict[str, Any]:
+        if days is not None and days < 30:
+            raise ValueError("days must be at least 30, or None for full history")
         client = self.client or self.authenticate()
-        end, start = date.today(), date.today() - timedelta(days=days - 1)
+        end = date.today()
+        start = end - timedelta(days=(days or 30) - 1)
         errors: list[str] = []
-        activities = self._safe_call(lambda: client.get_activities_by_date(start.isoformat(), end.isoformat(), sortorder="asc"), [], errors, "activities")
+        cached = self.load_cache() or {}
+        if days is None:
+            fetched_activities = self._all_activities(client, errors)
+        else:
+            fetched_activities = self._safe_call(lambda: client.get_activities_by_date(start.isoformat(), end.isoformat(), sortorder="asc"), [], errors, "activities")
+        activities = self._merge_records(cached.get("activities", []), fetched_activities, "activityId")
+        if days is None and activities:
+            parsed_dates = []
+            for item in activities:
+                raw_date = item.get("startTimeLocal") or item.get("startTimeGMT")
+                try:
+                    parsed_dates.append(datetime.fromisoformat(str(raw_date).replace("Z", "+00:00")).date())
+                except (TypeError, ValueError):
+                    continue
+            if parsed_dates:
+                start = min(parsed_dates)
         cardio_terms = {"run", "running", "trail", "walk", "walking", "hike", "hiking", "trek", "cycling", "bike", "swim", "rowing", "elliptical", "cardio"}
         for activity in activities:
             if not isinstance(activity, dict):
@@ -131,14 +172,18 @@ class GarminSync:
             raw_type = activity.get("activityType", {})
             kind = str(raw_type.get("typeKey", "") if isinstance(raw_type, dict) else raw_type).lower()
             activity_id = activity.get("activityId")
-            if activity_id and any(term in kind for term in cardio_terms):
+            if activity_id and any(term in kind for term in cardio_terms) and activity.get("hr_zone_minutes") is None:
                 activity["hr_zone_minutes"] = self._safe_call(
                     lambda value=str(activity_id): client.get_activity_hr_in_timezones(value),
                     {}, errors, f"hr-zones:{activity_id}",
                 )
-        wellness: list[dict[str, Any]] = []
-        for offset in range(days):
+        cached_wellness = {str(item.get("date")): item for item in cached.get("wellness", []) if item.get("date")}
+        wellness: list[dict[str, Any]] = list(cached_wellness.values())
+        total_days = (end - start).days + 1
+        for offset in range(total_days):
             day, iso = start + timedelta(days=offset), (start + timedelta(days=offset)).isoformat()
+            if iso in cached_wellness:
+                continue
             hrv = self._safe_call(lambda d=iso: client.get_hrv_data(d), {}, errors, f"hrv:{iso}")
             sleep = self._safe_call(lambda d=iso: client.get_sleep_data(d), {}, errors, f"sleep:{iso}")
             heart = self._safe_call(lambda d=iso: client.get_heart_rates(d), {}, errors, f"heart:{iso}")
@@ -153,13 +198,15 @@ class GarminSync:
                 "resting_hr": _first_number(heart, "restingHeartRate", "restingHeartRateValue"),
                 "spo2": _first_number(sleep_daily, "averageSpO2Value", "averageSpo2", "avgSpO2"),
             })
+            if days is None and len(wellness) % 30 == 0:
+                self.save_cache({"synced_at": datetime.now().astimezone().isoformat(), "days": "all", "activities": activities, "wellness": sorted(wellness, key=lambda item: item["date"]), "partial_errors": errors[:20], "backfill_in_progress": True})
         if not activities and all(not any(v for k, v in day.items() if k != "date") for day in wellness):
             cached = self.load_cache()
             if cached:
                 cached["fallback_reason"] = "A szinkron nem adott használható adatot; az utolsó érvényes cache látható."
                 return cached
             raise GarminSyncError("A Garmin nem adott használható adatot, és nincs korábbi cache.")
-        payload = {"synced_at": datetime.now().astimezone().isoformat(), "days": days, "activities": activities, "wellness": wellness, "partial_errors": errors[:20]}
+        payload = {"synced_at": datetime.now().astimezone().isoformat(), "days": "all" if days is None else days, "activities": activities, "wellness": sorted(wellness, key=lambda item: item["date"]), "partial_errors": errors[:20], "backfill_in_progress": False}
         self.save_cache(payload)
         return payload
 

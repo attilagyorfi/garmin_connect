@@ -66,7 +66,7 @@ A `.env`, tokenkönyvtár, cache, SQLite, export és egészségadat Gitből kiz�
 
 ## Garmin-szinkron és MFA
 
-Az app kizárólag lekérő metódusokat használ: `get_activities_by_date`, `get_hrv_data`, `get_sleep_data`, `get_heart_rates`. A szinkron csak a felhasználó gombnyomására fut; rerenderkor nem. Részleges végponthiba nem állítja le a teljes folyamatot, teljes sikertelenségnél pedig az utolsó érvényes cache marad látható.
+Az app kizárólag lekérő metódusokat használ: `get_activities`, `get_activities_by_date`, `get_activity_hr_in_timezones`, `get_hrv_data`, `get_sleep_data`, `get_heart_rates`. A szinkron csak a felhasználó gombnyomására fut; rerenderkor nem. Az **Összes rendelkezésre álló adat** mód lapozva lekéri a teljes aktivitástörténetet, a legkorábbi aktivitásig tölti vissza a napi wellness adatokat, 30 naponként részleges cache-t ment, és újrafuttatáskor kihagyja a már cache-elt napokat. Részleges végponthiba nem állítja le a teljes folyamatot, teljes sikertelenségnél pedig az utolsó érvényes cache marad látható.
 
 A `garminconnect` a Garmin nem hivatalos webes szolgáltatásait használja, ezért API-változás előfordulhat. MFA esetén az első bejelentkezést interaktív helyi környezetben végezd, majd a tokenkönyvtárat biztonságosan tartsd a perzisztens volume-on. A token jelszóértékű adat.
 

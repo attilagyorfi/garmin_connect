@@ -1,5 +1,12 @@
 # Roadmap
 
+## Elkészült historikus adatkezelés
+
+- korlátlan, lapozott teljes Garmin-aktivitástörténet
+- a legkorábbi aktivitásig visszatöltött napi wellness adatok
+- folytatható, 30 naponta részleges cache-t mentő backfill
+- a már cache-elt napok és HR-zónák ismételt lekérésének elkerülése
+
 ## Elkészült P1 finomítások
 
 - aktivitásonkénti pulzuszóna-részletek a read-only `get_activity_hr_in_timezones` metódussal és több formátumot lefedő tesztekkel
