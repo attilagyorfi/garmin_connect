@@ -7,7 +7,7 @@ from analytics import (
     exponential_load, explainable_readiness, modality, musculoskeletal_load,
     plan_adjustment_message, plan_completion_status,
     performance_management, personal_baseline, red_flags, robust_z_score,
-    mountain_readiness, mountain_weekly_trends, multiday_readiness, pattern_uncertainty, personal_patterns, strength_load, training_decision, weekly_plan_template, weekly_summary,
+    mountain_readiness, mountain_weekly_trends, multiday_readiness, pattern_uncertainty, personal_patterns, strength_load, training_decision, validate_recovery_model, weekly_plan_template, weekly_summary,
 )
 from garmin_sync import demo_data
 
@@ -244,3 +244,32 @@ def test_pattern_uncertainty_is_deterministic_and_reports_windows():
     assert first
     assert all({"ci_low", "ci_high", "stable", "window_estimates"} <= set(item) for item in first)
     assert any(item["window_count"] >= 2 for item in first)
+
+
+def test_recovery_model_requires_enough_chronological_samples():
+    _, frame, activities = demo_frames(90)
+    result = validate_recovery_model(frame, activities)
+    assert result["status"] == "insufficient"
+    assert result["eligible"] is False
+
+
+def test_recovery_model_beats_baseline_on_known_temporal_signal():
+    rng = np.random.default_rng(11)
+    days = 240
+    sleep = rng.normal(75, 8, days)
+    hrv = np.empty(days)
+    hrv[0] = 55
+    hrv[1:] = 35 + sleep[:-1] * .32 + rng.normal(0, .7, days - 1)
+    frame = pd.DataFrame({
+        "sleep_score": sleep,
+        "hrv": hrv,
+        "resting_hr": 52 - (hrv - hrv.mean()) * .15 + rng.normal(0, .3, days),
+        "hybrid_tsb": rng.normal(0, 5, days),
+        "hybrid_load": rng.uniform(0, 100, days),
+    }, index=pd.date_range("2025-01-01", periods=days))
+    result = validate_recovery_model(frame, pd.DataFrame())
+    assert result["status"] == "validated"
+    assert len(result["folds"]) == 3
+    assert result["eligible"] is True
+    assert result["model_mae"] < result["baseline_mae"]
+    assert result["forecast_interval"][0] < result["forecast_interval"][1]

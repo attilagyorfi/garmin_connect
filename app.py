@@ -16,7 +16,7 @@ import streamlit as st
 from analytics import (
     build_daily_frames, data_quality, explainable_readiness, personal_baseline,
     deload_taper_recommendation, evaluate_training_plans, event_preparation_analysis,
-    mountain_readiness, mountain_weekly_trends, multiday_readiness, pattern_uncertainty, personal_patterns, plan_adjustment_message, red_flags, training_decision, tsb_zone,
+    mountain_readiness, mountain_weekly_trends, multiday_readiness, pattern_uncertainty, personal_patterns, plan_adjustment_message, red_flags, training_decision, tsb_zone, validate_recovery_model,
     weekly_plan_template, weekly_summary,
 )
 from garmin_sync import GarminSync, GarminSyncError, demo_data
@@ -407,6 +407,20 @@ elif page == "Mi működik nálam?":
     st.subheader("Adatminőség és outlierek")
     quality_rows = [{"Metrika": key, "Hiányzó %": patterns["quality"]["missing_pct"].get(key, 0), "Outlierek": patterns["quality"]["outliers"].get(key, 0)} for key in patterns["quality"]["missing_pct"]]
     st.dataframe(pd.DataFrame(quality_rows), hide_index=True, use_container_width=True)
+    st.subheader("Idősoros modell-validáció")
+    validation = validate_recovery_model(wellness, activities, feedback)
+    if validation["status"] == "insufficient":
+        st.info(validation["message"])
+    else:
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Modell MAE", validation["model_mae"])
+        c2.metric("Baseline MAE", validation["baseline_mae"])
+        c3.metric("Javulás", f"{validation['improvement_pct']:+.1f}%")
+        st.dataframe(pd.DataFrame(validation["folds"]).rename(columns={"fold":"Fold", "train_days":"Tanítónap", "test_days":"Tesztnap", "test_start":"Teszt eleje", "test_end":"Teszt vége", "model_mae":"Modell MAE", "baseline_mae":"Baseline MAE"}), hide_index=True, use_container_width=True)
+        (st.success if validation["eligible"] else st.warning)(validation["message"])
+        if validation["eligible"]:
+            st.metric("Következő napi regenerációs becslés", validation["forecast"], f"80%-os empirikus tartomány: {validation['forecast_interval'][0]} … {validation['forecast_interval'][1]}")
+        st.caption("A tesztablakok mindig a tanítóadatok után következnek. A baseline a tanító célérték mediánja; a modell ridge regresszió. Előrejelzés csak legalább 5% összesített javulás és minimum 2/3 nyertes fold esetén látható.")
     st.warning("Az eredmény megfigyeléses és zavaró tényezőket tartalmazhat. Ne változtass egyetlen gyenge vagy alacsony bizonyosságú kapcsolat alapján az edzéseden.")
 
 elif page == "Hegyi felkészültség":
