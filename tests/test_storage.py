@@ -14,3 +14,10 @@ def test_session_feedback_roundtrip(tmp_path):
     db = Database(tmp_path / "training.sqlite3")
     db.save_feedback("42", rpe=8, feeling="planned", focus="lower body", volume_kg=5000)
     assert db.list_feedback()["42"]["rpe"] == 8
+
+
+def test_generated_snapshots_roundtrip(tmp_path):
+    db = Database(tmp_path / "training.sqlite3")
+    db.save_json("daily_recommendations", "day", "2026-08-14", {"type": "Zone 2", "confidence": "magas"})
+    rows = db.list_json("daily_recommendations", "day")
+    assert rows == [{"day": "2026-08-14", "type": "Zone 2", "confidence": "magas"}]

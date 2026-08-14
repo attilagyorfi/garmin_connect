@@ -10,13 +10,16 @@ Személyre szabott, magyararázható Streamlit döntéstámogató rendszer futá
 - kézi, read-only Garmin-szinkron és konfigurálható JSON-cache TTL
 - személyes 21–60 napos robusztus baseline (alapérték: 28 nap)
 - külön cardio, strength/functional, musculoskeletal és normalizált Hybrid Load
+- aktivitásonkénti pulzuszóna-idő, heti Zone 2 és magas intenzitású percek
+- alsótest-terhelés és két egymást követő erős alsótestnap regenerációs jelzése
 - τ=7 napos ATL, τ=42 napos CTL és előző napi TSB mindhárom fő loadhoz
 - 0–100 explainable readiness komponensenkénti ponttal, súllyal és eltéréssel
 - adatminőségi pontszám és magas/közepes/alacsony confidence
 - konkrét napi edzéstípus, időtartam, pulzuszóna, RPE, alternatíva és kerülendő terhelés
 - fájdalom- és betegség-felülbírálás, prioritásos red flagek
 - módosítható napi wellness check-in és aktivitásonkénti session RPE
-- naptár, terhelési trendek, egyensúly és determinisztikus heti összefoglaló
+- reszponzív havi kártyás naptár, terhelési trendek, egyensúly és determinisztikus heti összefoglaló
+- automatikus napi ajánlás- és heti összefoglaló-snapshot SQLite-ban
 - verziózott SQLite-séma manuális és generált adatokhoz
 
 ## Könyvtárstruktúra
