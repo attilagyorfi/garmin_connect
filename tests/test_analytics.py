@@ -7,7 +7,7 @@ from analytics import (
     exponential_load, explainable_readiness, modality, musculoskeletal_load,
     plan_adjustment_message, plan_completion_status,
     performance_management, personal_baseline, red_flags, robust_z_score,
-    strength_load, training_decision, weekly_plan_template, weekly_summary,
+    mountain_readiness, strength_load, training_decision, weekly_plan_template, weekly_summary,
 )
 from garmin_sync import demo_data
 
@@ -186,3 +186,13 @@ def test_weekly_template_honors_rest_day_and_time_budget():
     assert len(plans) == 5
     assert all(pd.Timestamp(plan["planned_date"]).weekday() != 2 for plan in plans)
     assert sum(plan["duration_min"] for plan in plans) <= 300
+
+
+def test_mountain_readiness_is_explainable_and_goal_specific():
+    _, _, activities = demo_frames()
+    goal = {"event_type": "magashegyi trekking", "distance_km": 30, "elevation_m": 1800}
+    result = mountain_readiness(activities, {}, goal, today=activities["date"].max())
+    assert 0 <= result["score"] <= 100
+    assert result["confidence"] in {"magas", "közepes", "alacsony"}
+    assert {"Táv", "Szintemelkedés", "Back-to-back"} <= {item["name"] for item in result["components"]}
+    assert result["metrics"]["ascent_28d_m"] >= 0

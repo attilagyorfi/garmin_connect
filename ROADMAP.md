@@ -34,8 +34,9 @@
 
 ## P3 – Mountain Readiness
 
-- külön mountain score és confidence
-- heti táv/szint, lejtmeneti excentrikus load, back-to-back napok és hátizsák trend
+- elkészült: külön mountain score és confidence
+- elkészült: 28 napos táv/szint, lejtmeneti kitettség, back-to-back napok és hátizsákos alkalmak
+- következő: heti trendgrafikonok és progressziós figyelmeztetések
 - hosszú nap/többnapos readiness, SpO₂ csak nem diagnosztikai kontextusban
 - manuális stabilitási és egylábas munka rögzítése
 
