@@ -6,7 +6,7 @@ from analytics import (
     deload_taper_recommendation, evaluate_training_plans, event_preparation_analysis,
     exponential_load, explainable_readiness, modality, musculoskeletal_load,
     plan_adjustment_message, plan_completion_status,
-    performance_management, personal_baseline, red_flags, robust_z_score,
+    performance_management, personal_baseline, red_flags, retraining_recommendation, robust_z_score,
     model_promotion_decision, mountain_readiness, mountain_weekly_trends, multiday_readiness, pattern_uncertainty, personal_patterns, strength_load, training_decision, validate_recovery_model, weekly_plan_template, weekly_summary,
 )
 from garmin_sync import demo_data
@@ -285,6 +285,26 @@ def test_model_promotion_requires_better_validated_candidate():
     assert model_promotion_decision({"status":"validated", "eligible": True, "model_mae": .9}, active)["promote"] is False
     assert model_promotion_decision({"status":"validated", "eligible": False, "model_mae": .5}, active)["promote"] is False
     assert model_promotion_decision({"status":"validated", "eligible": True, "model_mae": .9}, [])["promote"] is True
+
+
+def test_retraining_recommendation_explains_age_data_and_drift():
+    active = [{"active":True, "trained_at":"2026-06-01T10:00:00+02:00", "data_end":"2026-06-01"}]
+    result = retraining_recommendation(active, {"alerts":2}, "2026-08-01", today="2026-08-14")
+    assert result["due"] is True
+    assert result["new_data_days"] == 61
+    assert result["model_age_days"] == 74
+    assert len(result["reasons"]) == 3
+
+
+def test_retraining_recommendation_is_quiet_for_fresh_model():
+    active = [{"active":True, "trained_at":"2026-08-10T10:00:00+02:00", "data_end":"2026-08-10"}]
+    result = retraining_recommendation(active, {"alerts":0}, "2026-08-14", today="2026-08-14")
+    assert result["due"] is False
+    assert result["reasons"] == ["nincs újratanítást indokló jel"]
+
+
+def test_retraining_recommendation_when_no_active_model():
+    assert retraining_recommendation([], {"alerts":0}, "2026-08-14")["due"] is True
 
 
 def test_feature_drift_audit_detects_recent_distribution_shift():

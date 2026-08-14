@@ -83,4 +83,6 @@ A feature-audit a standardizált ridge-együtthatók mediánját, foldok közöt
 
 A modellregiszter minden jelöltnél tárolja az adatablakot, mintanagyságot, fold-metrikákat, feature- és drift-auditot, valamint a reprodukálható ridge artifactot. Egyszerre csak egy verzió aktív. Új jelölt csak akkor aktiválódik automatikusan, ha teljesíti az idősoros kaput és MAE-je kisebb a jelenlegi aktív modellénél; egyébként auditálható inaktív jelölt marad.
 
+Az újratanítási jelzés akkor aktív, ha az aktív modell adatablaka óta legalább 30 új nap érkezett, a modell legalább 30 napos, vagy magas feature-drift látható. A jelzés nem indít automatikus írást. Korábbi modell csak felhasználói kiválasztással és megerősítéssel aktiválható; a többi verzió nem törlődik.
+
 Az algoritmus determinisztikus, de nem klinikailag validált. A wearable adatok mérési hibásak lehetnek; a load proxy nem TSS. A readiness sportdöntési jel, nem betegség- vagy sérülésdiagnózis. A küszöböket hosszabb személyes előtörténettel és edzői visszajelzéssel kell kalibrálni.
