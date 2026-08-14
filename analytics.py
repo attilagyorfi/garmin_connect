@@ -783,7 +783,21 @@ def validate_recovery_model(frame: pd.DataFrame, activities: pd.DataFrame, feedb
         values = coefficient_matrix[:, index]
         nonzero_signs = {int(np.sign(value)) for value in values if abs(value) > .01}
         feature_audit.append({"feature": feature, "coefficient_median": round(float(np.median(values)), 3), "coefficient_range": f"{values.min():+.3f} … {values.max():+.3f}", "sign_stable": len(nonzero_signs) <= 1, "available_pct": round(float(labeled[feature].notna().mean() * 100), 1)})
-    return {"status": "validated", "eligible": eligible, "samples": len(labeled), "folds": folds, "model_mae": round(model_mae, 3), "baseline_mae": round(baseline_mae, 3), "improvement_pct": round(improvement, 1), "forecast": round(forecast, 2) if eligible else None, "forecast_interval": [round(float(low), 2), round(float(high), 2)] if eligible else None, "feature_audit": sorted(feature_audit, key=lambda item: abs(item["coefficient_median"]), reverse=True), "message": "A modell engedélyezhető: idősorosan felülmúlta a baseline-t." if eligible else "A modell nem jelenít meg előrejelzést: nem teljesítette az 5%-os és a legalább 2/3 foldos kaput."}
+    artifact = {"feature_names": feature_columns, "coefficients": [round(float(value), 8) for value in fitted["coefficients"]], "medians": [round(float(value), 8) for value in fitted["medians"].to_numpy()], "means": [round(float(value), 8) for value in fitted["means"]], "scales": [round(float(value), 8) for value in fitted["scales"]], "intercept": round(float(fitted["intercept"]), 8), "residual_q10": round(float(np.quantile(residuals, .1)), 8), "residual_q90": round(float(np.quantile(residuals, .9)), 8)}
+    return {"status": "validated", "eligible": eligible, "samples": len(labeled), "data_start": str(labeled.index.min().date()), "data_end": str(labeled.index.max().date()), "folds": folds, "model_mae": round(model_mae, 3), "baseline_mae": round(baseline_mae, 3), "improvement_pct": round(improvement, 1), "forecast": round(forecast, 2) if eligible else None, "forecast_interval": [round(float(low), 2), round(float(high), 2)] if eligible else None, "feature_audit": sorted(feature_audit, key=lambda item: abs(item["coefficient_median"]), reverse=True), "artifact": artifact, "message": "A modell engedélyezhető: idősorosan felülmúlta a baseline-t." if eligible else "A modell nem jelenít meg előrejelzést: nem teljesítette az 5%-os és a legalább 2/3 foldos kaput."}
+
+
+def model_promotion_decision(validation: dict[str, Any], versions: list[dict[str, Any]]) -> dict[str, Any]:
+    """Promote only eligible candidates with better chronological validation MAE."""
+    if validation.get("status") != "validated" or not validation.get("eligible"):
+        return {"promote": False, "reason": "A jelölt nem teljesítette az idősoros validációs kaput."}
+    active = next((version for version in versions if version.get("active")), None)
+    if active is None:
+        return {"promote": True, "reason": "Nincs korábbi aktív modell; a validált jelölt aktiválható."}
+    candidate_mae, active_mae = float(validation["model_mae"]), float(active.get("model_mae", float("inf")))
+    if candidate_mae < active_mae:
+        return {"promote": True, "reason": f"A jelölt MAE-je jobb: {candidate_mae:.3f} < {active_mae:.3f}."}
+    return {"promote": False, "reason": f"Az aktív modell MAE-je nem rosszabb: {active_mae:.3f} ≤ {candidate_mae:.3f}."}
 
 
 def feature_drift_audit(frame: pd.DataFrame, activities: pd.DataFrame, feedback: dict[str, dict[str, Any]] | None = None, window: int = 60) -> dict[str, Any]:

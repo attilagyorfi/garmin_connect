@@ -48,3 +48,15 @@ def test_bulk_plan_insert_is_available_for_weekly_templates(tmp_path):
     ])
     assert len(ids) == 2
     assert len(db.list_plans()) == 2
+
+
+def test_model_versions_keep_one_active_artifact(tmp_path):
+    db = Database(tmp_path / "training.sqlite3")
+    first = db.save_model_version({"data_start":"2025-01-01", "data_end":"2026-01-01", "samples":300, "model_mae":.8, "artifact":{"coefficients":[1]}}, activate=True)
+    second = db.save_model_version({"data_start":"2025-02-01", "data_end":"2026-02-01", "samples":330, "model_mae":.7, "artifact":{"coefficients":[2]}}, activate=True)
+    versions = db.list_model_versions()
+    assert first != second
+    assert sum(item["active"] for item in versions) == 1
+    assert next(item for item in versions if item["active"])["artifact"]["coefficients"] == [2]
+    db.activate_model_version(first)
+    assert next(item for item in db.list_model_versions() if item["active"])["id"] == first

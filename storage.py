@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any, Iterator
 
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 
 
 class Database:
@@ -88,6 +88,12 @@ class Database:
                 CREATE TABLE IF NOT EXISTS data_quality_flags (
                     day TEXT NOT NULL, code TEXT NOT NULL, severity TEXT NOT NULL,
                     detail TEXT NOT NULL, PRIMARY KEY(day, code)
+                );
+                CREATE TABLE IF NOT EXISTS model_versions (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT, trained_at TEXT NOT NULL,
+                    data_start TEXT NOT NULL, data_end TEXT NOT NULL,
+                    sample_count INTEGER NOT NULL, active INTEGER NOT NULL DEFAULT 0 CHECK(active IN (0,1)),
+                    payload_json TEXT NOT NULL
                 );
                 """
             )
@@ -220,6 +226,30 @@ class Database:
     def delete_plan(self, plan_id: int) -> None:
         with self.connect() as db:
             db.execute("DELETE FROM training_plans WHERE id=?", (plan_id,))
+
+    def save_model_version(self, payload: dict[str, Any], activate: bool = False) -> int:
+        with self.connect() as db:
+            if activate:
+                db.execute("UPDATE model_versions SET active=0")
+            cursor = db.execute(
+                """INSERT INTO model_versions(trained_at,data_start,data_end,sample_count,active,payload_json)
+                VALUES(?,?,?,?,?,?)""",
+                (datetime.now().astimezone().isoformat(), payload["data_start"], payload["data_end"], int(payload["samples"]), int(activate), json.dumps(payload, ensure_ascii=False)),
+            )
+            return int(cursor.lastrowid)
+
+    def list_model_versions(self) -> list[dict[str, Any]]:
+        with self.connect() as db:
+            rows = db.execute("SELECT * FROM model_versions ORDER BY trained_at DESC,id DESC").fetchall()
+        return [{"id": row["id"], "trained_at": row["trained_at"], "data_start": row["data_start"], "data_end": row["data_end"], "sample_count": row["sample_count"], "active": bool(row["active"]), **json.loads(row["payload_json"])} for row in rows]
+
+    def activate_model_version(self, model_id: int) -> None:
+        with self.connect() as db:
+            exists = db.execute("SELECT 1 FROM model_versions WHERE id=?", (model_id,)).fetchone()
+            if not exists:
+                raise ValueError("Unknown model version")
+            db.execute("UPDATE model_versions SET active=0")
+            db.execute("UPDATE model_versions SET active=1 WHERE id=?", (model_id,))
 
     def save_json(self, table: str, key_column: str, key: str, payload: dict[str, Any]) -> None:
         allowed = {

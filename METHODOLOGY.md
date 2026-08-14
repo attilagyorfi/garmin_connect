@@ -81,4 +81,6 @@ A prediktív ellenőrzés legalább 132 célértékes napot igényel. Három id�
 
 A feature-audit a standardizált ridge-együtthatók mediánját, foldok közötti tartományát, iránystabilitását és adatlefedettségét mutatja. A drift-audit az utolsó 60 napot az azt megelőző 60 nappal veti össze. Magas jelzést ad PSI ≥ 0,25, legalább 1 IQR mediáneltolódás vagy legalább 20 százalékpontos hiányzásnövekedés esetén. A drift nem egészségügyi jelzés; a bemeneti adatok vagy a személyes edzési minták változását mutatja.
 
+A modellregiszter minden jelöltnél tárolja az adatablakot, mintanagyságot, fold-metrikákat, feature- és drift-auditot, valamint a reprodukálható ridge artifactot. Egyszerre csak egy verzió aktív. Új jelölt csak akkor aktiválódik automatikusan, ha teljesíti az idősoros kaput és MAE-je kisebb a jelenlegi aktív modellénél; egyébként auditálható inaktív jelölt marad.
+
 Az algoritmus determinisztikus, de nem klinikailag validált. A wearable adatok mérési hibásak lehetnek; a load proxy nem TSS. A readiness sportdöntési jel, nem betegség- vagy sérülésdiagnózis. A küszöböket hosszabb személyes előtörténettel és edzői visszajelzéssel kell kalibrálni.
