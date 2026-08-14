@@ -46,7 +46,8 @@
 - elkészült: mintanagyság és bizonytalanság minden megállapítás mellett
 - elkészült: alvás/TSB/RPE/HRV és modalitás rangkorrelációs, nem kauzális elemzése
 - elkészült: outlier- és missingness-jelentés
-- következő: időablak-érzékenység és bootstrap bizonytalansági tartomány; prediktív modell csak megfelelő validációval
+- elkészült: 60/90/120 napos időablak-érzékenység és determinisztikus bootstrap bizonytalansági tartomány
+- következő: prediktív modell csak megfelelő idősoros validációval
 
 ## Ismert korlátok
 

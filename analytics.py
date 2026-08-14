@@ -676,6 +676,49 @@ def personal_patterns(frame: pd.DataFrame, activities: pd.DataFrame, feedback: d
     return {"status": "ready", "valid_days": valid_days, "minimum_days": minimum_days, "associations": sorted(associations, key=lambda item: abs(item["rho"]), reverse=True), "modalities": modalities, "quality": quality, "message": "A megállapítások retrospektív kapcsolatok, nem bizonyított ok-okozati hatások."}
 
 
+def pattern_uncertainty(frame: pd.DataFrame, activities: pd.DataFrame, feedback: dict[str, dict[str, Any]] | None = None, windows: tuple[int, ...] = (60, 90, 120), bootstrap_samples: int = 300) -> list[dict[str, Any]]:
+    """Check window sensitivity and deterministic bootstrap intervals for associations."""
+    if frame.empty:
+        return []
+    window_results: dict[int, dict[str, float]] = {}
+    for window in windows:
+        subset = frame.tail(window)
+        cutoff = subset.index.min()
+        subset_activities = activities[activities["date"] >= cutoff] if not activities.empty else activities
+        result = personal_patterns(subset, subset_activities, feedback, minimum_days=min(60, window))
+        if result["status"] == "ready":
+            window_results[window] = {item["factor"]: float(item["rho"]) for item in result["associations"]}
+    data = frame.copy().sort_index()
+    hrv, rhr = data["hrv"], data["resting_hr"]
+    hrv_scale = max(float((hrv - hrv.median()).abs().median()), 1.0)
+    rhr_scale = max(float((rhr - rhr.median()).abs().median()), 1.0)
+    data["next_recovery"] = (((hrv - hrv.median()) / hrv_scale) - ((rhr - rhr.median()) / rhr_scale)).shift(-1)
+    data["session_rpe"] = np.nan
+    if not activities.empty:
+        enriched = activities.copy()
+        enriched["rpe"] = [number((feedback or {}).get(str(activity_id), {}).get("rpe")) for activity_id in enriched["activity_id"]]
+        data["session_rpe"] = enriched.groupby("date")["rpe"].max().reindex(data.index)
+    labels = {"sleep_score": "Alváspontszám", "hrv": "HRV", "hybrid_tsb": "TSB", "hybrid_load": "Hibrid terhelés", "session_rpe": "Edzés-RPE"}
+    rng = np.random.default_rng(23)
+    output = []
+    for column, label in labels.items():
+        pairs = data[[column, "next_recovery"]].dropna()
+        if len(pairs) < 20 or pairs[column].nunique() < 3:
+            continue
+        correlations = []
+        for _ in range(bootstrap_samples):
+            sample = pairs.iloc[rng.integers(0, len(pairs), len(pairs))]
+            rho = sample[column].rank().corr(sample["next_recovery"].rank())
+            if pd.notna(rho):
+                correlations.append(float(rho))
+        low, high = np.quantile(correlations, [.025, .975]) if correlations else (np.nan, np.nan)
+        estimates = {window: values[label] for window, values in window_results.items() if label in values}
+        signs = {int(np.sign(value)) for value in estimates.values() if value != 0}
+        stable = bool(correlations) and not (low <= 0 <= high) and len(signs) <= 1 and len(estimates) >= 2
+        output.append({"factor": label, "ci_low": round(float(low), 2), "ci_high": round(float(high), 2), "stable": stable, "window_estimates": estimates, "window_count": len(estimates), "message": "stabil kapcsolat" if stable else "bizonytalan vagy időablak-érzékeny kapcsolat"})
+    return output
+
+
 def tsb_zone(value: float) -> tuple[str, str]:
     return ("Friss", "#54D6A0") if value > 5 else ("Optimális terhelés", "#F5C451") if value >= -20 else ("Túlterhelési kockázat", "#FF6B6B")
 

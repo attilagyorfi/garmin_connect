@@ -7,7 +7,7 @@ from analytics import (
     exponential_load, explainable_readiness, modality, musculoskeletal_load,
     plan_adjustment_message, plan_completion_status,
     performance_management, personal_baseline, red_flags, robust_z_score,
-    mountain_readiness, mountain_weekly_trends, multiday_readiness, personal_patterns, strength_load, training_decision, weekly_plan_template, weekly_summary,
+    mountain_readiness, mountain_weekly_trends, multiday_readiness, pattern_uncertainty, personal_patterns, strength_load, training_decision, weekly_plan_template, weekly_summary,
 )
 from garmin_sync import demo_data
 
@@ -234,3 +234,13 @@ def test_personal_patterns_report_sample_confidence_and_quality():
     assert result["associations"]
     assert all({"rho", "sample_size", "confidence", "statement"} <= set(item) for item in result["associations"])
     assert "missing_pct" in result["quality"] and "outliers" in result["quality"]
+
+
+def test_pattern_uncertainty_is_deterministic_and_reports_windows():
+    payload, frame, activities = demo_frames(120)
+    first = pattern_uncertainty(frame, activities, payload["demo_feedback"], bootstrap_samples=50)
+    second = pattern_uncertainty(frame, activities, payload["demo_feedback"], bootstrap_samples=50)
+    assert first == second
+    assert first
+    assert all({"ci_low", "ci_high", "stable", "window_estimates"} <= set(item) for item in first)
+    assert any(item["window_count"] >= 2 for item in first)

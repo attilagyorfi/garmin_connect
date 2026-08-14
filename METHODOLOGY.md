@@ -75,4 +75,6 @@ A többnapos score 56 napot vizsgál: a 120 perces hosszú napok és az egymást
 
 A retrospektív nézet legalább 60 érvényes HRV/RHR napot igényel. A következő napi regenerációs index a HRV pozitív és a nyugalmi pulzus negatív, medián/MAD szerint skálázott eltérése. Az előző napi alvás, HRV, TSB, terhelés és RPE kapcsolatát rangkorrelációval vizsgálja. Minden eredmény mintanagyságot és bizonyosságot kap; az IQR-alapú outlierek és a hiányzások külön jelennek meg. Az eredmény megfigyeléses kapcsolat, nem kauzális bizonyíték.
 
+A stabilitásvizsgálat ugyanazt a kapcsolatot 60, 90 és 120 napos ablakon számolja újra, majd rögzített seed mellett 300 bootstrap mintából 95%-os tartományt képez. Egy kapcsolat csak akkor kap stabil jelzést, ha legalább két időablakban azonos irányú és a bootstrap-tartomány nem metszi a nullát.
+
 Az algoritmus determinisztikus, de nem klinikailag validált. A wearable adatok mérési hibásak lehetnek; a load proxy nem TSS. A readiness sportdöntési jel, nem betegség- vagy sérülésdiagnózis. A küszöböket hosszabb személyes előtörténettel és edzői visszajelzéssel kell kalibrálni.

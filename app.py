@@ -16,7 +16,7 @@ import streamlit as st
 from analytics import (
     build_daily_frames, data_quality, explainable_readiness, personal_baseline,
     deload_taper_recommendation, evaluate_training_plans, event_preparation_analysis,
-    mountain_readiness, mountain_weekly_trends, multiday_readiness, personal_patterns, plan_adjustment_message, red_flags, training_decision, tsb_zone,
+    mountain_readiness, mountain_weekly_trends, multiday_readiness, pattern_uncertainty, personal_patterns, plan_adjustment_message, red_flags, training_decision, tsb_zone,
     weekly_plan_template, weekly_summary,
 )
 from garmin_sync import GarminSync, GarminSyncError, demo_data
@@ -390,6 +390,16 @@ elif page == "Mi működik nálam?":
             modality_frame = pd.DataFrame(patterns["modalities"])
             modality_frame["modality"] = modality_frame["modality"].map(MODALITY_HU).fillna(modality_frame["modality"])
             st.dataframe(modality_frame.rename(columns={"modality":"Modalitás", "sample_size":"Mintanagyság", "next_recovery_median":"Regenerációs medián", "confidence":"Bizonyosság"}), hide_index=True, use_container_width=True)
+        uncertainty = pattern_uncertainty(wellness, activities, feedback)
+        if uncertainty:
+            st.subheader("Bizonytalanság és időablak-érzékenység")
+            uncertainty_frame = pd.DataFrame([{**item, "window_estimates": ", ".join(f"{window} nap: {value:+.2f}" for window, value in item["window_estimates"].items())} for item in uncertainty])
+            st.dataframe(uncertainty_frame.rename(columns={"factor":"Tényező", "ci_low":"Bootstrap alsó 95%", "ci_high":"Bootstrap felső 95%", "stable":"Stabil", "window_estimates":"Időablakok", "window_count":"Ablakok száma", "message":"Minősítés"}), hide_index=True, use_container_width=True)
+            stable_items = [item["factor"] for item in uncertainty if item["stable"]]
+            if stable_items:
+                st.success("**Stabilabb személyes kapcsolatok:** " + ", ".join(stable_items))
+            else:
+                st.warning("Egyik kapcsolat sem elég stabil ahhoz, hogy több időablakon és a bootstrap-tartomány alapján kiemeljük.")
     st.subheader("Adatminőség és outlierek")
     quality_rows = [{"Metrika": key, "Hiányzó %": patterns["quality"]["missing_pct"].get(key, 0), "Outlierek": patterns["quality"]["outliers"].get(key, 0)} for key in patterns["quality"]["missing_pct"]]
     st.dataframe(pd.DataFrame(quality_rows), hide_index=True, use_container_width=True)
