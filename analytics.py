@@ -85,6 +85,49 @@ def cardio_load(activity: dict[str, Any]) -> tuple[float, str, str]:
     return duration * 5, "duration_proxy", "low"
 
 
+def extract_hr_zone_minutes(payload: Any) -> list[float]:
+    """Normalize Garmin HR-zone payload variants to five minute values.
+
+    Garmin's unofficial response shape has changed over time. Known variants
+    include a list of zone dictionaries, a nested ``zones`` list and mappings
+    such as ``zone1``. Unknown or malformed values safely become zero.
+    """
+    zones = [0.0] * 5
+    candidate = payload
+    if isinstance(candidate, dict):
+        for key in ("hrTimeInZones", "heartRateZones", "zones", "zoneData"):
+            if isinstance(candidate.get(key), (list, dict)):
+                candidate = candidate[key]
+                break
+    if isinstance(candidate, dict):
+        for key, raw in candidate.items():
+            digits = "".join(character for character in str(key) if character.isdigit())
+            if not digits:
+                continue
+            zone_number = int(digits)
+            if not 1 <= zone_number <= 5:
+                continue
+            if isinstance(raw, dict):
+                seconds = number(raw.get("secsInZone") or raw.get("seconds") or raw.get("duration"))
+                minutes = number(raw.get("minutes"))
+            else:
+                seconds, minutes = number(raw), None
+            zones[zone_number - 1] = max(0.0, minutes if minutes is not None else (seconds or 0.0) / 60)
+        return zones
+    if not isinstance(candidate, list):
+        return zones
+    for position, item in enumerate(candidate[:5], start=1):
+        if isinstance(item, dict):
+            zone_number = int(number(item.get("zoneNumber") or item.get("zone") or item.get("zoneIndex"), position) or position)
+            seconds = number(item.get("secsInZone") or item.get("seconds") or item.get("duration") or item.get("value"))
+            minutes = number(item.get("minutes"))
+        else:
+            zone_number, seconds, minutes = position, number(item), None
+        if 1 <= zone_number <= 5:
+            zones[zone_number - 1] = max(0.0, minutes if minutes is not None else (seconds or 0.0) / 60)
+    return zones
+
+
 def strength_load(activity: dict[str, Any], feedback: dict[str, Any] | None = None) -> tuple[float, str, str]:
     duration = max(0.0, number(activity.get("duration_min"), 0.0) or 0.0)
     feedback = feedback or {}
@@ -165,6 +208,11 @@ def build_daily_frames(payload: dict[str, Any], feedback: dict[str, dict[str, An
             "descent_m": number(item.get("elevationLoss") or item.get("totalElevationLoss"), 0.0) or 0.0,
             "hr_zone_minutes": item.get("hr_zone_minutes"),
         }
+        zone_minutes = extract_hr_zone_minutes(row["hr_zone_minutes"])
+        has_zones = any(zone_minutes)
+        row["hr_zone_minutes"] = zone_minutes if has_zones else None
+        row["zone2_min"] = zone_minutes[1] if has_zones else np.nan
+        row["high_intensity_min"] = sum(zone_minutes[3:5]) if has_zones else np.nan
         if row["modality"] == "Cardio":
             row["cardio_load"], row["load_method"], row["load_confidence"] = cardio_load(row)
             row["strength_load"] = 0.0
@@ -177,6 +225,10 @@ def build_daily_frames(payload: dict[str, Any], feedback: dict[str, dict[str, An
             row["load_method"], row["load_confidence"] = "duration_proxy", "low"
         row["musculoskeletal_load"] = musculoskeletal_load(row, feedback.get(activity_id))
         row["session_load"] = duration_min * (number(feedback.get(activity_id, {}).get("rpe"), 0) or 0)
+        focus = str(feedback.get(activity_id, {}).get("focus", "")).lower()
+        naturally_lower_body = any(term in kind for term in {"run", "hike", "trek", "walk", "cycling", "bike"})
+        row["lower_body"] = naturally_lower_body or any(term in focus for term in {"lower", "leg", "láb", "alsótest"})
+        row["lower_body_load"] = row["musculoskeletal_load"] if row["lower_body"] else 0.0
         rows.append(row)
     activities = pd.DataFrame(rows)
     if wellness.empty and activities.empty:
@@ -185,7 +237,7 @@ def build_daily_frames(payload: dict[str, Any], feedback: dict[str, dict[str, An
     ends = ([wellness.index.max()] if not wellness.empty else []) + ([activities["date"].max()] if not activities.empty else [])
     index = pd.date_range(min(starts), max(ends), freq="D")
     wellness = wellness.reindex(index)
-    for column in ["cardio_load", "strength_load", "musculoskeletal_load"]:
+    for column in ["cardio_load", "strength_load", "musculoskeletal_load", "lower_body_load"]:
         daily = activities.groupby("date")[column].sum() if not activities.empty else pd.Series(dtype=float)
         wellness[column] = daily.reindex(index, fill_value=0.0)
         baseline = wellness[column].rolling(28, min_periods=7).median().replace(0, np.nan)
@@ -193,6 +245,9 @@ def build_daily_frames(payload: dict[str, Any], feedback: dict[str, dict[str, An
     wellness["hybrid_load"] = 100 * (
         0.45 * wellness["cardio_load_normalized"] + 0.35 * wellness["strength_load_normalized"] + 0.20 * wellness["musculoskeletal_load_normalized"]
     )
+    for column in ["zone2_min", "high_intensity_min"]:
+        daily = activities.groupby("date")[column].sum(min_count=1) if not activities.empty else pd.Series(dtype=float)
+        wellness[column] = daily.reindex(index)
     for prefix in ["cardio", "strength", "hybrid"]:
         pmc = performance_management(wellness[f"{prefix}_load"])
         wellness[f"{prefix}_atl"] = pmc["atl"]
@@ -291,6 +346,12 @@ def red_flags(frame: pd.DataFrame, checkin: dict[str, Any] | None = None, sync_a
     threshold = frame["hybrid_load"].quantile(0.7)
     if len(frame) >= 3 and (frame["hybrid_load"].tail(3) > threshold).all():
         flags.append({"severity": "medium", "title": "Három kemény nap egymás után", "trigger": "> saját 70. percentilis", "action": "A következő nap legyen regeneráló."})
+    if "lower_body_load" in frame and len(frame) >= 2:
+        positive_lower = frame.loc[frame["lower_body_load"] > 0, "lower_body_load"]
+        lower_threshold = positive_lower.quantile(0.70) if not positive_lower.empty else 0
+        recent_lower = frame["lower_body_load"].tail(2)
+        if lower_threshold > 0 and (recent_lower >= lower_threshold).all():
+            flags.append({"severity": "medium", "title": "Kevés regeneráció két alsótest-terhelés között", "trigger": "két egymást követő nap a saját 70. percentilis felett", "action": "Legalább 24–48 óra könnyű, felsőtest- vagy mobilitási munka javasolt."})
     if checkin and checkin.get("pain") == "significant":
         flags.append({"severity": "high", "title": "Jelentős fájdalom", "trigger": "manuális check-in", "action": "Ne végezz magas intenzitású edzést; szükség esetén kérj szakmai segítséget."})
     if checkin and checkin.get("illness"):
@@ -342,7 +403,9 @@ def weekly_summary(frame: pd.DataFrame, activities: pd.DataFrame, flags: list[di
         recommendations.append("Ha a célod engedi, tervezz két strength/functional alkalmat.")
     if flags:
         recommendations.append("A hét elején kezeld a kiemelt red flageket.")
-    return {"total_load": round(total), "change_pct": None if change is None else round(change), "strength_sessions": strength_sessions, "recovery_days": int((current["hybrid_load"] < 10).sum()), "flags": len(flags), "recommendations": recommendations[:4] or ["Tartsd a jelenlegi, kiegyensúlyozott struktúrát."]}
+    zone2 = current["zone2_min"].sum(min_count=1) if "zone2_min" in current else np.nan
+    high_intensity = current["high_intensity_min"].sum(min_count=1) if "high_intensity_min" in current else np.nan
+    return {"total_load": round(total), "change_pct": None if change is None else round(change), "strength_sessions": strength_sessions, "recovery_days": int((current["hybrid_load"] < 10).sum()), "zone2_min": None if pd.isna(zone2) else round(float(zone2)), "high_intensity_min": None if pd.isna(high_intensity) else round(float(high_intensity)), "flags": len(flags), "recommendations": recommendations[:4] or ["Tartsd a jelenlegi, kiegyensúlyozott struktúrát."]}
 
 
 def tsb_zone(value: float) -> tuple[str, str]:

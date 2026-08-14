@@ -151,3 +151,13 @@ class Database:
                 f"INSERT OR REPLACE INTO {table}({key_column},payload_json,{stamp_column}) VALUES(?,?,?)",
                 (key, json.dumps(payload, ensure_ascii=False), datetime.now().astimezone().isoformat()),
             )
+
+    def list_json(self, table: str, key_column: str) -> list[dict[str, Any]]:
+        allowed = {("daily_recommendations", "day"), ("weekly_summaries", "week_start"), ("daily_metrics", "day")}
+        if (table, key_column) not in allowed:
+            raise ValueError("Unsupported persistence target")
+        with self.connect() as db:
+            rows = db.execute(
+                f"SELECT {key_column}, payload_json FROM {table} ORDER BY {key_column} DESC"
+            ).fetchall()
+        return [{key_column: row[key_column], **json.loads(row["payload_json"])} for row in rows]

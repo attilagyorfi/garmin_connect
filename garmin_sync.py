@@ -124,6 +124,18 @@ class GarminSync:
         end, start = date.today(), date.today() - timedelta(days=days - 1)
         errors: list[str] = []
         activities = self._safe_call(lambda: client.get_activities_by_date(start.isoformat(), end.isoformat(), sortorder="asc"), [], errors, "activities")
+        cardio_terms = {"run", "running", "trail", "walk", "walking", "hike", "hiking", "trek", "cycling", "bike", "swim", "rowing", "elliptical", "cardio"}
+        for activity in activities:
+            if not isinstance(activity, dict):
+                continue
+            raw_type = activity.get("activityType", {})
+            kind = str(raw_type.get("typeKey", "") if isinstance(raw_type, dict) else raw_type).lower()
+            activity_id = activity.get("activityId")
+            if activity_id and any(term in kind for term in cardio_terms):
+                activity["hr_zone_minutes"] = self._safe_call(
+                    lambda value=str(activity_id): client.get_activity_hr_in_timezones(value),
+                    {}, errors, f"hr-zones:{activity_id}",
+                )
         wellness: list[dict[str, Any]] = []
         for offset in range(days):
             day, iso = start + timedelta(days=offset), (start + timedelta(days=offset)).isoformat()
@@ -170,7 +182,9 @@ def demo_data(days: int = 90, seed: int = 23) -> dict[str, Any]:
             if kind == "hiking" and i % 14 == 12:
                 duration_min = 180
             activity_id = str(10000 + i)
-            activities.append({"activityId": activity_id, "activityName": kind.replace("_", " ").title(), "startTimeLocal": f"{day.isoformat()} 07:00:00", "activityType": {"typeKey": kind}, "duration": duration_min * 60, "calories": round(duration_min * rng.uniform(6.5, 10)), "averageHR": rng.randint(118, 148), "maxHR": rng.randint(155, 185), "distance": rng.randint(5000, 18000) if kind in {"running", "hiking"} else 0, "elevationGain": rng.randint(100, 1100) if kind == "hiking" else rng.randint(0, 180), "elevationLoss": rng.randint(100, 1000) if kind == "hiking" else rng.randint(0, 150)})
+            zone_weights = [0.12, 0.58, 0.20, 0.08, 0.02] if kind in {"running", "hiking"} else [0.18, 0.30, 0.28, 0.18, 0.06]
+            zone_payload = [{"zoneNumber": zone, "secsInZone": round(duration_min * 60 * weight)} for zone, weight in enumerate(zone_weights, 1)] if kind in {"running", "hiking"} else None
+            activities.append({"activityId": activity_id, "activityName": kind.replace("_", " ").title(), "startTimeLocal": f"{day.isoformat()} 07:00:00", "activityType": {"typeKey": kind}, "duration": duration_min * 60, "calories": round(duration_min * rng.uniform(6.5, 10)), "averageHR": rng.randint(118, 148), "maxHR": rng.randint(155, 185), "distance": rng.randint(5000, 18000) if kind in {"running", "hiking"} else 0, "elevationGain": rng.randint(100, 1100) if kind == "hiking" else rng.randint(0, 180), "elevationLoss": rng.randint(100, 1000) if kind == "hiking" else rng.randint(0, 150), "hr_zone_minutes": zone_payload})
             feedback[activity_id] = {"rpe": 7 if i % 6 == 0 else 5, "feeling": "planned", "focus": "lower body" if kind != "running" else "cardio", "pack_kg": 10 if kind == "hiking" else None}
         if i % 4 == 0 or illness:
             checkins[day.isoformat()] = {"soreness": 4 if i == days - 5 else 2, "stress": 3, "motivation": 4, "fatigue": 4 if fatigue else 2, "pain": "mild" if i == days - 5 else "none", "illness": illness, "note": "Deterministic demo check-in"}

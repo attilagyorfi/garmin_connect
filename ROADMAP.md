@@ -1,12 +1,18 @@
 # Roadmap
 
+## Elkészült P1 finomítások
+
+- aktivitásonkénti pulzuszóna-részletek a read-only `get_activity_hr_in_timezones` metódussal és több formátumot lefedő tesztekkel
+- alsótest-terhelési sorozat és két erős alsótestnap közötti regenerációs jelzés
+- Zone 2 és magas intenzitású percek összesítése, hiányzó zónaadat egyértelmű jelzésével
+- heti összefoglalók és napi ajánlások automatikus SQLite-snapshotja
+- reszponzív havi kártyás naptár és magyar nyelvű alapfelület
+
 ## Következő P1 finomítások
 
-- aktivitásonkénti pulzuszóna-részletek csak dokumentált `garminconnect` metódussal, fixture-alapú schema-drift tesztekkel
-- alsótest-terhelési sorozat és két lower-body nap közötti regeneráció pontosabb jelzése
-- Zone 2 és magas intenzitású percek megbízható összesítése
-- heti összefoglalók és napi ajánlások automatikus SQLite snapshotja
-- valódi havi kártyás naptárkomponens és accessibility audit
+- pulzuszóna-payloadok anonim, valós eszközfixture-ökkel történő további schema-drift validációja
+- billentyűzetes és képernyőolvasós accessibility audit valódi böngészőben
+- a generált snapshotok külön historikus UI-ja
 
 ## P2 – Célok és tervezés
 

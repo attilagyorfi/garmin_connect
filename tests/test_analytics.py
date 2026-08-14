@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 
 from analytics import (
-    ReadinessResult, build_daily_frames, cardio_load, data_quality,
+    ReadinessResult, build_daily_frames, cardio_load, data_quality, extract_hr_zone_minutes,
     exponential_load, explainable_readiness, modality, musculoskeletal_load,
     performance_management, personal_baseline, red_flags, robust_z_score,
     strength_load, training_decision, weekly_summary,
@@ -41,6 +41,14 @@ def test_cardio_fallback_order():
     assert cardio_load({"duration_min": 60})[1] == "duration_proxy"
 
 
+def test_hr_zone_payload_variants_are_normalized_to_minutes():
+    list_payload = [{"zoneNumber": 1, "secsInZone": 600}, {"zoneNumber": 2, "secsInZone": 1200}]
+    dict_payload = {"zones": {"zone1": {"minutes": 5}, "zone4": 600}}
+    assert extract_hr_zone_minutes(list_payload)[:2] == [10, 20]
+    assert extract_hr_zone_minutes(dict_payload) == [5, 0, 0, 10, 0]
+    assert extract_hr_zone_minutes({"unexpected": "shape"}) == [0, 0, 0, 0, 0]
+
+
 def test_session_and_musculoskeletal_load():
     activity = {"duration_min": 50, "type": "strength_training", "distance_km": 0, "ascent_m": 0, "descent_m": 0}
     assert strength_load(activity, {"rpe": 8})[:2] == (400, "session_rpe")
@@ -60,6 +68,8 @@ def test_modalities_and_daily_multiload():
     payload, wellness, activities = demo_frames()
     assert modality("functional_strength_training") == "Strength / Functional"
     assert {"cardio_load", "strength_load", "musculoskeletal_load", "hybrid_load"} <= set(wellness.columns)
+    assert {"zone2_min", "high_intensity_min", "lower_body_load"} <= set(wellness.columns)
+    assert wellness["zone2_min"].sum() > 0
     assert not activities.empty
 
 
@@ -103,4 +113,13 @@ def test_red_flags_and_weekly_summary():
     assert any(item["title"] == "Jelentős fájdalom" for item in flags)
     summary = weekly_summary(frame, activities, flags)
     assert summary["total_load"] >= 0
+    assert summary["zone2_min"] is not None
     assert isinstance(summary["recommendations"], list)
+
+
+def test_consecutive_lower_body_load_triggers_recovery_flag():
+    _, frame, _ = demo_frames()
+    frame["lower_body_load"] = 0.0
+    frame.loc[frame.index[-4], "lower_body_load"] = 50
+    frame.loc[frame.index[-2:], "lower_body_load"] = 100
+    assert any("alsótest" in item["title"].lower() for item in red_flags(frame))

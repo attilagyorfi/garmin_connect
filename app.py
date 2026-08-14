@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import os
+import calendar
+import html
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
@@ -19,7 +21,7 @@ from garmin_sync import GarminSync, GarminSyncError, demo_data
 from storage import Database
 
 
-st.set_page_config(page_title="Hybrid Training Decision", page_icon="⚡", layout="wide")
+st.set_page_config(page_title="Hibrid edzésdöntés", page_icon="⚡", layout="wide")
 
 st.markdown("""
 <style>
@@ -27,7 +29,14 @@ st.markdown("""
 [data-testid="stMetric"] {background:#151b25; border:1px solid #2c3748; border-radius:12px; padding:14px}
 .decision {padding:1.2rem 1.4rem;border-radius:14px;background:linear-gradient(135deg,#14263a,#18201f);border:1px solid #36556f}
 .muted {color:#aeb9c8;font-size:.92rem}
+.calendar-grid {display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:.45rem}
+.calendar-head {text-align:center;color:#aeb9c8;font-size:.8rem;font-weight:700;padding:.35rem}
+.calendar-day {min-height:112px;padding:.55rem;border-radius:10px;background:#151b25;border:1px solid #2c3748}
+.calendar-day.today {border-color:#63b3ff;box-shadow:0 0 0 1px #63b3ff inset}
+.calendar-day.empty {background:transparent;border-color:transparent}
+.calendar-number {font-weight:800;margin-bottom:.35rem}.calendar-meta {font-size:.74rem;line-height:1.35;color:#c8d2df}
 @media(max-width:700px){.block-container{padding:0.8rem}.decision{padding:1rem}}
+@media(max-width:700px){.calendar-grid{grid-template-columns:repeat(7,minmax(70px,1fr));overflow-x:auto}.calendar-day{min-height:98px}}
 </style>
 """, unsafe_allow_html=True)
 
@@ -37,10 +46,10 @@ db = Database(CACHE_DIR / "training.sqlite3")
 sync = GarminSync(CACHE_DIR)
 
 with st.sidebar:
-    st.title("HYBRID // COACH")
+    st.title("HIBRID // EDZŐ")
     page = st.radio("Navigáció", ["Ma", "Terhelés és trendek", "Naptár", "Egyensúly", "Heti jelentés", "Beállítások és módszertan"])
     st.divider()
-    demo = st.toggle("Demo mód", value=not bool(os.getenv("GARMIN_EMAIL")), help="Legalább 90 nap determinisztikus mintaadat.")
+    demo = st.toggle("Bemutató mód", value=not bool(os.getenv("GARMIN_EMAIL")), help="Legalább 90 nap determinisztikus mintaadat.")
     history_days = st.select_slider("Előzmény", [30, 60, 90, 120, 180], value=90)
     force_sync = st.button("Garmin szinkron most", type="primary", use_container_width=True, disabled=demo)
     st.caption("A Garmin-hozzáférés csak olvasási műveleteket használ. Az app nem szinkronizál újrarendereléskor.")
@@ -56,7 +65,7 @@ if force_sync:
             payload = sync.load_cache()
 
 if not payload:
-    st.warning("Nincs cache-elt Garmin-adat. Állítsd be a környezeti változókat és indíts kézi szinkront, vagy kapcsold be a demo módot.")
+    st.warning("Nincs gyorsítótárazott Garmin-adat. Állítsd be a környezeti változókat és indíts kézi szinkront, vagy kapcsold be a bemutató módot.")
     st.stop()
 
 stored_checkins = db.list_checkins()
@@ -78,6 +87,31 @@ quality = data_quality(wellness.iloc[-1], baseline_valid_days, bool(today_checki
 flags = red_flags(wellness, today_checkin, sync_age)
 decision = training_decision(readiness, wellness, today_checkin, flags)
 summary = weekly_summary(wellness, activities, flags)
+week_start = str((wellness.index[-1] - timedelta(days=int(wellness.index[-1].weekday()))).date()) if not wellness.empty else str(date.today())
+db.save_json("daily_recommendations", "day", today_key, decision)
+db.save_json("weekly_summaries", "week_start", week_start, summary)
+
+MODALITY_HU = {"Cardio": "Kardió", "Strength / Functional": "Erő / funkcionális", "Other": "Egyéb"}
+LOAD_METHOD_HU = {
+    "hr_zones_edwards": "Pulzuszónák (Edwards)", "heart_rate_duration": "Pulzus és idő",
+    "duration_intensity": "Idő és intenzitás", "calorie_proxy": "Kalória-proxy",
+    "duration_proxy": "Idő-proxy", "session_rpe": "Edzés-RPE",
+    "volume_duration": "Volumen és idő",
+}
+CONFIDENCE_HU = {"high": "magas", "medium": "közepes", "low": "alacsony"}
+
+
+def hungarian_activity_table(frame: pd.DataFrame) -> pd.DataFrame:
+    if frame.empty:
+        return frame
+    translated = frame.copy()
+    if "modality" in translated:
+        translated["modality"] = translated["modality"].map(MODALITY_HU).fillna(translated["modality"])
+    if "load_method" in translated:
+        translated["load_method"] = translated["load_method"].map(LOAD_METHOD_HU).fillna(translated["load_method"])
+    if "load_confidence" in translated:
+        translated["load_confidence"] = translated["load_confidence"].map(CONFIDENCE_HU).fillna(translated["load_confidence"])
+    return translated
 
 
 def render_checkin(day_key: str) -> None:
@@ -106,7 +140,7 @@ def render_feedback() -> None:
     selected = st.selectbox("Aktivitás", list(labels), format_func=labels.get)
     current = feedback.get(selected, {})
     with st.form("session-feedback"):
-        rpe = st.slider("Session RPE", 1, 10, int(current.get("rpe", 5)))
+        rpe = st.slider("Edzés-RPE", 1, 10, int(current.get("rpe", 5)))
         feeling_options = ["easier", "planned", "harder"]
         feeling = st.selectbox("Edzésérzet", feeling_options, index=feeling_options.index(current.get("feeling", "planned")), format_func={"easier":"könnyebb volt", "planned":"terv szerint ment", "harder":"nehezebb volt"}.get)
         focus = st.text_input("Izomcsoport / fókusz", current.get("focus", ""))
@@ -116,9 +150,9 @@ def render_feedback() -> None:
         volume_kg = c3.number_input("Összvolumen (kg)", 0.0, 100000.0, float(current.get("volume_kg") or 0))
         pack_kg = st.number_input("Hátizsák tömege (kg)", 0.0, 40.0, float(current.get("pack_kg") or 0))
         note = st.text_area("Megjegyzés", current.get("note", ""))
-        if st.form_submit_button("Session visszajelzés mentése", use_container_width=True):
+        if st.form_submit_button("Edzés-visszajelzés mentése", use_container_width=True):
             db.save_feedback(selected, rpe=rpe, feeling=feeling, focus=focus, sets_count=sets_count or None, reps_count=reps_count or None, volume_kg=volume_kg or None, pack_kg=pack_kg or None, note=note)
-            st.success(f"Mentve. Session load: {labels[selected].split(' · ')[-1].split()[0]} perc × {rpe} RPE.")
+            st.success(f"Mentve. Edzésterhelés: {labels[selected].split(' · ')[-1].split()[0]} perc × {rpe} RPE.")
 
 
 def load_chart(prefix: str = "hybrid") -> go.Figure:
@@ -134,19 +168,19 @@ def load_chart(prefix: str = "hybrid") -> go.Figure:
 
 if page == "Ma":
     st.title("Mai edzésdöntés")
-    st.caption("Konkrét, determinisztikus ajánlás a személyes baseline, regeneráció és terhelési előzmény alapján.")
+    st.caption("Konkrét, determinisztikus ajánlás a személyes alapérték, regeneráció és terhelési előzmény alapján.")
     st.markdown(f"""<div class="decision"><h2>{decision['type']} · {decision['duration']}</h2>
     <p><b>Maximum:</b> {decision['max_intensity']} &nbsp; · &nbsp; <b>Pulzus:</b> {decision['heart_rate_zone']} &nbsp; · &nbsp; <b>RPE:</b> {decision['rpe']}</p>
-    <p>{decision['rationale']}</p><p class="muted">Confidence: {decision['confidence']} · Aktivált szabályok: {', '.join(decision['rules'])}</p></div>""", unsafe_allow_html=True)
+    <p>{decision['rationale']}</p><p class="muted">Bizonyosság: {decision['confidence']} · Aktivált szabályok: {', '.join(decision['rules'])}</p></div>""", unsafe_allow_html=True)
     st.write("")
     latest = wellness.iloc[-1]
     zone, _ = tsb_zone(float(latest["hybrid_tsb"]))
     cols = st.columns(5)
-    cols[0].metric("Readiness", "—" if readiness.score is None else f"{readiness.score}/100", readiness.confidence)
+    cols[0].metric("Edzéskészültség", "—" if readiness.score is None else f"{readiness.score}/100", readiness.confidence)
     cols[1].metric("HRV", "—" if pd.isna(latest.hrv) else f"{latest.hrv:.0f} ms")
     cols[2].metric("RHR", "—" if pd.isna(latest.resting_hr) else f"{latest.resting_hr:.0f} bpm")
     cols[3].metric("Alvás", "—" if pd.isna(latest.sleep_score) else f"{latest.sleep_score:.0f}/100")
-    cols[4].metric("Hybrid TSB", f"{latest.hybrid_tsb:+.1f}", zone)
+    cols[4].metric("Hibrid TSB", f"{latest.hybrid_tsb:+.1f}", zone)
     if flags:
         st.subheader("Kiemelt jelzések")
         for flag in flags:
@@ -154,21 +188,23 @@ if page == "Ma":
     left, right = st.columns([1.2, 1])
     with left:
         st.subheader("Mi alakította a pontszámot?")
-        st.dataframe(pd.DataFrame(readiness.components).rename(columns={"name":"Komponens","score":"Pont","weight":"Súly %","current":"Aktuális","baseline":"Baseline","deviation":"Eltérés","interpretation":"Értelmezés"}), hide_index=True, use_container_width=True)
+        st.dataframe(pd.DataFrame(readiness.components).rename(columns={"name":"Komponens","score":"Pont","weight":"Súly %","current":"Aktuális","baseline":"Alapérték","deviation":"Eltérés","interpretation":"Értelmezés"}), hide_index=True, use_container_width=True)
         st.info(f"**Ajánlott:** {decision['type']} vagy {decision['alternative']}  \\n+**Kerüld:** {decision['avoid']}")
     with right:
         render_checkin(today_key)
 
 elif page == "Terhelés és trendek":
     st.title("Terhelés és regeneráció")
-    load_type = st.segmented_control("Terhelési dimenzió", ["hybrid", "cardio", "strength"], default="hybrid")
-    st.plotly_chart(load_chart(load_type or "hybrid"), use_container_width=True)
+    load_label = st.segmented_control("Terhelési dimenzió", ["Hibrid", "Kardió", "Erő / funkcionális"], default="Hibrid")
+    load_type = {"Hibrid": "hybrid", "Kardió": "cardio", "Erő / funkcionális": "strength"}.get(load_label or "Hibrid", "hybrid")
+    st.plotly_chart(load_chart(load_type), use_container_width=True)
     recent = wellness.reset_index(names="date")
     st.plotly_chart(px.line(recent, x="date", y=["hrv", "resting_hr", "sleep_score"], labels={"value":"Érték", "variable":"Metrika"}), use_container_width=True)
     st.subheader("Aktivitásonkénti terhelési módszer")
     if not activities.empty:
-        st.dataframe(activities.sort_values("date", ascending=False)[["date","name","modality","duration_min","cardio_load","strength_load","musculoskeletal_load","load_method","load_confidence"]], hide_index=True, use_container_width=True)
-    st.subheader("Session RPE és visszajelzés")
+        visible = hungarian_activity_table(activities.sort_values("date", ascending=False))[["date","name","modality","duration_min","cardio_load","strength_load","musculoskeletal_load","lower_body_load","zone2_min","high_intensity_min","load_method","load_confidence"]]
+        st.dataframe(visible.rename(columns={"date":"Dátum","name":"Aktivitás","modality":"Modalitás","duration_min":"Időtartam (perc)","cardio_load":"Kardióterhelés","strength_load":"Erőterhelés","musculoskeletal_load":"Mozgásszervi terhelés","lower_body_load":"Alsótest-terhelés","zone2_min":"Zone 2 perc","high_intensity_min":"Magas intenzitású perc","load_method":"Számítási módszer","load_confidence":"Bizonyosság"}), hide_index=True, use_container_width=True)
+    st.subheader("Edzés-RPE és visszajelzés")
     render_feedback()
 
 elif page == "Naptár":
@@ -176,37 +212,60 @@ elif page == "Naptár":
     month = st.date_input("Hónap", value=wellness.index[-1].date())
     start = pd.Timestamp(month).replace(day=1)
     end = start + pd.offsets.MonthEnd()
-    calendar = wellness.loc[(wellness.index >= start) & (wellness.index <= end), ["hybrid_load", "hybrid_tsb"]].copy()
-    calendar["readiness"] = [explainable_readiness(wellness.loc[:day], checkins.get(str(day.date())), BASELINE_DAYS).score for day in calendar.index]
-    calendar["aktivitások"] = activities.groupby("date")["name"].apply(", ".join).reindex(calendar.index, fill_value="") if not activities.empty else ""
-    calendar["check-in"] = ["✓" if str(day.date()) in checkins else "—" for day in calendar.index]
-    st.dataframe(calendar.reset_index(names="nap").rename(columns={"hybrid_load":"load","hybrid_tsb":"TSB"}), hide_index=True, use_container_width=True)
+    calendar_frame = wellness.loc[(wellness.index >= start) & (wellness.index <= end), ["hybrid_load", "hybrid_tsb"]].copy()
+    calendar_frame["readiness"] = [explainable_readiness(wellness.loc[:day], checkins.get(str(day.date())), BASELINE_DAYS).score for day in calendar_frame.index]
+    calendar_frame["aktivitások"] = activities.groupby("date")["name"].apply(", ".join).reindex(calendar_frame.index, fill_value="") if not activities.empty else ""
+    calendar_frame["check-in"] = ["✓" if str(day.date()) in checkins else "—" for day in calendar_frame.index]
+    month_calendar = calendar.Calendar(firstweekday=0).monthdayscalendar(start.year, start.month)
+    headers = "".join(f'<div class="calendar-head">{name}</div>' for name in ["H", "K", "Sze", "Cs", "P", "Szo", "V"])
+    cards = []
+    for week in month_calendar:
+        for day_number in week:
+            if day_number == 0:
+                cards.append('<div class="calendar-day empty"></div>')
+                continue
+            stamp = pd.Timestamp(start.year, start.month, day_number)
+            row = calendar_frame.loc[stamp] if stamp in calendar_frame.index else pd.Series(dtype=object)
+            activity_names = html.escape(str(row.get("aktivitások", "")))
+            readiness_value = row.get("readiness")
+            readiness_text = "—" if pd.isna(readiness_value) else f"{readiness_value:.0f}"
+            load_value = row.get("hybrid_load")
+            load_text = "—" if pd.isna(load_value) else f"{load_value:.0f}"
+            today_class = " today" if stamp.date() == date.today() else ""
+            check_mark = "✓" if str(stamp.date()) in checkins else ""
+            cards.append(f'<div class="calendar-day{today_class}" aria-label="{stamp.date()}"><div class="calendar-number">{day_number} {check_mark}</div><div class="calendar-meta">Készültség: {readiness_text}<br>Terhelés: {load_text}<br>{activity_names or "Pihenő / nincs adat"}</div></div>')
+    st.markdown(f'<div class="calendar-grid">{headers}{"".join(cards)}</div>', unsafe_allow_html=True)
     selected_day = st.date_input("Nap részletei", value=wellness.index[-1].date(), min_value=wellness.index.min().date(), max_value=wellness.index.max().date())
     day_activities = activities[activities["date"] == pd.Timestamp(selected_day)] if not activities.empty else activities
-    st.dataframe(day_activities, hide_index=True, use_container_width=True)
+    st.dataframe(hungarian_activity_table(day_activities).rename(columns={"date":"Dátum","name":"Aktivitás","modality":"Modalitás","duration_min":"Időtartam (perc)"}), hide_index=True, use_container_width=True)
     render_checkin(str(selected_day))
 
 elif page == "Egyensúly":
-    st.title("Cardio–strength egyensúly")
+    st.title("Kardió–erő egyensúly")
     cutoff = wellness.index[-1] - timedelta(days=27)
     recent = activities[activities["date"] >= cutoff] if not activities.empty else activities
     if recent.empty:
         st.info("Nincs elegendő aktivitás az egyensúly elemzéséhez.")
     else:
         c1, c2, c3 = st.columns(3)
-        for container, value, title in [(c1,"duration_min","Időarány"),(c2,"cardio_load","Cardio load"),(c3,"activity_id","Alkalmak")]:
-            grouped = recent.groupby("modality")[value].count() if value == "activity_id" else recent.groupby("modality")[value].sum()
+        chart_frame = recent.copy()
+        chart_frame["modality"] = chart_frame["modality"].map(MODALITY_HU).fillna(chart_frame["modality"])
+        for container, value, title in [(c1,"duration_min","Időarány"),(c2,"cardio_load","Kardióterhelés"),(c3,"activity_id","Alkalmak")]:
+            grouped = chart_frame.groupby("modality")[value].count() if value == "activity_id" else chart_frame.groupby("modality")[value].sum()
             container.plotly_chart(px.pie(values=grouped.values, names=grouped.index, hole=.55, title=title), use_container_width=True)
-        weekly = recent.assign(week=recent["date"].dt.to_period("W").astype(str)).groupby(["week","modality"])["duration_min"].sum().reset_index()
-        st.plotly_chart(px.bar(weekly, x="week", y="duration_min", color="modality", barmode="group", labels={"duration_min":"Perc"}), use_container_width=True)
+        weekly = chart_frame.assign(week=chart_frame["date"].dt.to_period("W").astype(str)).groupby(["week","modality"])["duration_min"].sum().reset_index()
+        st.plotly_chart(px.bar(weekly, x="week", y="duration_min", color="modality", barmode="group", labels={"duration_min":"Perc","week":"Hét","modality":"Modalitás"}), use_container_width=True)
 
 elif page == "Heti jelentés":
     st.title("Heti edzői összefoglaló")
     c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Heti hybrid load", summary["total_load"])
+    c1.metric("Heti hibrid terhelés", summary["total_load"])
     c2.metric("Változás", "—" if summary["change_pct"] is None else f"{summary['change_pct']:+d}%")
-    c3.metric("Strength alkalmak", summary["strength_sessions"])
+    c3.metric("Erőedzések", summary["strength_sessions"])
     c4.metric("Regeneráló napok", summary["recovery_days"])
+    c5, c6 = st.columns(2)
+    c5.metric("Zone 2 idő", "Nincs zónaadat" if summary["zone2_min"] is None else f"{summary['zone2_min']} perc")
+    c6.metric("Magas intenzitás", "Nincs zónaadat" if summary["high_intensity_min"] is None else f"{summary['high_intensity_min']} perc")
     st.subheader("Következő hét prioritásai")
     for item in summary["recommendations"]:
         st.write(f"- {item}")
@@ -221,10 +280,10 @@ else:
     st.markdown("""
 ### Rövid módszertan
 
-- A baseline medián, IQR/MAD és trend alapján készül, legalább 14 érvényes nap alatt instabil jelzéssel.
-- Readiness súlyok: HRV 25%, alvás/adósság 25%, RHR 15%, load/TSB 15%, előző és sorozatterhelés 10%, manuális wellness 10%. Hiányzó elemnél a súlyok újranormalizálódnak, a confidence csökken.
+- A személyes alapérték medián, IQR/MAD és trend alapján készül, legalább 14 érvényes nap alatt instabil jelzéssel.
+- Edzéskészültségi súlyok: HRV 25%, alvás/adósság 25%, RHR 15%, terhelés/TSB 15%, előző és sorozatterhelés 10%, manuális wellness 10%. Hiányzó elemnél a súlyok újranormalizálódnak, a bizonyosság csökken.
 - ATL és CTL klasszikus exponenciális rekurzió: `alpha = 1 − exp(−1/τ)`, τ=7 és 42 nap. A napi TSB az előző napi CTL−ATL.
-- A Hybrid Load csak személyes gördülő tartományhoz normalizált cardio, strength és musculoskeletal komponenseket kombinál.
+- A hibrid terhelés csak személyes gördülő tartományhoz normalizált kardió-, erő- és mozgásszervi komponenseket kombinál.
 - Jelentős fájdalom vagy betegségérzet mindig felülírja az intenzív ajánlást.
 
 Ez sportteljesítményi döntéstámogatás, nem orvosi eszköz és nem diagnosztizál.
@@ -235,4 +294,4 @@ if payload.get("partial_errors"):
         st.write(payload["partial_errors"])
 if payload.get("fallback_reason"):
     st.warning(payload["fallback_reason"])
-st.caption(f"Adatforrás: {'deterministic demo' if demo else 'Garmin Connect cache'} · Utolsó adatépítés: {payload.get('synced_at', 'ismeretlen')}")
+st.caption(f"Adatforrás: {'determinisztikus bemutatóadat' if demo else 'Garmin Connect gyorsítótár'} · Utolsó adatépítés: {payload.get('synced_at', 'ismeretlen')}")

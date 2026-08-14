@@ -14,6 +14,8 @@ Cardio fallback:
 4. kalória proxy;
 5. idő proxy.
 
+A Garmin-szinkron a read-only `get_activity_hr_in_timezones` metódussal gazdagítja a kardióaktivitásokat. A normalizáló listás, nested és `zone1`–`zone5` kulcsos válaszokat kezel; ismeretlen formátumnál nem becsül zónát. Zone 2 a második zóna ideje, magas intenzitás a 4–5. zóna összege.
+
 Strength fallback:
 
 1. session load = perc × RPE;
@@ -55,7 +57,7 @@ A quality pont HRV-t, alvást, RHR-t, aktivitási előzményt, baseline stabilit
 
 Elsőbbség: betegség → jelentős fájdalom → alacsony confidence → sorozatterhelés/alacsony readiness → magas readiness minőségi nap → közepes readiness Zone 2 → konzervatív technikai strength. Egyetlen gyenge biomarker önmagában nem okoz pihenőnapot.
 
-Figyelmeztetések: háromnapos alacsony HRV, háromnapos baseline+6 bpm RHR, >20% heti load-emelkedés, három egymást követő saját 70. percentilis feletti nap, fájdalom, betegség és 36 óránál régebbi sync. Minden flag adatot, küszöböt és beavatkozást ad.
+Figyelmeztetések: háromnapos alacsony HRV, háromnapos baseline+6 bpm RHR, >20% heti load-emelkedés, három egymást követő saját 70. percentilis feletti nap, két egymást követő erős alsótestnap, fájdalom, betegség és 36 óránál régebbi sync. Minden flag adatot, küszöböt és beavatkozást ad.
 
 ## Korlátok
 

@@ -28,6 +28,7 @@ baseline → data quality → readiness → red flags → daily decision
 | Kliensmetódus | Cél | Kezelés |
 |---|---|---|
 | `get_activities_by_date` | aktivitáslista és összegző mezők | rendezett időablak, üres lista fallback |
+| `get_activity_hr_in_timezones` | aktivitásonkénti pulzuszóna-idő | csak kardiómodalitás, több payload-formátum, hiány megengedett |
 | `get_hrv_data` | éjszakai HRV | legacy/current kulcsok, hiány megengedett |
 | `get_sleep_data` | alváspont és idő | nested payload defensív olvasása |
 | `get_heart_rates` | nyugalmi pulzus | több lehetséges kulcs |
