@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import calendar
 import html
+import json
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
@@ -17,7 +18,7 @@ from analytics import (
     build_daily_frames, data_quality, explainable_readiness, personal_baseline,
     deload_taper_recommendation, evaluate_training_plans, event_preparation_analysis,
     feature_drift_audit, model_promotion_decision, mountain_readiness, mountain_weekly_trends, multiday_readiness, pattern_uncertainty, personal_patterns, plan_adjustment_message, red_flags, retraining_recommendation, training_decision, tsb_zone, validate_recovery_model,
-    weekly_plan_template, weekly_summary,
+    weekly_plan_template, weekly_report_markdown, weekly_summary,
 )
 from garmin_sync import GarminSync, GarminSyncError, demo_data
 from storage import Database
@@ -526,6 +527,11 @@ elif page == "Heti jelentés":
     for item in summary["recommendations"]:
         st.write(f"- {item}")
     st.plotly_chart(load_chart("hybrid"), use_container_width=True)
+    report_payload = {"week_end": str(wellness.index[-1].date()), "summary": summary, "decision": decision, "flags": flags, "data_source": "demo" if demo else "Garmin Connect cache"}
+    report_markdown = weekly_report_markdown(summary, wellness.index[-1], decision, flags)
+    d1, d2 = st.columns(2)
+    d1.download_button("Heti jelentés letöltése (Markdown)", report_markdown, file_name=f"heti-jelentes-{wellness.index[-1].date()}.md", mime="text/markdown", use_container_width=True)
+    d2.download_button("Heti adatok letöltése (JSON)", json.dumps(report_payload, ensure_ascii=False, indent=2, default=str), file_name=f"heti-jelentes-{wellness.index[-1].date()}.json", mime="application/json", use_container_width=True)
 
 else:
     st.title("Beállítások és módszertan")
@@ -533,6 +539,15 @@ else:
     st.write("**Hiányzó vagy gyenge jelek:**", ", ".join(quality["missing"]) or "nincs")
     st.write(f"**Baseline ablak:** {BASELINE_DAYS} nap (állítsd a `BASELINE_DAYS` változóval, 21–60 nap)")
     st.write(f"**Cache TTL:** {sync.ttl_hours:g} óra · **Cache kor:** {'—' if sync_age == float('inf') else f'{sync_age:.1f} óra'}")
+    st.subheader("Szinkron- és adatlefedettség")
+    coverage_dates = pd.to_datetime([item.get("date") for item in payload.get("wellness", [])], errors="coerce").dropna()
+    s1, s2, s3, s4 = st.columns(4)
+    s1.metric("Aktivitások", len(payload.get("activities", [])))
+    s2.metric("Wellness napok", len(payload.get("wellness", [])))
+    s3.metric("Első nap", "—" if coverage_dates.empty else str(coverage_dates.min().date()))
+    s4.metric("Utolsó nap", "—" if coverage_dates.empty else str(coverage_dates.max().date()))
+    st.write(f"**Backfill:** {'folyamatban / folytatható' if payload.get('backfill_in_progress') else 'befejezve'} · **Részleges végpont-hibák:** {len(payload.get('partial_errors', []))} · **Modellverziók:** {len(model_versions)}")
+    st.caption("Biztonsági mentéshez lásd a repository BACKUP.md útmutatóját. A Garmin tokeneket csak titkosított, privát mentésben tárold.")
     st.markdown("""
 ### Rövid módszertan
 

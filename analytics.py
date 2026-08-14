@@ -408,6 +408,27 @@ def weekly_summary(frame: pd.DataFrame, activities: pd.DataFrame, flags: list[di
     return {"total_load": round(total), "change_pct": None if change is None else round(change), "strength_sessions": strength_sessions, "recovery_days": int((current["hybrid_load"] < 10).sum()), "zone2_min": None if pd.isna(zone2) else round(float(zone2)), "high_intensity_min": None if pd.isna(high_intensity) else round(float(high_intensity)), "flags": len(flags), "recommendations": recommendations[:4] or ["Tartsd a jelenlegi, kiegyensúlyozott struktúrát."]}
 
 
+def weekly_report_markdown(summary: dict[str, Any], week_end: Any, decision: dict[str, Any], flags: list[dict[str, str]]) -> str:
+    """Create a portable Hungarian weekly report without sensitive credentials."""
+    end = pd.Timestamp(week_end).date()
+    start = end - pd.Timedelta(days=6)
+    change = "nincs összehasonlítási alap" if summary.get("change_pct") is None else f"{summary['change_pct']:+d}%"
+    lines = [
+        "# Heti edzésjelentés", "", f"**Időszak:** {start} – {end}", "",
+        "## Fő mutatók", "", f"- Hibrid terhelés: {summary['total_load']}", f"- Változás: {change}",
+        f"- Erőedzések: {summary['strength_sessions']}", f"- Regeneráló napok: {summary['recovery_days']}",
+        f"- Zone 2: {summary.get('zone2_min') if summary.get('zone2_min') is not None else 'nincs adat'} perc",
+        f"- Magas intenzitás: {summary.get('high_intensity_min') if summary.get('high_intensity_min') is not None else 'nincs adat'} perc", "",
+        "## Következő edzésdöntés", "", f"**{decision['type']} · {decision['duration']}**", "", decision["rationale"], "",
+        "## Prioritások", "",
+    ]
+    lines.extend(f"- {item}" for item in summary.get("recommendations", []))
+    lines.extend(["", "## Jelzések", ""])
+    lines.extend([f"- **{flag['title']}**: {flag['trigger']}. {flag['action']}" for flag in flags] or ["- Nincs kiemelt jelzés."])
+    lines.extend(["", "---", "Ez sportteljesítményi döntéstámogatás, nem orvosi diagnózis."])
+    return "\n".join(lines) + "\n"
+
+
 def plan_completion_status(planned_minutes: float, actual_minutes: float) -> str:
     if actual_minutes <= 0:
         return "elmaradt"

@@ -100,3 +100,4 @@ A tesztek nem használnak valódi Garmin-fiókot. Lefedik a baseline-t, robust z
 - [Architektúra és audit](ARCHITECTURE.md)
 - [Módszertan](METHODOLOGY.md)
 - [Roadmap és ismert korlátok](ROADMAP.md)
+- [Biztonsági mentés és visszaállítás](BACKUP.md)
