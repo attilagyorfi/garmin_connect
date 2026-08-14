@@ -16,7 +16,7 @@ import streamlit as st
 from analytics import (
     build_daily_frames, data_quality, explainable_readiness, personal_baseline,
     deload_taper_recommendation, evaluate_training_plans, event_preparation_analysis,
-    mountain_readiness, mountain_weekly_trends, plan_adjustment_message, red_flags, training_decision, tsb_zone,
+    mountain_readiness, mountain_weekly_trends, multiday_readiness, plan_adjustment_message, red_flags, training_decision, tsb_zone,
     weekly_plan_template, weekly_summary,
 )
 from garmin_sync import GarminSync, GarminSyncError, demo_data
@@ -160,9 +160,12 @@ def render_feedback() -> None:
         reps_count = c2.number_input("Ismétlések", 0, 1000, int(current.get("reps_count") or 0))
         volume_kg = c3.number_input("Összvolumen (kg)", 0.0, 100000.0, float(current.get("volume_kg") or 0))
         pack_kg = st.number_input("Hátizsák tömege (kg)", 0.0, 40.0, float(current.get("pack_kg") or 0))
+        c4, c5 = st.columns(2)
+        stability_min = c4.number_input("Stabilitási munka (perc)", 0, 180, int(current.get("stability_min") or 0))
+        single_leg_min = c5.number_input("Egylábas munka (perc)", 0, 180, int(current.get("single_leg_min") or 0))
         note = st.text_area("Megjegyzés", current.get("note", ""))
         if st.form_submit_button("Edzés-visszajelzés mentése", use_container_width=True):
-            db.save_feedback(selected, rpe=rpe, feeling=feeling, focus=focus, sets_count=sets_count or None, reps_count=reps_count or None, volume_kg=volume_kg or None, pack_kg=pack_kg or None, note=note)
+            db.save_feedback(selected, rpe=rpe, feeling=feeling, focus=focus, sets_count=sets_count or None, reps_count=reps_count or None, volume_kg=volume_kg or None, pack_kg=pack_kg or None, stability_min=stability_min or None, single_leg_min=single_leg_min or None, note=note)
             st.success(f"Mentve. Edzésterhelés: {labels[selected].split(' · ')[-1].split()[0]} perc × {rpe} RPE.")
 
 
@@ -394,6 +397,16 @@ elif page == "Hegyi felkészültség":
         st.plotly_chart(px.bar(mountain_trends, x="week", y="pack_kg_max", labels={"week":"Hét", "pack_kg_max":"Max. hátizsák (kg)"}), use_container_width=True)
     for warning in mountain_warnings:
         st.warning(f"**{warning['title']}** — {warning['detail']}. {warning['action']}")
+    multiday = multiday_readiness(activities, wellness, feedback)
+    st.subheader("Hosszú és többnapos felkészültség")
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Többnapos score", f"{multiday['score']}/100", multiday["confidence"])
+    c2.metric("120+ perces napok", multiday["metrics"]["long_days_56d"])
+    c3.metric("Egymást követő 90+ perces párok", multiday["metrics"]["consecutive_pairs_56d"])
+    st.dataframe(pd.DataFrame(multiday["components"]).rename(columns={"name":"Komponens", "score":"Pont", "weight":"Súly %"}), hide_index=True, use_container_width=True)
+    st.info(f"**SpO₂-kontextus:** {multiday['spo2_context']}. Ez kizárólag megfigyelési kontextus, nem diagnózis és nem használható önmagában edzésdöntésre.")
+    if multiday["gaps"]:
+        st.warning("**Többnapos fejlesztendő területek:** " + ", ".join(multiday["gaps"]))
     st.caption("A score sportteljesítményi iránytű: nem jósol célidőt, nem diagnosztizál, és kevés specifikus adatnál csökkenti a bizonyosságot.")
 
 elif page == "Heti jelentés":

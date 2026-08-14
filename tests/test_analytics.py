@@ -7,7 +7,7 @@ from analytics import (
     exponential_load, explainable_readiness, modality, musculoskeletal_load,
     plan_adjustment_message, plan_completion_status,
     performance_management, personal_baseline, red_flags, robust_z_score,
-    mountain_readiness, mountain_weekly_trends, strength_load, training_decision, weekly_plan_template, weekly_summary,
+    mountain_readiness, mountain_weekly_trends, multiday_readiness, strength_load, training_decision, weekly_plan_template, weekly_summary,
 )
 from garmin_sync import demo_data
 
@@ -206,3 +206,15 @@ def test_mountain_weekly_trends_flag_abrupt_progression():
     weekly, warnings = mountain_weekly_trends(activities, {"1":{"pack_kg":4}, "2":{"pack_kg":8}})
     assert len(weekly) == 2
     assert {warning["metric"] for warning in warnings} >= {"distance_km", "ascent_m", "pack_kg_max"}
+
+
+def test_multiday_readiness_counts_exposure_and_keeps_spo2_contextual():
+    activities = pd.DataFrame([
+        {"activity_id":"1", "date":pd.Timestamp("2026-08-10"), "duration_min":150, "distance_km":20, "ascent_m":900},
+        {"activity_id":"2", "date":pd.Timestamp("2026-08-11"), "duration_min":140, "distance_km":18, "ascent_m":800},
+    ])
+    wellness = pd.DataFrame({"spo2":[95.0, 96.0]}, index=pd.date_range("2026-08-10", periods=2))
+    result = multiday_readiness(activities, wellness, {"1":{"stability_min":30}, "2":{"single_leg_min":30}}, today="2026-08-11")
+    assert result["metrics"]["long_days_56d"] == 2
+    assert result["metrics"]["consecutive_pairs_56d"] == 1
+    assert "medián" in result["spo2_context"]

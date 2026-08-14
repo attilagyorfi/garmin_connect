@@ -37,8 +37,8 @@
 - elkészült: külön mountain score és confidence
 - elkészült: 28 napos táv/szint, lejtmeneti kitettség, back-to-back napok és hátizsákos alkalmak
 - elkészült: heti trendgrafikonok és progressziós figyelmeztetések
-- hosszú nap/többnapos readiness, SpO₂ csak nem diagnosztikai kontextusban
-- manuális stabilitási és egylábas munka rögzítése
+- elkészült: hosszú nap/többnapos readiness, SpO₂ csak nem diagnosztikai kontextusban
+- elkészült: manuális stabilitási és egylábas munka rögzítése
 
 ## P4 – „Mi működik nálam?”
 

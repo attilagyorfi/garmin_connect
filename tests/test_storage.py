@@ -12,8 +12,9 @@ def test_database_initialization_and_checkin(tmp_path):
 
 def test_session_feedback_roundtrip(tmp_path):
     db = Database(tmp_path / "training.sqlite3")
-    db.save_feedback("42", rpe=8, feeling="planned", focus="lower body", volume_kg=5000)
+    db.save_feedback("42", rpe=8, feeling="planned", focus="lower body", volume_kg=5000, stability_min=12, single_leg_min=8)
     assert db.list_feedback()["42"]["rpe"] == 8
+    assert db.list_feedback()["42"]["stability_min"] == 12
 
 
 def test_generated_snapshots_roundtrip(tmp_path):

@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any, Iterator
 
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 
 class Database:
@@ -91,6 +91,10 @@ class Database:
                 );
                 """
             )
+            feedback_columns = {row[1] for row in db.execute("PRAGMA table_info(session_feedback)").fetchall()}
+            for column in ("stability_min", "single_leg_min"):
+                if column not in feedback_columns:
+                    db.execute(f"ALTER TABLE session_feedback ADD COLUMN {column} INTEGER")
             db.execute(
                 "INSERT OR REPLACE INTO schema_meta(key,value) VALUES('schema_version',?)",
                 (str(SCHEMA_VERSION),),
@@ -127,15 +131,16 @@ class Database:
         with self.connect() as db:
             db.execute(
                 """INSERT INTO session_feedback
-                (activity_id,rpe,feeling,focus,sets_count,reps_count,volume_kg,pack_kg,note,updated_at)
-                VALUES(?,?,?,?,?,?,?,?,?,?) ON CONFLICT(activity_id) DO UPDATE SET
+                (activity_id,rpe,feeling,focus,sets_count,reps_count,volume_kg,pack_kg,stability_min,single_leg_min,note,updated_at)
+                VALUES(?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(activity_id) DO UPDATE SET
                 rpe=excluded.rpe, feeling=excluded.feeling, focus=excluded.focus,
                 sets_count=excluded.sets_count, reps_count=excluded.reps_count,
                 volume_kg=excluded.volume_kg, pack_kg=excluded.pack_kg,
+                stability_min=excluded.stability_min, single_leg_min=excluded.single_leg_min,
                 note=excluded.note, updated_at=excluded.updated_at""",
                 (str(activity_id), values["rpe"], values["feeling"], values.get("focus", ""),
                  values.get("sets_count"), values.get("reps_count"), values.get("volume_kg"),
-                 values.get("pack_kg"), values.get("note", ""), stamp),
+                 values.get("pack_kg"), values.get("stability_min"), values.get("single_leg_min"), values.get("note", ""), stamp),
             )
 
     def list_feedback(self) -> dict[str, dict[str, Any]]:

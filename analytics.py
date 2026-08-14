@@ -187,7 +187,7 @@ def build_daily_frames(payload: dict[str, Any], feedback: dict[str, dict[str, An
         wellness = pd.DataFrame(columns=["date", "hrv", "sleep_score", "resting_hr"])
     wellness["date"] = pd.to_datetime(wellness.get("date"), errors="coerce").dt.normalize()
     wellness = wellness.dropna(subset=["date"]).drop_duplicates("date", keep="last").set_index("date").sort_index()
-    for column in ["hrv", "sleep_score", "resting_hr", "sleep_hours"]:
+    for column in ["hrv", "sleep_score", "resting_hr", "sleep_hours", "spo2"]:
         wellness[column] = pd.to_numeric(wellness.get(column), errors="coerce")
 
     rows: list[dict[str, Any]] = []
@@ -598,6 +598,30 @@ def mountain_weekly_trends(activities: pd.DataFrame, feedback: dict[str, dict[st
         if previous["pack_kg_max"] > 0 and current["pack_kg_max"] > previous["pack_kg_max"] + 2:
             warnings.append({"metric": "pack_kg_max", "title": "Gyors hátizsák-terhelés növekedés", "detail": f"{previous['pack_kg_max']:g} kg → {current['pack_kg_max']:g} kg", "action": "Tartsd a zsák tömegét, és előbb a tolerált időt növeld."})
     return weekly, warnings
+
+
+def multiday_readiness(activities: pd.DataFrame, wellness: pd.DataFrame, feedback: dict[str, dict[str, Any]] | None = None, today: Any | None = None) -> dict[str, Any]:
+    """Estimate preparation for consecutive long days from observable training exposure."""
+    now = pd.Timestamp(today or (activities["date"].max() if not activities.empty else pd.Timestamp.today())).normalize()
+    recent = activities[(activities["date"] >= now - pd.Timedelta(days=55)) & (activities["date"] <= now)].copy() if not activities.empty else activities
+    daily = recent.groupby("date").agg(duration_min=("duration_min", "sum"), distance_km=("distance_km", "sum"), ascent_m=("ascent_m", "sum")) if not recent.empty else pd.DataFrame()
+    long_days = int((daily.get("duration_min", pd.Series(dtype=float)) >= 120).sum())
+    consecutive_pairs = int(sum((daily.index[i] - daily.index[i - 1]).days == 1 and daily.iloc[i - 1].duration_min >= 90 and daily.iloc[i].duration_min >= 90 for i in range(1, len(daily))))
+    feedback = feedback or {}
+    stability = sum(float(item.get("stability_min") or 0) for item in feedback.values())
+    single_leg = sum(float(item.get("single_leg_min") or 0) for item in feedback.values())
+    components = [
+        {"name": "Hosszú napok", "score": round(min(100, long_days / 4 * 100)), "weight": 35},
+        {"name": "Egymást követő napok", "score": round(min(100, consecutive_pairs / 2 * 100)), "weight": 35},
+        {"name": "Stabilitási munka", "score": round(min(100, stability / 60 * 100)), "weight": 15},
+        {"name": "Egylábas munka", "score": round(min(100, single_leg / 60 * 100)), "weight": 15},
+    ]
+    score = round(sum(item["score"] * item["weight"] for item in components) / 100)
+    spo2_values = wellness.get("spo2", pd.Series(dtype=float)).tail(14).dropna() if not wellness.empty else pd.Series(dtype=float)
+    spo2_context = "nincs adat" if spo2_values.empty else f"14 napos medián: {spo2_values.median():.1f}%"
+    confidence = "magas" if len(recent) >= 12 and long_days >= 2 else "közepes" if len(recent) >= 6 else "alacsony"
+    gaps = [item["name"] for item in components if item["score"] < 50]
+    return {"score": score, "confidence": confidence, "components": components, "metrics": {"long_days_56d": long_days, "consecutive_pairs_56d": consecutive_pairs, "stability_min": round(stability), "single_leg_min": round(single_leg)}, "gaps": gaps or ["nincs egyértelmű többnapos felkészülési hiány"], "spo2_context": spo2_context}
 
 
 def tsb_zone(value: float) -> tuple[str, str]:
