@@ -24,30 +24,50 @@ from garmin_sync import GarminSync, GarminSyncError, demo_data
 from storage import Database
 
 
-st.set_page_config(page_title="Hibrid edzésdöntés", page_icon="⚡", layout="wide")
+st.set_page_config(page_title="Hybrid Athlete", page_icon="H", layout="wide", initial_sidebar_state="expanded")
 
 st.markdown("""
 <style>
-.block-container {max-width: 1450px; padding-top: 1.4rem}
-[data-testid="stMetric"] {background:#151b25; border:1px solid #2c3748; border-radius:12px; padding:14px}
-.decision {padding:1.2rem 1.4rem;border-radius:14px;background:linear-gradient(135deg,#14263a,#18201f);border:1px solid #36556f}
+@import url('https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;500;600&family=Geist:wght@400;500;600;700&display=swap');
+:root{--ha-bg:#0f0f0f;--ha-card:#1e1e1e;--ha-surface:#1a1a1a;--ha-tile:rgba(255,255,255,.035);--ha-border:rgba(255,255,255,.08);--ha-border-hover:rgba(255,255,255,.15);--ha-text:#fff;--ha-secondary:#b0b0b0;--ha-muted:#707070;--ha-accent:#14b8a6;--ha-accent-soft:rgba(20,184,166,.12);--ha-warning:#f59e0b;--ha-error:#ef4444;--ha-info:#3b82f6}
+html,body,[class*="css"]{font-family:'Geist',system-ui,sans-serif}
+.stApp{background:var(--ha-bg)}
+.block-container{max-width:1680px;padding:1.25rem 2rem 3rem}
+[data-testid="stSidebar"]{width:236px!important;min-width:236px!important;background:#111;border-right:1px solid var(--ha-border)}
+[data-testid="stSidebar"]>div:first-child{width:236px!important}
+[data-testid="stSidebar"] [data-testid="stVerticalBlock"]{gap:.35rem}
+[data-testid="stSidebar"] .stRadio label{min-height:42px;padding:.55rem .7rem;border-radius:8px;color:var(--ha-secondary);transition:background .16s ease,color .16s ease}
+[data-testid="stSidebar"] .stRadio label:has(input:checked){background:var(--ha-accent-soft);color:var(--ha-accent)}
+[data-testid="stSidebar"] .stRadio label:hover{background:rgba(255,255,255,.05);color:#fff}
+[data-testid="stSidebar"] hr{border-color:var(--ha-border)}
+[data-testid="stMetric"]{background:var(--ha-card);border:1px solid var(--ha-border);border-radius:12px;padding:15px 16px;box-shadow:inset 0 1px 0 rgba(255,255,255,.04),0 16px 34px -24px rgba(0,0,0,.8)}
+[data-testid="stMetricLabel"]{font-family:'Geist Mono',monospace;letter-spacing:.07em;text-transform:uppercase;color:var(--ha-muted)}
+[data-testid="stMetricValue"]{font-family:'Geist Mono',monospace}
+.ha-brand{display:flex;align-items:center;gap:10px;padding:4px 6px 18px}.ha-mark{width:30px;height:30px;border-radius:8px;background:var(--ha-accent);color:#04211d;display:grid;place-items:center;font-family:'Geist Mono',monospace;font-weight:700;font-style:italic}.ha-wordmark{font-family:'Geist Mono',monospace;font-size:12px;font-weight:600;letter-spacing:.18em;color:#fff}.ha-sub{font-family:'Geist Mono',monospace;font-size:9px;letter-spacing:.06em;color:var(--ha-muted);margin-top:3px}
+.ha-page-head{display:flex;align-items:flex-end;justify-content:space-between;border-bottom:1px solid var(--ha-border);padding:0 0 16px;margin-bottom:20px}.ha-eyebrow{font-family:'Geist Mono',monospace;font-size:10px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;color:var(--ha-accent)}.ha-page-head h1{font-size:1.45rem;line-height:1.2;margin:.35rem 0 0;letter-spacing:-.03em}.ha-sync{font-family:'Geist Mono',monospace;font-size:10px;color:var(--ha-muted);padding:8px 11px;border:1px solid var(--ha-border);border-radius:999px}
+.decision{padding:1.3rem 1.45rem;border-radius:14px;background:radial-gradient(120% 90% at 15% 0%,rgba(20,184,166,.14),transparent 60%),var(--ha-card);border:1px solid var(--ha-border);box-shadow:inset 0 1px 0 rgba(255,255,255,.05),0 16px 34px -18px rgba(0,0,0,.6)}
 .decision h2,.decision p {overflow-wrap:anywhere}
-.muted {color:#aeb9c8;font-size:.92rem}
+.decision-grid{display:grid;grid-template-columns:110px 1fr;gap:20px;align-items:center}.readiness-ring{width:100px;height:100px;border-radius:50%;display:grid;place-items:center;background:conic-gradient(var(--ring-color) 0 var(--ring-score),var(--ha-tile) var(--ring-score) 100%)}.readiness-ring>div{width:82px;height:82px;border-radius:50%;background:var(--ha-card);display:grid;place-items:center;text-align:center}.readiness-ring strong{font-family:'Geist Mono',monospace;font-size:30px;line-height:1;color:var(--ring-color)}.readiness-ring span{display:block;font-family:'Geist Mono',monospace;font-size:7px;letter-spacing:.12em;color:var(--ha-muted);margin-top:5px}.band{display:inline-block;font-family:'Geist Mono',monospace;font-size:10px;font-weight:600;letter-spacing:.15em;color:var(--ring-color);background:color-mix(in srgb,var(--ring-color) 14%,transparent);padding:4px 8px;border-radius:4px}.decision-title{font-size:1.85rem;font-weight:600;letter-spacing:-.03em;margin:10px 0 5px}.decision-meta{font-size:.92rem;color:var(--ha-secondary);line-height:1.55}.decision-notes{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:16px}.decision-note{padding:10px 12px;border-radius:8px;background:var(--ha-tile);color:var(--ha-secondary);font-size:.82rem;line-height:1.5}.decision-footer{display:flex;justify-content:space-between;align-items:center;margin-top:14px;padding-top:12px;border-top:1px solid var(--ha-border);font-family:'Geist Mono',monospace;font-size:9px;letter-spacing:.06em;color:var(--ha-muted)}
+.section-label{font-family:'Geist Mono',monospace;font-size:10px;font-weight:600;letter-spacing:.18em;color:var(--ha-accent);text-transform:uppercase;margin:0 0 10px}.muted{color:var(--ha-secondary);font-size:.92rem}.ha-card{padding:16px 18px;border-radius:14px;background:var(--ha-card);border:1px solid var(--ha-border);box-shadow:inset 0 1px 0 rgba(255,255,255,.04)}.continuity{display:grid;grid-template-columns:repeat(21,1fr);gap:4px;margin-top:12px}.continuity span{height:11px;border-radius:3px;background:var(--ha-accent);opacity:.18}.continuity span:nth-last-child(-n+12){opacity:.5}.continuity span:nth-last-child(-n+6){opacity:.9}
+.weekly-kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.weekly-kpi{background:var(--ha-card);border:1px solid var(--ha-border);border-radius:12px;padding:14px}.weekly-kpi span{display:block;font-family:'Geist Mono',monospace;font-size:9px;letter-spacing:.1em;color:var(--ha-muted);text-transform:uppercase}.weekly-kpi strong{display:block;font-family:'Geist Mono',monospace;font-size:22px;margin-top:9px}.weekly-kpi small{color:var(--ha-accent);font-size:10px}
+.stButton>button,.stDownloadButton>button{border-radius:7px;border-color:var(--ha-border-hover);font-weight:600}.stButton>button[kind="primary"],.stDownloadButton>button[kind="primary"]{background:var(--ha-accent);color:#04211d;border-color:var(--ha-accent);box-shadow:0 4px 15px rgba(20,184,166,.22)}
+[data-testid="stDataFrame"],.stPlotlyChart{border:1px solid var(--ha-border);border-radius:14px;overflow:hidden;background:var(--ha-card)}
 .calendar-grid {display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:.45rem}
-.calendar-head {text-align:center;color:#aeb9c8;font-size:.8rem;font-weight:700;padding:.35rem}
-.calendar-day {min-height:112px;padding:.55rem;border-radius:10px;background:#151b25;border:1px solid #2c3748}
-.calendar-day.today {border-color:#63b3ff;box-shadow:0 0 0 1px #63b3ff inset}
+.calendar-head{text-align:center;color:var(--ha-muted);font-family:'Geist Mono',monospace;font-size:.72rem;font-weight:600;padding:.45rem}
+.calendar-day{min-height:118px;padding:.65rem;border-radius:10px;background:var(--ha-card);border:1px solid var(--ha-border)}
+.calendar-day.today{border-color:rgba(20,184,166,.5);background:var(--ha-accent-soft);box-shadow:0 0 0 1px rgba(20,184,166,.2) inset}
 .calendar-day.empty {background:transparent;border-color:transparent}
-.calendar-number {font-weight:800;margin-bottom:.35rem}.calendar-meta {font-size:.74rem;line-height:1.35;color:#c8d2df}
-*:focus-visible {outline:3px solid #63b3ff!important;outline-offset:3px}
+.calendar-number{font-family:'Geist Mono',monospace;font-weight:600;margin-bottom:.45rem}.calendar-meta{font-size:.74rem;line-height:1.45;color:var(--ha-secondary)}
+*:focus-visible{outline:3px solid var(--ha-accent)!important;outline-offset:3px}
 @media(max-width:700px){
   .block-container{max-width:100%;padding:0.8rem}
   h1{font-size:2.15rem!important;line-height:1.12!important;white-space:normal!important;overflow-wrap:anywhere}
   .decision{max-width:100%;padding:1rem;overflow:hidden}
   .decision h2{font-size:1.65rem;line-height:1.25;margin-bottom:.8rem}
   [data-testid="stHorizontalBlock"]{flex-wrap:wrap}
-  [data-testid="column"]{min-width:100%!important;flex:1 1 100%!important}
+  [data-testid="stColumn"]{min-width:100%!important;flex:1 1 100%!important}
   button{min-height:44px}
+  .decision-grid{grid-template-columns:88px 1fr;gap:14px}.readiness-ring{width:84px;height:84px}.readiness-ring>div{width:68px;height:68px}.readiness-ring strong{font-size:24px}.decision-title{font-size:1.42rem}.decision-meta{font-size:.78rem}.decision-notes{grid-template-columns:1fr}.decision-footer{line-height:1.5}.decision-footer span:last-child{display:none}.ha-page-head{align-items:flex-start}.ha-sync{display:none}
 }
 @media(max-width:700px){.calendar-grid{grid-template-columns:repeat(7,minmax(70px,1fr));overflow-x:auto}.calendar-day{min-height:98px}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;transition-duration:.01ms!important}}
@@ -60,14 +80,15 @@ db = Database(CACHE_DIR / "training.sqlite3")
 sync = GarminSync(CACHE_DIR)
 
 with st.sidebar:
-    st.markdown('<div style="font-size:1.55rem;font-weight:800;letter-spacing:.02em">HIBRID // EDZŐ</div>', unsafe_allow_html=True)
-    page = st.radio("Navigáció", ["Ma", "Terhelés és trendek", "Naptár", "Egyensúly", "Hegyi felkészültség", "Mi működik nálam?", "Célok és tervek", "Heti jelentés", "Beállítások és módszertan"])
+    st.markdown('<div class="ha-brand"><div class="ha-mark">H</div><div><div class="ha-wordmark">HYBRID ATHLETE</div><div class="ha-sub">SZEMÉLYES EDZÉSDÖNTÉS</div></div></div>', unsafe_allow_html=True)
+    page = st.radio("Navigáció", ["Ma", "Terhelés és trendek", "Naptár", "Egyensúly", "Hegyi felkészültség", "Mi működik nálam?", "Célok és tervek", "Heti jelentés", "Előzmények", "Beállítások és módszertan"])
     st.divider()
-    demo = st.toggle("Bemutató mód", value=not bool(os.getenv("GARMIN_EMAIL")), help="Legalább 90 nap determinisztikus mintaadat.")
-    history_choice = st.selectbox("Szinkronizálandó előzmény", [30, 60, 90, 180, 365, 730, "all"], index=2, format_func=lambda value: "Összes rendelkezésre álló adat" if value == "all" else f"{value} nap")
-    history_days = None if history_choice == "all" else int(history_choice)
-    force_sync = st.button("Garmin szinkron most", type="primary", use_container_width=True, disabled=demo)
-    st.caption("A Garmin-hozzáférés csak olvasási műveleteket használ. Az Összes adat mód lapozott, folytatható backfillt végez; az első futás hosszabb lehet.")
+    with st.expander("Adatkapcsolat", expanded=False):
+        demo = st.toggle("Bemutató mód", value=not bool(os.getenv("GARMIN_EMAIL")), help="Legalább 90 nap determinisztikus mintaadat.")
+        history_choice = st.selectbox("Szinkronizálandó előzmény", [30, 60, 90, 180, 365, 730, "all"], index=2, format_func=lambda value: "Összes rendelkezésre álló adat" if value == "all" else f"{value} nap")
+        history_days = None if history_choice == "all" else int(history_choice)
+        force_sync = st.button("Garmin szinkron most", type="primary", use_container_width=True, disabled=demo)
+        st.caption("Csak olvasási hozzáférés. A teljes backfill folytatható, az első futás hosszabb lehet.")
 
 payload = demo_data(history_days or 365) if demo else sync.load_cache()
 if force_sync:
@@ -118,6 +139,8 @@ summary = weekly_summary(wellness, activities, flags)
 week_start = str((wellness.index[-1] - timedelta(days=int(wellness.index[-1].weekday()))).date()) if not wellness.empty else str(date.today())
 db.save_json("daily_recommendations", "day", today_key, decision)
 db.save_json("weekly_summaries", "week_start", week_start, summary)
+daily_snapshots = db.list_snapshots("daily_recommendations", "day")
+weekly_snapshots = db.list_snapshots("weekly_summaries", "week_start")
 
 MODALITY_HU = {"Cardio": "Kardió", "Strength / Functional": "Erő / funkcionális", "Other": "Egyéb"}
 LOAD_METHOD_HU = {
@@ -160,16 +183,19 @@ def render_checkin(day_key: str) -> None:
     current = checkins.get(day_key, {})
     with st.form(f"checkin-{day_key}"):
         st.markdown("#### Gyors napi check-in")
-        a, b = st.columns(2)
-        soreness = a.slider("Izomláz", 1, 5, int(current.get("soreness", 2)))
-        stress = b.slider("Pszichológiai stressz", 1, 5, int(current.get("stress", 3)))
-        motivation = a.slider("Motiváció", 1, 5, int(current.get("motivation", 3)))
-        fatigue = b.slider("Általános fáradtság", 1, 5, int(current.get("fatigue", 2)))
-        pain_options = ["none", "mild", "significant"]
-        pain = st.selectbox("Fájdalom", pain_options, index=pain_options.index(current.get("pain", "none")), format_func={"none":"nincs", "mild":"enyhe", "significant":"jelentős"}.get)
-        illness = st.checkbox("Betegségérzet", value=bool(current.get("illness", False)))
-        note = st.text_area("Megjegyzés (opcionális)", value=current.get("note", ""))
-        if st.form_submit_button("Check-in mentése", type="primary", use_container_width=True):
+        a, b, c = st.columns(3)
+        scale = [1, 2, 3, 4, 5]
+        soreness = a.segmented_control("Izomláz", scale, default=int(current.get("soreness", 2)))
+        motivation = b.segmented_control("Motiváció", scale, default=int(current.get("motivation", 3)))
+        stress = c.segmented_control("Pszichológiai stressz", scale, default=int(current.get("stress", 3)))
+        fatigue = a.segmented_control("Általános fáradtság", scale, default=int(current.get("fatigue", 2)))
+        pain_labels = {"none":"nincs", "mild":"enyhe", "significant":"jelentős"}
+        pain_label = b.segmented_control("Fájdalom", list(pain_labels.values()), default=pain_labels.get(current.get("pain", "none"), "nincs"))
+        pain = next(key for key, label in pain_labels.items() if label == pain_label)
+        illness = c.toggle("Betegségérzet", value=bool(current.get("illness", False)))
+        note_col, save_col = st.columns([2, 1])
+        note = note_col.text_input("Megjegyzés (opcionális)", value=current.get("note", ""))
+        if save_col.form_submit_button("Mentés és újraszámolás", type="primary", use_container_width=True):
             db.save_checkin(day_key, soreness=soreness, stress=stress, motivation=motivation, fatigue=fatigue, pain=pain, illness=illness, note=note)
             st.success("A check-in elmentve. Frissítsd az oldalt az új ajánláshoz.")
 
@@ -299,42 +325,62 @@ def render_goals_and_plans() -> None:
 def load_chart(prefix: str = "hybrid") -> go.Figure:
     data = wellness.reset_index(names="date")
     fig = go.Figure()
-    fig.add_trace(go.Scatter(x=data["date"], y=data[f"{prefix}_ctl"], name="CTL · τ=42 nap", line=dict(color="#63B3FF", width=3)))
-    fig.add_trace(go.Scatter(x=data["date"], y=data[f"{prefix}_atl"], name="ATL · τ=7 nap", line=dict(color="#FF9D72", width=2)))
-    fig.add_trace(go.Scatter(x=data["date"], y=data[f"{prefix}_tsb"], name="TSB · előző napi form", line=dict(color="#B39DFF", width=2)))
-    fig.add_hline(y=-20, line_dash="dot", line_color="#FF6B6B", annotation_text="óvatossági küszöb")
-    fig.update_layout(height=390, margin=dict(l=10, r=10, t=25, b=10), hovermode="x unified", yaxis_title="Személyes terhelési egység")
+    fig.add_trace(go.Scatter(x=data["date"], y=data[f"{prefix}_ctl"], name="CTL · 42 nap", line=dict(color="#14B8A6", width=3)))
+    fig.add_trace(go.Scatter(x=data["date"], y=data[f"{prefix}_atl"], name="ATL · 7 nap", line=dict(color="#F59E0B", width=2)))
+    fig.add_trace(go.Scatter(x=data["date"], y=data[f"{prefix}_tsb"], name="TSB · forma", line=dict(color="#3B82F6", width=2)))
+    fig.add_hline(y=-20, line_dash="dot", line_color="#EF4444", annotation_text="óvatossági küszöb")
+    fig.update_layout(height=390, margin=dict(l=10, r=10, t=25, b=10), hovermode="x unified", yaxis_title="Személyes terhelési egység", paper_bgcolor="#1e1e1e", plot_bgcolor="#1e1e1e", font=dict(color="#b0b0b0", family="Geist"), legend=dict(orientation="h", y=1.08), xaxis=dict(gridcolor="rgba(255,255,255,.05)"), yaxis=dict(gridcolor="rgba(255,255,255,.05)"))
     return fig
 
 
 if page == "Ma":
-    st.title("Mai edzésdöntés")
-    st.caption("Konkrét, determinisztikus ajánlás a személyes alapérték, regeneráció és terhelési előzmény alapján.")
-    st.markdown(f"""<div class="decision"><h2>{decision['type']} · {decision['duration']}</h2>
-    <p><b>Maximum:</b> {decision['max_intensity']} · <b>Pulzus:</b> {decision['heart_rate_zone']} · <b>RPE:</b> {decision['rpe']}</p>
-    <p>{decision['rationale']}</p><p class="muted">Bizonyosság: {decision['confidence']} · Aktivált szabályok: {hungarian_rules(decision['rules'])}</p></div>""", unsafe_allow_html=True)
-    st.write("")
     latest = wellness.iloc[-1]
     zone, _ = tsb_zone(float(latest["hybrid_tsb"]))
-    cols = st.columns(5)
-    cols[0].metric("Edzéskészültség", "—" if readiness.score is None else f"{readiness.score}/100", readiness.confidence)
-    cols[1].metric("HRV", "—" if pd.isna(latest.hrv) else f"{latest.hrv:.0f} ms")
-    cols[2].metric("RHR", "—" if pd.isna(latest.resting_hr) else f"{latest.resting_hr:.0f} bpm")
-    cols[3].metric("Alvás", "—" if pd.isna(latest.sleep_score) else f"{latest.sleep_score:.0f}/100")
-    cols[4].metric("Hibrid TSB", f"{latest.hybrid_tsb:+.1f}", zone)
-    if flags:
-        st.subheader("Kiemelt jelzések")
-        for flag in flags:
-            (st.error if flag["severity"] == "high" else st.warning if flag["severity"] == "medium" else st.info)(f"**{flag['title']}** — {flag['trigger']}. {flag['action']}")
-    if evaluated_plans:
-        st.info(f"**Terv–tény visszacsatolás:** {plan_guidance}")
-    left, right = st.columns([1.2, 1])
-    with left:
-        st.subheader("Mi alakította a pontszámot?")
-        st.dataframe(pd.DataFrame(readiness.components).rename(columns={"name":"Komponens","score":"Pont","weight":"Súly %","current":"Aktuális","baseline":"Alapérték","deviation":"Eltérés","interpretation":"Értelmezés"}), hide_index=True, use_container_width=True)
-        st.info(f"**Ajánlott:** {decision['type']} vagy {decision['alternative']}  \n**Kerüld:** {decision['avoid']}")
-    with right:
+    score = readiness.score or 0
+    has_high_flag = any(flag["severity"] == "high" for flag in flags)
+    band = "PIHENŐ" if has_high_flag else "TERHELHETŐ" if score >= 75 else "ALAPOZÓ" if score >= 55 else "ÓVATOS"
+    band_color = "#ef4444" if band == "PIHENŐ" else "#14b8a6" if band == "TERHELHETŐ" else "#3b82f6" if band == "ALAPOZÓ" else "#f59e0b"
+    sync_label = "DEMO ADAT" if demo else ("ELAVULT" if sync_age > 36 else "FRISS")
+    st.markdown(f'''<div class="ha-page-head"><div><div class="ha-eyebrow">MA · {pd.Timestamp(today_key).strftime("%Y. %m. %d.")}</div><h1>A mai döntés</h1></div><div class="ha-sync">SZINKRON · {sync_label}</div></div>''', unsafe_allow_html=True)
+    main_col, rail_col = st.columns([1.55, 1], gap="medium")
+    with main_col:
+        st.markdown(f'''<div class="decision" style="--ring-color:{band_color};--ring-score:{score}%">
+        <div class="section-label">Mai ajánlás</div><div class="decision-grid"><div class="readiness-ring"><div><div><strong>{score}</strong><span>READINESS</span></div></div></div>
+        <div><span class="band">{band}</span><div class="decision-title">{html.escape(decision['type'])}</div><div class="decision-meta">{html.escape(decision['duration'])} · {html.escape(decision['heart_rate_zone'])} · RPE {html.escape(decision['rpe'])} · maximum {html.escape(decision['max_intensity'])}</div></div></div>
+        <div class="decision-notes"><div class="decision-note"><b>Alternatíva</b><br>{html.escape(decision['alternative'])}</div><div class="decision-note"><b>Kerüld ma</b><br>{html.escape(decision['avoid'])}</div></div>
+        <div class="decision-footer"><span>{decision['confidence'].upper()} BIZONYOSSÁG · ADATMINŐSÉG {quality['score']}/100</span><span>{html.escape(hungarian_rules(decision['rules']).upper())}</span></div></div>''', unsafe_allow_html=True)
+        st.write("")
+        if flags:
+            for flag in flags:
+                (st.error if flag["severity"] == "high" else st.warning if flag["severity"] == "medium" else st.info)(f"**{flag['title']}** — {flag['trigger']}. {flag['action']}")
+        if evaluated_plans:
+            st.info(f"**Terv–tény:** {plan_guidance}")
         render_checkin(today_key)
+        st.markdown('<div class="section-label" style="margin-top:18px">Readiness összetevők</div>', unsafe_allow_html=True)
+        component_frame = pd.DataFrame(readiness.components).rename(columns={"name":"Komponens","score":"Pont","weight":"Súly %","current":"Aktuális","baseline":"Alapérték","deviation":"Eltérés","interpretation":"Értelmezés"})
+        st.dataframe(component_frame, hide_index=True, use_container_width=True)
+        st.markdown('<div class="section-label" style="margin-top:18px">Mai terv és tény</div>', unsafe_allow_html=True)
+        p1, p2 = st.columns(2)
+        p1.metric("Mai ajánlott idő", decision["duration"], decision["heart_rate_zone"])
+        today_activities = activities[activities["date"].dt.date == pd.Timestamp(today_key).date()] if not activities.empty else pd.DataFrame()
+        p2.metric("Mai teljesítés", "Még nincs" if today_activities.empty else f"{today_activities['duration_min'].sum():.0f} perc", "A nap még nyitva" if today_activities.empty else f"{len(today_activities)} aktivitás")
+    with rail_col:
+        st.markdown('<div class="section-label">Terhelés · 12 hét</div>', unsafe_allow_html=True)
+        heat = wellness[["hybrid_load"]].tail(84).copy()
+        heat["hét"] = heat.index.to_period("W-MON").astype(str)
+        heat["nap"] = heat.index.weekday
+        heat_pivot = heat.pivot_table(index="nap", columns="hét", values="hybrid_load", aggfunc="sum").reindex(range(7))
+        heatmap = go.Figure(go.Heatmap(z=heat_pivot.values, x=list(range(len(heat_pivot.columns))), y=["H","K","Sze","Cs","P","Szo","V"], colorscale=[[0,"#252525"],[1,"#14b8a6"]], showscale=False, xgap=4, ygap=4, hovertemplate="Terhelés: %{z:.0f}<extra></extra>"))
+        heatmap.update_layout(height=245, margin=dict(l=34,r=12,t=10,b=18), paper_bgcolor="#1e1e1e", plot_bgcolor="#1e1e1e", font=dict(color="#707070",family="Geist Mono",size=9), xaxis=dict(showticklabels=False,showgrid=False), yaxis=dict(autorange="reversed",showgrid=False))
+        st.plotly_chart(heatmap, use_container_width=True, config={"displayModeBar":False})
+        st.markdown('<div class="section-label" style="margin-top:18px">Heti keret</div>', unsafe_allow_html=True)
+        st.markdown(f'''<div class="weekly-kpis"><div class="weekly-kpi"><span>Terhelés</span><strong>{summary['total_load']}</strong><small>hibrid</small></div><div class="weekly-kpi"><span>Zone 2</span><strong>{'—' if summary['zone2_min'] is None else summary['zone2_min']}</strong><small>perc</small></div><div class="weekly-kpi"><span>Erő</span><strong>{summary['strength_sessions']}</strong><small>alkalom</small></div></div>''', unsafe_allow_html=True)
+        st.caption("A heti keret a személyes terhelési előzményhez és az aktuális regenerációhoz igazodik.")
+        st.markdown('<div class="section-label" style="margin-top:18px">Utolsó edzések</div>', unsafe_allow_html=True)
+        if not activities.empty:
+            recent_activity = hungarian_activity_table(activities.sort_values("date", ascending=False).head(5))[["date","name","modality","duration_min"]]
+            st.dataframe(recent_activity.rename(columns={"date":"Dátum","name":"Edzés","modality":"Típus","duration_min":"Perc"}), hide_index=True, use_container_width=True)
+        st.markdown('<div class="ha-card" style="margin-top:18px"><div class="section-label">Adatfolytonosság</div><div style="display:flex;justify-content:space-between;color:var(--ha-secondary);font-size:12px"><span>Baseline</span><b>28 nap</b><span>Minőség</span><b>'+str(quality['score'])+'/100</b></div><div class="continuity">'+('<span></span>'*21)+'</div></div>', unsafe_allow_html=True)
 
 elif page == "Terhelés és trendek":
     st.title("Terhelés és regeneráció")
@@ -557,6 +603,44 @@ elif page == "Heti jelentés":
     d1, d2 = st.columns(2)
     d1.download_button("Heti jelentés letöltése (Markdown)", report_markdown, file_name=f"heti-jelentes-{wellness.index[-1].date()}.md", mime="text/markdown", use_container_width=True)
     d2.download_button("Heti adatok letöltése (JSON)", json.dumps(report_payload, ensure_ascii=False, indent=2, default=str), file_name=f"heti-jelentes-{wellness.index[-1].date()}.json", mime="application/json", use_container_width=True)
+
+elif page == "Előzmények":
+    st.title("Döntési és terhelési előzmények")
+    st.caption("A korábban automatikusan eltárolt napi ajánlások és heti összefoglalók idővonala.")
+    daily_tab, weekly_tab = st.tabs(["Napi ajánlások", "Heti összefoglalók"])
+    with daily_tab:
+        if not daily_snapshots:
+            st.info("Még nincs eltárolt napi ajánlás.")
+        else:
+            daily_history = pd.DataFrame([
+                {
+                    "Dátum": item["day"], "Ajánlás": item.get("type", "—"),
+                    "Időtartam": item.get("duration", "—"), "Maximális intenzitás": item.get("max_intensity", "—"),
+                    "Bizonyosság": item.get("confidence", "—"), "Aktivált szabályok": hungarian_rules(item.get("rules", [])),
+                    "Létrehozva": item.get("generated_at", "—"),
+                }
+                for item in daily_snapshots
+            ])
+            recommendation_counts = daily_history["Ajánlás"].value_counts().rename_axis("Ajánlás").reset_index(name="Napok")
+            st.plotly_chart(px.bar(recommendation_counts, x="Ajánlás", y="Napok", color="Ajánlás", title="Ajánlástípusok gyakorisága"), use_container_width=True)
+            st.dataframe(daily_history, hide_index=True, use_container_width=True)
+    with weekly_tab:
+        if not weekly_snapshots:
+            st.info("Még nincs eltárolt heti összefoglaló.")
+        else:
+            weekly_history = pd.DataFrame([
+                {
+                    "Hét kezdete": item["week_start"], "Hibrid terhelés": item.get("total_load"),
+                    "Változás (%)": item.get("change_pct"), "Erőedzések": item.get("strength_sessions"),
+                    "Regeneráló napok": item.get("recovery_days"), "Zone 2 (perc)": item.get("zone2_min"),
+                    "Magas intenzitás (perc)": item.get("high_intensity_min"), "Létrehozva": item.get("generated_at", "—"),
+                }
+                for item in weekly_snapshots
+            ]).sort_values("Hét kezdete")
+            st.plotly_chart(px.line(weekly_history, x="Hét kezdete", y="Hibrid terhelés", markers=True, title="Heti hibrid terhelés története"), use_container_width=True)
+            st.dataframe(weekly_history.sort_values("Hét kezdete", ascending=False), hide_index=True, use_container_width=True)
+    snapshot_export = {"daily_recommendations": daily_snapshots, "weekly_summaries": weekly_snapshots}
+    st.download_button("Teljes előzmény letöltése (JSON)", json.dumps(snapshot_export, ensure_ascii=False, indent=2, default=str), file_name="edzesdontesi-elozmenyek.json", mime="application/json", use_container_width=True)
 
 else:
     st.title("Beállítások és módszertan")

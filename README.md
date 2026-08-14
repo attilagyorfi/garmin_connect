@@ -20,6 +20,7 @@ Személyre szabott, magyararázható Streamlit döntéstámogató rendszer futá
 - módosítható napi wellness check-in és aktivitásonkénti session RPE
 - reszponzív havi kártyás naptár, terhelési trendek, egyensúly és determinisztikus heti összefoglaló
 - automatikus napi ajánlás- és heti összefoglaló-snapshot SQLite-ban
+- külön előzményoldal a napi ajánlások és heti terhelés idővonalával, grafikonokkal és JSON-exporttal
 - cél- és eseménykezelés heti időkerettel, pihenőnappal és kardió–erő célaránnyal
 - napi edzéstervezés, automatikus/kézi Garmin-párosítás és terv–tény visszacsatolás
 - verziózott SQLite-séma manuális és generált adatokhoz
