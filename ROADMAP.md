@@ -54,7 +54,8 @@
 - elkészült: alvás/TSB/RPE/HRV és modalitás rangkorrelációs, nem kauzális elemzése
 - elkészült: outlier- és missingness-jelentés
 - elkészült: 60/90/120 napos időablak-érzékenység és determinisztikus bootstrap bizonytalansági tartomány
-- következő: prediktív modell csak megfelelő idősoros validációval
+- elkészült: három bővülő idősoros fold, baseline-összevetés és automatikus élesítési kapu
+- következő: a valós teljes történet eredménye alapján feature- és drift-audit
 
 ## Ismert korlátok
 

@@ -719,6 +719,66 @@ def pattern_uncertainty(frame: pd.DataFrame, activities: pd.DataFrame, feedback:
     return output
 
 
+def validate_recovery_model(frame: pd.DataFrame, activities: pd.DataFrame, feedback: dict[str, dict[str, Any]] | None = None) -> dict[str, Any]:
+    """Validate a small ridge model with expanding, strictly chronological folds."""
+    feature_columns = ["sleep_score", "hrv", "resting_hr", "hybrid_tsb", "hybrid_load", "session_rpe"]
+    if frame.empty:
+        return {"status": "insufficient", "eligible": False, "samples": 0, "folds": [], "message": "Nincs elemezhető adat."}
+    data = frame.copy().sort_index()
+    hrv_history = data["hrv"].shift(1).rolling(28, min_periods=14)
+    rhr_history = data["resting_hr"].shift(1).rolling(28, min_periods=14)
+    hrv_scale = hrv_history.std().clip(lower=1)
+    rhr_scale = rhr_history.std().clip(lower=1)
+    daily_recovery = (data["hrv"] - hrv_history.median()) / hrv_scale - (data["resting_hr"] - rhr_history.median()) / rhr_scale
+    data["target"] = daily_recovery.shift(-1)
+    data["session_rpe"] = np.nan
+    if not activities.empty:
+        enriched = activities.copy()
+        enriched["rpe"] = [number((feedback or {}).get(str(activity_id), {}).get("rpe")) for activity_id in enriched["activity_id"]]
+        data["session_rpe"] = enriched.groupby("date")["rpe"].max().reindex(data.index)
+    labeled = data[feature_columns + ["target"]].dropna(subset=["target"])
+    if len(labeled) < 132:
+        return {"status": "insufficient", "eligible": False, "samples": len(labeled), "folds": [], "message": f"Legalább 132 célértékes nap kell; jelenleg {len(labeled)} áll rendelkezésre."}
+
+    def fit_predict(train: pd.DataFrame, test: pd.DataFrame) -> tuple[np.ndarray, float, dict[str, Any]]:
+        medians = train[feature_columns].median().fillna(0)
+        train_x = train[feature_columns].fillna(medians).to_numpy(dtype=float)
+        test_x = test[feature_columns].fillna(medians).to_numpy(dtype=float)
+        means, scales = train_x.mean(axis=0), train_x.std(axis=0)
+        scales[scales < 1e-9] = 1
+        train_x, test_x = (train_x - means) / scales, (test_x - means) / scales
+        train_y = train["target"].to_numpy(dtype=float)
+        y_mean = float(train_y.mean())
+        coefficients = np.linalg.solve(train_x.T @ train_x + np.eye(len(feature_columns)) * 3.0, train_x.T @ (train_y - y_mean))
+        return y_mean + test_x @ coefficients, float(np.median(train_y)), {"medians": medians, "means": means, "scales": scales, "coefficients": coefficients, "intercept": y_mean}
+
+    test_size = min(30, max(14, (len(labeled) - 90) // 3))
+    first_test = len(labeled) - 3 * test_size
+    predictions, baselines, actuals, folds = [], [], [], []
+    for fold_index in range(3):
+        test_start = first_test + fold_index * test_size
+        train, test = labeled.iloc[:test_start], labeled.iloc[test_start:test_start + test_size]
+        model_pred, baseline, _ = fit_predict(train, test)
+        actual = test["target"].to_numpy(dtype=float)
+        model_mae = float(np.mean(np.abs(actual - model_pred)))
+        baseline_mae = float(np.mean(np.abs(actual - baseline)))
+        folds.append({"fold": fold_index + 1, "train_days": len(train), "test_days": len(test), "test_start": str(test.index.min().date()), "test_end": str(test.index.max().date()), "model_mae": round(model_mae, 3), "baseline_mae": round(baseline_mae, 3)})
+        predictions.extend(model_pred.tolist()); baselines.extend([baseline] * len(test)); actuals.extend(actual.tolist())
+    actual_array, prediction_array, baseline_array = np.array(actuals), np.array(predictions), np.array(baselines)
+    model_mae = float(np.mean(np.abs(actual_array - prediction_array)))
+    baseline_mae = float(np.mean(np.abs(actual_array - baseline_array)))
+    improvement = (baseline_mae - model_mae) / baseline_mae * 100 if baseline_mae > 0 else 0
+    eligible = improvement >= 5 and sum(fold["model_mae"] < fold["baseline_mae"] for fold in folds) >= 2
+    _, _, fitted = fit_predict(labeled, labeled.tail(1))
+    latest = data[feature_columns].tail(1).copy()
+    latest_x = latest.fillna(fitted["medians"]).to_numpy(dtype=float)
+    latest_x = (latest_x - fitted["means"]) / fitted["scales"]
+    forecast = float((fitted["intercept"] + latest_x @ fitted["coefficients"])[0])
+    residuals = actual_array - prediction_array
+    low, high = forecast + np.quantile(residuals, [.1, .9])
+    return {"status": "validated", "eligible": eligible, "samples": len(labeled), "folds": folds, "model_mae": round(model_mae, 3), "baseline_mae": round(baseline_mae, 3), "improvement_pct": round(improvement, 1), "forecast": round(forecast, 2) if eligible else None, "forecast_interval": [round(float(low), 2), round(float(high), 2)] if eligible else None, "message": "A modell engedélyezhető: idősorosan felülmúlta a baseline-t." if eligible else "A modell nem jelenít meg előrejelzést: nem teljesítette az 5%-os és a legalább 2/3 foldos kaput."}
+
+
 def tsb_zone(value: float) -> tuple[str, str]:
     return ("Friss", "#54D6A0") if value > 5 else ("Optimális terhelés", "#F5C451") if value >= -20 else ("Túlterhelési kockázat", "#FF6B6B")
 

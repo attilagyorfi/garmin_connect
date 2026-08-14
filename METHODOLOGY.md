@@ -77,4 +77,6 @@ A retrospektív nézet legalább 60 érvényes HRV/RHR napot igényel. A követk
 
 A stabilitásvizsgálat ugyanazt a kapcsolatot 60, 90 és 120 napos ablakon számolja újra, majd rögzített seed mellett 300 bootstrap mintából 95%-os tartományt képez. Egy kapcsolat csak akkor kap stabil jelzést, ha legalább két időablakban azonos irányú és a bootstrap-tartomány nem metszi a nullát.
 
+A prediktív ellenőrzés legalább 132 célértékes napot igényel. Három időrendhelyes, bővülő tanítóablakot használ; a tesztadat soha nem előzi meg a tanítóadatot. A standardizálás és a hiányzó értékek mediános pótlása foldonként csak a tanítóhalmazon készül. A ridge regresszió a tanító célmedián baseline-nal versenyez. Előrejelzés csak legalább 5% összesített MAE-javulás és legalább két nyertes fold esetén jelenik meg; az intervallum az idősoros tesztmaradékok 10–90. percentilise.
+
 Az algoritmus determinisztikus, de nem klinikailag validált. A wearable adatok mérési hibásak lehetnek; a load proxy nem TSS. A readiness sportdöntési jel, nem betegség- vagy sérülésdiagnózis. A küszöböket hosszabb személyes előtörténettel és edzői visszajelzéssel kell kalibrálni.
