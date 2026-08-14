@@ -16,7 +16,7 @@ import streamlit as st
 from analytics import (
     build_daily_frames, data_quality, explainable_readiness, personal_baseline,
     deload_taper_recommendation, evaluate_training_plans, event_preparation_analysis,
-    mountain_readiness, mountain_weekly_trends, multiday_readiness, pattern_uncertainty, personal_patterns, plan_adjustment_message, red_flags, training_decision, tsb_zone, validate_recovery_model,
+    feature_drift_audit, mountain_readiness, mountain_weekly_trends, multiday_readiness, pattern_uncertainty, personal_patterns, plan_adjustment_message, red_flags, training_decision, tsb_zone, validate_recovery_model,
     weekly_plan_template, weekly_summary,
 )
 from garmin_sync import GarminSync, GarminSyncError, demo_data
@@ -417,10 +417,25 @@ elif page == "Mi működik nálam?":
         c2.metric("Baseline MAE", validation["baseline_mae"])
         c3.metric("Javulás", f"{validation['improvement_pct']:+.1f}%")
         st.dataframe(pd.DataFrame(validation["folds"]).rename(columns={"fold":"Fold", "train_days":"Tanítónap", "test_days":"Tesztnap", "test_start":"Teszt eleje", "test_end":"Teszt vége", "model_mae":"Modell MAE", "baseline_mae":"Baseline MAE"}), hide_index=True, use_container_width=True)
+        st.subheader("Feature-audit")
+        feature_labels = {"sleep_score":"Alváspontszám", "hrv":"HRV", "resting_hr":"Nyugalmi pulzus", "hybrid_tsb":"Hibrid TSB", "hybrid_load":"Hibrid terhelés", "session_rpe":"Edzés-RPE"}
+        feature_frame = pd.DataFrame(validation["feature_audit"])
+        feature_frame["feature"] = feature_frame["feature"].map(feature_labels).fillna(feature_frame["feature"])
+        st.dataframe(feature_frame.rename(columns={"feature":"Bemenet", "coefficient_median":"Medián együttható", "coefficient_range":"Fold-tartomány", "sign_stable":"Irány stabil", "available_pct":"Elérhető %"}), hide_index=True, use_container_width=True)
         (st.success if validation["eligible"] else st.warning)(validation["message"])
         if validation["eligible"]:
             st.metric("Következő napi regenerációs becslés", validation["forecast"], f"80%-os empirikus tartomány: {validation['forecast_interval'][0]} … {validation['forecast_interval'][1]}")
         st.caption("A tesztablakok mindig a tanítóadatok után következnek. A baseline a tanító célérték mediánja; a modell ridge regresszió. Előrejelzés csak legalább 5% összesített javulás és minimum 2/3 nyertes fold esetén látható.")
+    st.subheader("Feature-drift audit")
+    drift = feature_drift_audit(wellness, activities, feedback)
+    if drift["status"] == "insufficient":
+        st.info(drift["message"])
+    else:
+        drift_frame = pd.DataFrame(drift["features"])
+        drift_frame["feature"] = drift_frame["feature"].map({"sleep_score":"Alváspontszám", "hrv":"HRV", "resting_hr":"Nyugalmi pulzus", "hybrid_tsb":"Hibrid TSB", "hybrid_load":"Hibrid terhelés", "session_rpe":"Edzés-RPE"}).fillna(drift_frame["feature"])
+        st.dataframe(drift_frame.rename(columns={"feature":"Bemenet", "psi":"PSI", "median_shift_iqr":"Mediáneltolódás (IQR)", "missing_delta_pp":"Hiányzás változása (százalékpont)", "severity":"Súlyosság", "message":"Értelmezés"}), hide_index=True, use_container_width=True)
+        (st.warning if drift["alerts"] else st.success)(drift["message"])
+        st.caption("A PSI az utolsó 60 nap eloszlását hasonlítja az azt megelőző 60 naphoz. Magas jelzés: PSI ≥ 0,25, legalább 1 IQR mediáneltolódás vagy legalább 20 százalékponttal több hiányzó adat.")
     st.warning("Az eredmény megfigyeléses és zavaró tényezőket tartalmazhat. Ne változtass egyetlen gyenge vagy alacsony bizonyosságú kapcsolat alapján az edzéseden.")
 
 elif page == "Hegyi felkészültség":

@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 
 from analytics import (
-    ReadinessResult, build_daily_frames, cardio_load, data_quality, extract_hr_zone_minutes,
+    ReadinessResult, build_daily_frames, cardio_load, data_quality, extract_hr_zone_minutes, feature_drift_audit,
     deload_taper_recommendation, evaluate_training_plans, event_preparation_analysis,
     exponential_load, explainable_readiness, modality, musculoskeletal_load,
     plan_adjustment_message, plan_completion_status,
@@ -273,3 +273,27 @@ def test_recovery_model_beats_baseline_on_known_temporal_signal():
     assert result["eligible"] is True
     assert result["model_mae"] < result["baseline_mae"]
     assert result["forecast_interval"][0] < result["forecast_interval"][1]
+    assert len(result["feature_audit"]) == 6
+    assert all("sign_stable" in item for item in result["feature_audit"])
+
+
+def test_feature_drift_audit_detects_recent_distribution_shift():
+    rng = np.random.default_rng(7)
+    days = 120
+    frame = pd.DataFrame({
+        "sleep_score": np.r_[rng.normal(75, 2, 60), rng.normal(88, 2, 60)],
+        "hrv": rng.normal(55, 3, days),
+        "resting_hr": rng.normal(52, 2, days),
+        "hybrid_tsb": rng.normal(0, 5, days),
+        "hybrid_load": rng.normal(50, 10, days),
+    }, index=pd.date_range("2026-01-01", periods=days))
+    result = feature_drift_audit(frame, pd.DataFrame(), window=60)
+    sleep = next(item for item in result["features"] if item["feature"] == "sleep_score")
+    assert result["status"] == "ready"
+    assert sleep["severity"] == "magas"
+    assert sleep["psi"] >= .25 or sleep["median_shift_iqr"] >= 1
+
+
+def test_feature_drift_audit_requires_two_windows():
+    _, frame, activities = demo_frames(90)
+    assert feature_drift_audit(frame.tail(100), activities, window=60)["status"] == "insufficient"

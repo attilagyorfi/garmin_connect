@@ -79,4 +79,6 @@ A stabilitásvizsgálat ugyanazt a kapcsolatot 60, 90 és 120 napos ablakon szá
 
 A prediktív ellenőrzés legalább 132 célértékes napot igényel. Három időrendhelyes, bővülő tanítóablakot használ; a tesztadat soha nem előzi meg a tanítóadatot. A standardizálás és a hiányzó értékek mediános pótlása foldonként csak a tanítóhalmazon készül. A ridge regresszió a tanító célmedián baseline-nal versenyez. Előrejelzés csak legalább 5% összesített MAE-javulás és legalább két nyertes fold esetén jelenik meg; az intervallum az idősoros tesztmaradékok 10–90. percentilise.
 
+A feature-audit a standardizált ridge-együtthatók mediánját, foldok közötti tartományát, iránystabilitását és adatlefedettségét mutatja. A drift-audit az utolsó 60 napot az azt megelőző 60 nappal veti össze. Magas jelzést ad PSI ≥ 0,25, legalább 1 IQR mediáneltolódás vagy legalább 20 százalékpontos hiányzásnövekedés esetén. A drift nem egészségügyi jelzés; a bemeneti adatok vagy a személyes edzési minták változását mutatja.
+
 Az algoritmus determinisztikus, de nem klinikailag validált. A wearable adatok mérési hibásak lehetnek; a load proxy nem TSS. A readiness sportdöntési jel, nem betegség- vagy sérülésdiagnózis. A küszöböket hosszabb személyes előtörténettel és edzői visszajelzéssel kell kalibrálni.
