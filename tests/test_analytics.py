@@ -7,7 +7,7 @@ from analytics import (
     exponential_load, explainable_readiness, modality, musculoskeletal_load,
     plan_adjustment_message, plan_completion_status,
     performance_management, personal_baseline, red_flags, robust_z_score,
-    mountain_readiness, mountain_weekly_trends, multiday_readiness, pattern_uncertainty, personal_patterns, strength_load, training_decision, validate_recovery_model, weekly_plan_template, weekly_summary,
+    model_promotion_decision, mountain_readiness, mountain_weekly_trends, multiday_readiness, pattern_uncertainty, personal_patterns, strength_load, training_decision, validate_recovery_model, weekly_plan_template, weekly_summary,
 )
 from garmin_sync import demo_data
 
@@ -275,6 +275,16 @@ def test_recovery_model_beats_baseline_on_known_temporal_signal():
     assert result["forecast_interval"][0] < result["forecast_interval"][1]
     assert len(result["feature_audit"]) == 6
     assert all("sign_stable" in item for item in result["feature_audit"])
+    assert len(result["artifact"]["coefficients"]) == 6
+    assert result["data_start"] < result["data_end"]
+
+
+def test_model_promotion_requires_better_validated_candidate():
+    active = [{"id": 1, "active": True, "model_mae": .8}]
+    assert model_promotion_decision({"status":"validated", "eligible": True, "model_mae": .7}, active)["promote"] is True
+    assert model_promotion_decision({"status":"validated", "eligible": True, "model_mae": .9}, active)["promote"] is False
+    assert model_promotion_decision({"status":"validated", "eligible": False, "model_mae": .5}, active)["promote"] is False
+    assert model_promotion_decision({"status":"validated", "eligible": True, "model_mae": .9}, [])["promote"] is True
 
 
 def test_feature_drift_audit_detects_recent_distribution_shift():

@@ -16,7 +16,7 @@ import streamlit as st
 from analytics import (
     build_daily_frames, data_quality, explainable_readiness, personal_baseline,
     deload_taper_recommendation, evaluate_training_plans, event_preparation_analysis,
-    feature_drift_audit, mountain_readiness, mountain_weekly_trends, multiday_readiness, pattern_uncertainty, personal_patterns, plan_adjustment_message, red_flags, training_decision, tsb_zone, validate_recovery_model,
+    feature_drift_audit, model_promotion_decision, mountain_readiness, mountain_weekly_trends, multiday_readiness, pattern_uncertainty, personal_patterns, plan_adjustment_message, red_flags, training_decision, tsb_zone, validate_recovery_model,
     weekly_plan_template, weekly_summary,
 )
 from garmin_sync import GarminSync, GarminSyncError, demo_data
@@ -78,6 +78,7 @@ stored_checkins = db.list_checkins()
 stored_feedback = db.list_feedback()
 goals = db.list_goals()
 plans = db.list_plans()
+model_versions = db.list_model_versions()
 checkins = {**payload.get("demo_checkins", {}), **stored_checkins}
 feedback = {**payload.get("demo_feedback", {}), **stored_feedback}
 wellness, activities = build_daily_frames(payload, feedback)
@@ -436,6 +437,20 @@ elif page == "Mi működik nálam?":
         st.dataframe(drift_frame.rename(columns={"feature":"Bemenet", "psi":"PSI", "median_shift_iqr":"Mediáneltolódás (IQR)", "missing_delta_pp":"Hiányzás változása (százalékpont)", "severity":"Súlyosság", "message":"Értelmezés"}), hide_index=True, use_container_width=True)
         (st.warning if drift["alerts"] else st.success)(drift["message"])
         st.caption("A PSI az utolsó 60 nap eloszlását hasonlítja az azt megelőző 60 naphoz. Magas jelzés: PSI ≥ 0,25, legalább 1 IQR mediáneltolódás vagy legalább 20 százalékponttal több hiányzó adat.")
+    st.subheader("Modellverziók")
+    if validation["status"] == "validated":
+        promotion = model_promotion_decision(validation, model_versions)
+        st.info(f"**Aktiválási döntés:** {promotion['reason']}")
+        if st.button("Aktuális modelljelölt mentése", type="primary"):
+            candidate = {key: value for key, value in validation.items() if key not in {"message", "forecast", "forecast_interval"}}
+            candidate["drift"] = {"alerts": drift.get("alerts", 0), "window": drift.get("window"), "features": drift.get("features", [])}
+            model_id = db.save_model_version(candidate, activate=promotion["promote"])
+            st.success(f"A(z) {model_id}. modellverzió elmentve" + (" és aktiválva." if promotion["promote"] else " inaktív jelöltként."))
+    if model_versions:
+        version_rows = [{"Verzió": item["id"], "Aktív": item["active"], "Tanítás": item["trained_at"], "Adatablak": f"{item['data_start']} – {item['data_end']}", "Mintanagyság": item["sample_count"], "Modell MAE": item.get("model_mae"), "Baseline MAE": item.get("baseline_mae"), "Javulás %": item.get("improvement_pct"), "Driftjelzések": item.get("drift", {}).get("alerts", 0)} for item in model_versions]
+        st.dataframe(pd.DataFrame(version_rows), hide_index=True, use_container_width=True)
+    else:
+        st.caption("Még nincs mentett modellverzió.")
     st.warning("Az eredmény megfigyeléses és zavaró tényezőket tartalmazhat. Ne változtass egyetlen gyenge vagy alacsony bizonyosságú kapcsolat alapján az edzéseden.")
 
 elif page == "Hegyi felkészültség":

@@ -57,7 +57,9 @@
 - elkészült: három bővülő idősoros fold, baseline-összevetés és automatikus élesítési kapu
 - elkészült: foldonkénti feature-együttható-, iránystabilitási és lefedettségi audit
 - elkészült: 60+60 napos PSI-, IQR-eltolódás- és missingness-alapú drift-audit
-- következő: drift esetén automatikus újratanítási és modellverziózási folyamat
+- elkészült: auditálható SQLite modellverziók reprodukálható artifacttal
+- elkészült: automatikus aktiválás csak validált és az aktív modellnél jobb MAE-jű jelöltnél
+- következő: ütemezett újratanítás és modell-visszaállítási UI
 
 ## Ismert korlátok
 
