@@ -204,7 +204,7 @@ def test_mountain_readiness_is_explainable_and_goal_specific():
     result = mountain_readiness(activities, {}, goal, today=activities["date"].max())
     assert 0 <= result["score"] <= 100
     assert result["confidence"] in {"magas", "közepes", "alacsony"}
-    assert {"Táv", "Szintemelkedés", "Back-to-back"} <= {item["name"] for item in result["components"]}
+    assert {"Táv", "Szintemelkedés", "Egymást követő hosszú napok"} <= {item["name"] for item in result["components"]}
     assert result["metrics"]["ascent_28d_m"] >= 0
 
 
