@@ -16,7 +16,7 @@ import streamlit as st
 from analytics import (
     build_daily_frames, data_quality, explainable_readiness, personal_baseline,
     deload_taper_recommendation, evaluate_training_plans, event_preparation_analysis,
-    plan_adjustment_message, red_flags, training_decision, tsb_zone,
+    mountain_readiness, plan_adjustment_message, red_flags, training_decision, tsb_zone,
     weekly_plan_template, weekly_summary,
 )
 from garmin_sync import GarminSync, GarminSyncError, demo_data
@@ -49,7 +49,7 @@ sync = GarminSync(CACHE_DIR)
 
 with st.sidebar:
     st.title("HIBRID // EDZŐ")
-    page = st.radio("Navigáció", ["Ma", "Terhelés és trendek", "Naptár", "Egyensúly", "Célok és tervek", "Heti jelentés", "Beállítások és módszertan"])
+    page = st.radio("Navigáció", ["Ma", "Terhelés és trendek", "Naptár", "Egyensúly", "Hegyi felkészültség", "Célok és tervek", "Heti jelentés", "Beállítások és módszertan"])
     st.divider()
     demo = st.toggle("Bemutató mód", value=not bool(os.getenv("GARMIN_EMAIL")), help="Legalább 90 nap determinisztikus mintaadat.")
     history_days = st.select_slider("Előzmény", [30, 60, 90, 120, 180], value=90)
@@ -367,6 +367,23 @@ elif page == "Egyensúly":
 
 elif page == "Célok és tervek":
     render_goals_and_plans()
+
+elif page == "Hegyi felkészültség":
+    st.title("Hegyi felkészültség")
+    mountain_goals = [goal for goal in goals if any(term in goal.get("event_type", "").lower() for term in ("terep", "trek", "hegy"))]
+    selected_mountain_goal = st.selectbox("Hegyi cél", [None] + [int(goal["id"]) for goal in mountain_goals], format_func=lambda value: "Általános hegyi felkészültség" if value is None else next(goal["name"] for goal in mountain_goals if int(goal["id"]) == value))
+    mountain_goal = next((goal for goal in mountain_goals if int(goal["id"]) == selected_mountain_goal), None)
+    mountain = mountain_readiness(activities, feedback, mountain_goal)
+    st.metric("Mountain score", "—" if mountain["score"] is None else f"{mountain['score']}/100", mountain["confidence"])
+    if mountain["metrics"]:
+        labels = {"distance_28d_km":"28 nap táv (km)", "ascent_28d_m":"Szint fel (m)", "descent_28d_m":"Szint le (m)", "longest_day_min":"Leghosszabb nap (perc)", "back_to_back_pairs":"Back-to-back pár", "strength_sessions":"Erőedzés", "pack_sessions":"Hátizsákos alkalom", "max_pack_kg":"Max. hátizsák (kg)"}
+        columns = st.columns(4)
+        for index, (key, value) in enumerate(mountain["metrics"].items()):
+            columns[index % 4].metric(labels[key], value)
+    st.subheader("Pontszám összetevői")
+    st.dataframe(pd.DataFrame(mountain["components"]).rename(columns={"name":"Komponens", "score":"Pont", "weight":"Súly %"}), hide_index=True, use_container_width=True)
+    st.warning("**Fejlesztendő területek:** " + ", ".join(mountain["gaps"]))
+    st.caption("A score sportteljesítményi iránytű: nem jósol célidőt, nem diagnosztizál, és kevés specifikus adatnál csökkenti a bizonyosságot.")
 
 elif page == "Heti jelentés":
     st.title("Heti edzői összefoglaló")

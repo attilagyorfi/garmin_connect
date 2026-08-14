@@ -543,6 +543,40 @@ def weekly_plan_template(goal: dict[str, Any], week_start: Any) -> list[dict[str
     return plans
 
 
+def mountain_readiness(activities: pd.DataFrame, feedback: dict[str, dict[str, Any]] | None = None, goal: dict[str, Any] | None = None, today: Any | None = None) -> dict[str, Any]:
+    """Explain mountain-specific preparation from the last 28 days."""
+    now, feedback, goal = pd.Timestamp(today or pd.Timestamp.today()).normalize(), feedback or {}, goal or {}
+    if activities.empty:
+        return {"score": None, "confidence": "alacsony", "components": [], "metrics": {}, "gaps": ["nincs aktivitási adat"]}
+    recent = activities[(activities["date"] >= now - pd.Timedelta(days=27)) & (activities["date"] <= now)].copy()
+    cardio = recent[recent["modality"] == "Cardio"]
+    daily = cardio.groupby("date").agg(distance_km=("distance_km", "sum"), ascent_m=("ascent_m", "sum"), duration_min=("duration_min", "sum")) if not cardio.empty else pd.DataFrame()
+    back_to_back = int(sum((daily.index[index] - daily.index[index - 1]).days == 1 and daily.iloc[index - 1].duration_min >= 60 and daily.iloc[index].duration_min >= 60 for index in range(1, len(daily))))
+    packs = [float(feedback.get(str(row.activity_id), {}).get("pack_kg") or 0) for _, row in recent.iterrows()]
+    pack_sessions = sum(value > 0 for value in packs)
+    distance, ascent = float(cardio["distance_km"].sum()), float(cardio["ascent_m"].sum())
+    descent = float(cardio["descent_m"].sum())
+    longest = float(daily["duration_min"].max()) if not daily.empty else 0
+    strength_sessions = int((recent["modality"] == "Strength / Functional").sum())
+    target_distance, target_ascent = float(goal.get("distance_km") or 25), float(goal.get("elevation_m") or 1000)
+    definitions = [
+        ("Táv", min(100, distance / max(target_distance * 1.5, 1) * 100), 20),
+        ("Szintemelkedés", min(100, ascent / max(target_ascent * 1.5, 1) * 100), 25),
+        ("Hosszú nap", min(100, longest / 180 * 100), 20),
+        ("Back-to-back", min(100, back_to_back / 2 * 100), 15),
+        ("Lejtmeneti kitettség", min(100, descent / max(target_ascent * 1.5, 1) * 100), 10),
+        ("Erőalap", min(100, strength_sessions / 4 * 100), 10),
+    ]
+    score = round(sum(points * weight for _, points, weight in definitions) / 100)
+    components = [{"name": name, "score": round(points), "weight": weight} for name, points, weight in definitions]
+    gaps = [name for name, points, _ in definitions if points < 50]
+    if any(term in str(goal.get("event_type", "")).lower() for term in ("trek", "hegy")) and pack_sessions < 2:
+        gaps.append("Hátizsákos gyakorlás")
+    valid_signals = sum([len(cardio) >= 4, ascent > 0, descent > 0, strength_sessions > 0, bool(goal)])
+    confidence = "magas" if valid_signals >= 5 and len(recent) >= 8 else "közepes" if valid_signals >= 3 else "alacsony"
+    return {"score": score, "confidence": confidence, "components": components, "metrics": {"distance_28d_km": round(distance, 1), "ascent_28d_m": round(ascent), "descent_28d_m": round(descent), "longest_day_min": round(longest), "back_to_back_pairs": back_to_back, "strength_sessions": strength_sessions, "pack_sessions": pack_sessions, "max_pack_kg": max(packs, default=0)}, "gaps": gaps or ["nincs egyértelmű hegyi felkészülési hiány"]}
+
+
 def tsb_zone(value: float) -> tuple[str, str]:
     return ("Friss", "#54D6A0") if value > 5 else ("Optimális terhelés", "#F5C451") if value >= -20 else ("Túlterhelési kockázat", "#FF6B6B")
 
