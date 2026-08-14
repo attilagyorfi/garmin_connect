@@ -43,6 +43,8 @@ html,body,[class*="css"]{font-family:'Geist',system-ui,sans-serif}
 [data-testid="stMetric"]{background:var(--ha-card);border:1px solid var(--ha-border);border-radius:12px;padding:15px 16px;box-shadow:inset 0 1px 0 rgba(255,255,255,.04),0 16px 34px -24px rgba(0,0,0,.8)}
 [data-testid="stMetricLabel"]{font-family:'Geist Mono',monospace;letter-spacing:.07em;text-transform:uppercase;color:var(--ha-muted)}
 [data-testid="stMetricValue"]{font-family:'Geist Mono',monospace}
+[data-testid="stMain"] h1{font-size:1.45rem!important;line-height:1.2!important;letter-spacing:-.03em!important}
+[data-testid="stMain"] h2{font-size:1.05rem;letter-spacing:-.02em}
 .ha-brand{display:flex;align-items:center;gap:10px;padding:4px 6px 18px}.ha-mark{width:30px;height:30px;border-radius:8px;background:var(--ha-accent);color:#04211d;display:grid;place-items:center;font-family:'Geist Mono',monospace;font-weight:700;font-style:italic}.ha-wordmark{font-family:'Geist Mono',monospace;font-size:12px;font-weight:600;letter-spacing:.18em;color:#fff}.ha-sub{font-family:'Geist Mono',monospace;font-size:9px;letter-spacing:.06em;color:var(--ha-muted);margin-top:3px}
 .ha-page-head{display:flex;align-items:flex-end;justify-content:space-between;border-bottom:1px solid var(--ha-border);padding:0 0 16px;margin-bottom:20px}.ha-eyebrow{font-family:'Geist Mono',monospace;font-size:10px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;color:var(--ha-accent)}.ha-page-head h1{font-size:1.45rem;line-height:1.2;margin:.35rem 0 0;letter-spacing:-.03em}.ha-sync{font-family:'Geist Mono',monospace;font-size:10px;color:var(--ha-muted);padding:8px 11px;border:1px solid var(--ha-border);border-radius:999px}
 .decision{padding:1.3rem 1.45rem;border-radius:14px;background:radial-gradient(120% 90% at 15% 0%,rgba(20,184,166,.14),transparent 60%),var(--ha-card);border:1px solid var(--ha-border);box-shadow:inset 0 1px 0 rgba(255,255,255,.05),0 16px 34px -18px rgba(0,0,0,.6)}
@@ -81,7 +83,7 @@ sync = GarminSync(CACHE_DIR)
 
 with st.sidebar:
     st.markdown('<div class="ha-brand"><div class="ha-mark">H</div><div><div class="ha-wordmark">HYBRID ATHLETE</div><div class="ha-sub">SZEMÉLYES EDZÉSDÖNTÉS</div></div></div>', unsafe_allow_html=True)
-    page = st.radio("Navigáció", ["Ma", "Terhelés és trendek", "Naptár", "Egyensúly", "Hegyi felkészültség", "Mi működik nálam?", "Célok és tervek", "Heti jelentés", "Előzmények", "Beállítások és módszertan"])
+    page = st.radio("Navigáció", ["Ma", "Terhelés és trendek", "Naptár", "Napló", "Egyensúly", "Hegyi felkészültség", "Mi működik nálam?", "Célok és tervek", "Heti jelentés", "Előzmények", "Beállítások és módszertan"])
     st.divider()
     with st.expander("Adatkapcsolat", expanded=False):
         demo = st.toggle("Bemutató mód", value=not bool(os.getenv("GARMIN_EMAIL")), help="Legalább 90 nap determinisztikus mintaadat.")
@@ -395,6 +397,42 @@ elif page == "Terhelés és trendek":
         st.dataframe(visible.rename(columns={"date":"Dátum","name":"Aktivitás","modality":"Modalitás","duration_min":"Időtartam (perc)","cardio_load":"Kardióterhelés","strength_load":"Erőterhelés","musculoskeletal_load":"Mozgásszervi terhelés","lower_body_load":"Alsótest-terhelés","zone2_min":"Zone 2 perc","high_intensity_min":"Magas intenzitású perc","load_method":"Számítási módszer","load_confidence":"Bizonyosság"}), hide_index=True, use_container_width=True)
     st.subheader("Edzés-RPE és visszajelzés")
     render_feedback()
+
+elif page == "Napló":
+    st.title("Edzésnapló")
+    st.caption("A Garmin-aktivitások, manuális RPE-k és tervteljesítések kereshető története.")
+    if activities.empty:
+        st.info("Még nincs naplózható aktivitás.")
+    else:
+        filter_col, search_col = st.columns([1.2, 2])
+        modality_filter = filter_col.segmented_control("Típus", ["Mind", "Kardió", "Erő / funkcionális", "Egyéb"], default="Mind")
+        search = search_col.text_input("Keresés az edzés nevében", placeholder="Például: futás, túra, erő…")
+        log_frame = hungarian_activity_table(activities.sort_values("date", ascending=False).copy())
+        if modality_filter != "Mind":
+            log_frame = log_frame[log_frame["modality"] == modality_filter]
+        if search:
+            log_frame = log_frame[log_frame["name"].str.contains(search, case=False, na=False)]
+        completion_by_activity = {str(item["actual_activity_id"]): item["status"] for item in evaluated_plans if item.get("actual_activity_id")}
+        log_frame["rpe"] = [feedback.get(str(activity_id), {}).get("rpe") for activity_id in log_frame["activity_id"]]
+        log_frame["terv"] = [completion_by_activity.get(str(activity_id), "extra") for activity_id in log_frame["activity_id"]]
+        log_frame["terhelés"] = log_frame[["cardio_load", "strength_load", "musculoskeletal_load"]].fillna(0).sum(axis=1).round().astype(int)
+        log_frame["date"] = pd.to_datetime(log_frame["date"]).dt.strftime("%Y-%m-%d")
+        log_frame["duration_min"] = log_frame["duration_min"].round().astype(int)
+        log_frame["avg_hr"] = log_frame["avg_hr"].round().astype("Int64")
+        visible_log = log_frame[["date", "modality", "name", "duration_min", "avg_hr", "rpe", "terhelés", "terv"]].rename(columns={"date":"Dátum", "modality":"Típus", "name":"Edzés", "duration_min":"Időtartam (perc)", "avg_hr":"Átlagpulzus", "rpe":"RPE", "terv":"Tervteljesítés"})
+        st.dataframe(visible_log, hide_index=True, use_container_width=True, height=520, column_config={
+            "Dátum": st.column_config.TextColumn(width="small"),
+            "Típus": st.column_config.TextColumn(width="medium"),
+            "Edzés": st.column_config.TextColumn(width="large"),
+            "Időtartam (perc)": st.column_config.NumberColumn(width="small"),
+            "Átlagpulzus": st.column_config.NumberColumn(width="small"),
+            "RPE": st.column_config.NumberColumn(width="small"),
+            "terhelés": st.column_config.NumberColumn("Terhelés", width="small"),
+            "Tervteljesítés": st.column_config.TextColumn(width="medium"),
+        })
+        st.caption(f"{len(visible_log)} aktivitás látható · a hiányzó RPE az edzés után bármikor rögzíthető.")
+        with st.expander("Edzés-RPE és részletek rögzítése"):
+            render_feedback()
 
 elif page == "Naptár":
     st.title("Edzéstörténeti naptár")
