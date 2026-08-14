@@ -193,6 +193,21 @@ class Database:
             rows = db.execute("SELECT * FROM training_plans ORDER BY planned_date,id").fetchall()
         return [dict(row) for row in rows]
 
+    def save_plans(self, plans: list[dict[str, Any]]) -> list[int]:
+        """Insert a set of plans atomically."""
+        stamp = datetime.now().astimezone().isoformat()
+        ids: list[int] = []
+        with self.connect() as db:
+            for values in plans:
+                cursor = db.execute(
+                    """INSERT INTO training_plans
+                    (planned_date,modality,duration_min,intensity,purpose,target_rpe,note,matched_activity_id,updated_at)
+                    VALUES(?,?,?,?,?,?,?,?,?)""",
+                    (str(values["planned_date"]), values["modality"], int(values["duration_min"]), values["intensity"], values.get("purpose", ""), values.get("target_rpe"), values.get("note", ""), values.get("matched_activity_id"), stamp),
+                )
+                ids.append(int(cursor.lastrowid))
+        return ids
+
     def match_plan(self, plan_id: int, activity_id: str | None) -> None:
         with self.connect() as db:
             db.execute("UPDATE training_plans SET matched_activity_id=?,updated_at=? WHERE id=?", (activity_id, datetime.now().astimezone().isoformat(), plan_id))

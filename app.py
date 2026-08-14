@@ -15,8 +15,9 @@ import streamlit as st
 
 from analytics import (
     build_daily_frames, data_quality, explainable_readiness, personal_baseline,
-    evaluate_training_plans, plan_adjustment_message, red_flags, training_decision,
-    tsb_zone, weekly_summary,
+    deload_taper_recommendation, evaluate_training_plans, event_preparation_analysis,
+    plan_adjustment_message, red_flags, training_decision, tsb_zone,
+    weekly_plan_template, weekly_summary,
 )
 from garmin_sync import GarminSync, GarminSyncError, demo_data
 from storage import Database
@@ -204,13 +205,25 @@ def render_goals_and_plans() -> None:
             st.subheader("Felkészülési állapot")
             goal_rows = []
             for goal in goals:
-                event_day = pd.Timestamp(goal["event_date"]) if goal.get("event_date") else None
-                days_left = (event_day.normalize() - pd.Timestamp.today().normalize()).days if event_day is not None else None
-                status = "lejárt" if days_left is not None and days_left < 0 else "közelgő" if days_left is not None and days_left <= 28 else "építési szakasz"
-                goal_rows.append({"Cél": goal["name"], "Típus": goal["event_type"], "Dátum": goal.get("event_date"), "Hátralévő nap": days_left, "Státusz": status, "Heti keret": f"{goal.get('weekly_hours', '—')} óra", "Célarány": f"{goal.get('cardio_target_pct', '—')}% kardió / {goal.get('strength_target_pct', '—')}% erő"})
+                analysis = event_preparation_analysis(goal, activities)
+                goal_rows.append({"Cél": goal["name"], "Típus": goal["event_type"], "Dátum": goal.get("event_date"), "Hátralévő nap": analysis["days_left"], "Státusz": analysis["status"], "28 nap táv": f"{analysis['distance_28d_km']} km", "28 nap szint": f"{analysis['ascent_28d_m']} m", "Leghosszabb edzés": f"{analysis['longest_session_min']} perc", "Hiányok": "; ".join(analysis["gaps"])})
             st.dataframe(pd.DataFrame(goal_rows), hide_index=True, use_container_width=True)
+            recovery = deload_taper_recommendation(wellness, goals, checkins, feedback)
+            message = f"**{recovery['type'].capitalize()}** · {recovery['duration_days']} nap · {recovery['reduction_pct']}% volumencsökkentés  \n{recovery['rationale']}  \nAktivált szabályok: {', '.join(recovery['rules'])}"
+            (st.warning if recovery["type"] in {"deload", "taper"} else st.info)(message)
 
     with plan_tab:
+        if goals:
+            st.subheader("Heti tervsablon")
+            template_goal_id = st.selectbox("Sablon célja", [int(goal["id"]) for goal in goals], format_func=lambda value: next(goal["name"] for goal in goals if int(goal["id"]) == value))
+            template_start = st.date_input("Hét kezdete", value=date.today() + timedelta(days=(7 - date.today().weekday())), key="template-start")
+            template_goal = next(goal for goal in goals if int(goal["id"]) == template_goal_id)
+            preview = weekly_plan_template(template_goal, template_start)
+            st.dataframe(pd.DataFrame(preview).rename(columns={"planned_date":"Nap","modality":"Modalitás","duration_min":"Perc","intensity":"Intenzitás","purpose":"Cél","target_rpe":"RPE","note":"Megjegyzés"}), hide_index=True, use_container_width=True)
+            if st.button("Heti sablon mentése", type="primary"):
+                db.save_plans(preview)
+                st.success(f"{len(preview)} edzés elmentve. Frissítsd az oldalt a listához.")
+            st.divider()
         plan_labels = {0: "Új edzés tervezése", **{int(plan["id"]): f"{plan['planned_date']} · {MODALITY_HU.get(plan['modality'], plan['modality'])} · {plan['duration_min']} perc" for plan in plans}}
         selected_plan_id = st.selectbox("Szerkesztendő terv", list(plan_labels), format_func=plan_labels.get)
         current_plan = next((plan for plan in plans if int(plan["id"]) == selected_plan_id), {})

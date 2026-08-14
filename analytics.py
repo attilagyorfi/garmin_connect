@@ -467,6 +467,82 @@ def plan_adjustment_message(evaluated_plans: list[dict[str, Any]]) -> str:
     return "A terv részben tért el a tényleges terheléstől; a következő edzésnél a friss readiness legyen az elsődleges."
 
 
+def deload_taper_recommendation(frame: pd.DataFrame, goals: list[dict[str, Any]], checkins: dict[str, dict[str, Any]] | None = None, feedback: dict[str, dict[str, Any]] | None = None, today: Any | None = None) -> dict[str, Any]:
+    """Return a conservative, explainable deload or event-taper recommendation."""
+    if frame.empty:
+        return {"type": "nincs elég adat", "reduction_pct": 0, "duration_days": 0, "rules": ["missing_data"], "rationale": "Terhelési adatok nélkül nem adható megbízható javaslat."}
+    now = pd.Timestamp(today or pd.Timestamp.today()).normalize()
+    rules: list[str] = []
+    recent, previous = frame.tail(7), frame.iloc[-14:-7]
+    if len(recent) >= 4 and (recent.get("hybrid_tsb", pd.Series(dtype=float)) < -20).sum() >= 4:
+        rules.append("tartósan_alacsony_tsb")
+    if len(previous) and recent["hybrid_load"].sum() > previous["hybrid_load"].sum() * 1.2:
+        rules.append("gyors_terhelésnövekedés")
+    for column, rule, direction, threshold in [("hrv", "csökkenő_hrv", -1, 2), ("resting_hr", "emelkedő_nyugalmi_pulzus", 1, 3), ("sleep_score", "romló_alvás", -1, 3)]:
+        values = recent.get(column, pd.Series(dtype=float)).dropna()
+        if len(values) >= 5 and direction * (values.tail(3).mean() - values.head(3).mean()) > threshold:
+            rules.append(rule)
+    recent_checkins = [value for day, value in (checkins or {}).items() if pd.Timestamp(day) >= now - pd.Timedelta(days=7)]
+    if sum(int(item.get("motivation", 5)) <= 2 for item in recent_checkins) >= 2:
+        rules.append("alacsony_motiváció")
+    recent_feedback = [value for value in (feedback or {}).values() if value.get("rpe") is not None]
+    if sum(int(item["rpe"]) >= 8 for item in recent_feedback[-5:]) >= 3:
+        rules.append("ismételt_magas_rpe")
+    event_days = [(pd.Timestamp(goal["event_date"]).normalize() - now).days for goal in goals if goal.get("event_date")]
+    days_to_event = min((days for days in event_days if days >= 0), default=None)
+    if days_to_event is not None and days_to_event <= 14:
+        rules.append("közelgő_esemény")
+        return {"type": "taper", "reduction_pct": 40 if days_to_event <= 7 else 25, "duration_days": max(3, min(14, days_to_event)), "rules": rules, "rationale": f"A legközelebbi esemény {days_to_event} nap múlva lesz; az intenzitás röviden fenntartható, a volumen csökkentendő."}
+    if len(rules) >= 2:
+        return {"type": "deload", "reduction_pct": 35, "duration_days": 7, "rules": rules, "rationale": f"{len(rules)} egymást erősítő fáradtsági jel aktív; egy hétig csökkentett volumen javasolt."}
+    return {"type": "normál terhelés", "reduction_pct": 0, "duration_days": 0, "rules": rules or ["nincs_deload_jel"], "rationale": "Nincs legalább két, egymást erősítő deload-jel és nincs 14 napon belüli esemény."}
+
+
+def event_preparation_analysis(goal: dict[str, Any], activities: pd.DataFrame, today: Any | None = None) -> dict[str, Any]:
+    """Assess recent event-specific work without predicting race performance."""
+    now = pd.Timestamp(today or pd.Timestamp.today()).normalize()
+    event_day = pd.Timestamp(goal["event_date"]).normalize() if goal.get("event_date") else None
+    days_left = (event_day - now).days if event_day is not None else None
+    recent = activities[activities["date"] >= now - pd.Timedelta(days=28)] if not activities.empty else activities
+    modalities = recent.get("modality", pd.Series(index=recent.index, dtype=str))
+    cardio = recent[modalities == "Cardio"]
+    strength_count = int((modalities == "Strength / Functional").sum())
+    distance = float(cardio.get("distance_km", pd.Series(dtype=float)).sum())
+    ascent = float(cardio.get("ascent_m", pd.Series(dtype=float)).sum())
+    longest = float(cardio.get("duration_min", pd.Series(dtype=float)).max()) if not cardio.empty else 0.0
+    gaps: list[str] = []
+    event_type = str(goal.get("event_type", "")).lower()
+    target_distance, target_ascent = float(goal.get("distance_km") or 0), float(goal.get("elevation_m") or 0)
+    if target_distance and distance < target_distance * 1.5:
+        gaps.append("kevés eseményspecifikus táv az utóbbi 4 héten")
+    if target_distance >= 20 and longest < 90:
+        gaps.append("hiányzik a hosszú állóképességi edzés")
+    if any(term in event_type for term in ("terep", "trek", "hegy")) and target_ascent and ascent < target_ascent * 1.5:
+        gaps.append("kevés szintemelkedés az utóbbi 4 héten")
+    if any(term in event_type for term in ("trek", "hibrid")) and strength_count < 4:
+        gaps.append("kevés erő/functional alkalom az utóbbi 4 héten")
+    status = "lejárt" if days_left is not None and days_left < 0 else "taper" if days_left is not None and days_left <= 14 else "hiányos" if gaps else "irányban"
+    return {"days_left": days_left, "status": status, "distance_28d_km": round(distance, 1), "ascent_28d_m": round(ascent), "longest_session_min": round(longest), "strength_sessions_28d": strength_count, "gaps": gaps or ["nincs egyértelmű eseményspecifikus hiány a rendelkezésre álló adatokban"]}
+
+
+def weekly_plan_template(goal: dict[str, Any], week_start: Any) -> list[dict[str, Any]]:
+    """Create a weekly structure constrained by time, ratio, and rest day."""
+    start = pd.Timestamp(week_start).normalize() - pd.Timedelta(days=pd.Timestamp(week_start).weekday())
+    day_names = ["hétfő", "kedd", "szerda", "csütörtök", "péntek", "szombat", "vasárnap"]
+    rest_index = day_names.index(goal.get("rest_day", "vasárnap")) if goal.get("rest_day") in day_names else 6
+    total_minutes = max(60, round(float(goal.get("weekly_hours") or 7) * 60))
+    cardio_share = float(goal.get("cardio_target_pct") or 60) / 100
+    cardio_sessions, strength_sessions = (3 if cardio_share >= .5 else 2), (2 if cardio_share <= .75 else 1)
+    available = [index for index in range(7) if index != rest_index]
+    session_count = cardio_sessions + strength_sessions
+    base_duration = max(20, total_minutes // session_count)
+    plans = []
+    for position, day_index in enumerate(available[:session_count]):
+        is_cardio = position < cardio_sessions
+        plans.append({"planned_date": str((start + pd.Timedelta(days=day_index)).date()), "modality": "Cardio" if is_cardio else "Strength / Functional", "duration_min": base_duration, "intensity": "magas" if is_cardio and position == cardio_sessions - 1 else "közepes", "purpose": "Eseményspecifikus állóképesség" if is_cardio else "Teljes testes erő", "target_rpe": 7 if is_cardio and position == cardio_sessions - 1 else 5, "note": "Heti sablonból generálva"})
+    return plans
+
+
 def tsb_zone(value: float) -> tuple[str, str]:
     return ("Friss", "#54D6A0") if value > 5 else ("Optimális terhelés", "#F5C451") if value >= -20 else ("Túlterhelési kockázat", "#FF6B6B")
 

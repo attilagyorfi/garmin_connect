@@ -37,3 +37,13 @@ def test_goal_and_training_plan_crud(tmp_path):
     db.delete_goal(goal_id)
     assert db.list_plans() == []
     assert db.list_goals() == []
+
+
+def test_bulk_plan_insert_is_available_for_weekly_templates(tmp_path):
+    db = Database(tmp_path / "training.sqlite3")
+    ids = db.save_plans([
+        {"planned_date": "2026-08-17", "modality": "Cardio", "duration_min": 45, "intensity": "közepes", "purpose": "Zone 2", "target_rpe": 5},
+        {"planned_date": "2026-08-18", "modality": "Strength / Functional", "duration_min": 40, "intensity": "közepes", "purpose": "Erő", "target_rpe": 6},
+    ])
+    assert len(ids) == 2
+    assert len(db.list_plans()) == 2

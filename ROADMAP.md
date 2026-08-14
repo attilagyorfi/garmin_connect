@@ -23,9 +23,14 @@
 
 ## Következő P2 finomítások
 
-- szabályalapú deload/taper keretek; automatikus teljes edzésterv nélkül
-- heti tervsablon és több edzés együttes mozgatása
-- eseményspecifikus terhelés és hiányzó felkészülési komponensek részletes számítása
+- több edzés együttes mozgatása
+- a heti sablon egyedi napkiosztásának szerkesztése mentés előtt
+
+## Elkészült P2 finomítások
+
+- magyar, szabályalapú deload/taper javaslat aktivált szabályokkal és volumencsökkentéssel
+- heti tervsablon a heti időkeret, a kardio–erő arány és a pihenőnap alapján
+- eseményspecifikus 28 napos táv-, szint-, hosszú edzés- és erőedzés-hiányok
 
 ## P3 – Mountain Readiness
 
