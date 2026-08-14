@@ -59,6 +59,10 @@ Elsőbbség: betegség → jelentős fájdalom → alacsony confidence → soroz
 
 Figyelmeztetések: háromnapos alacsony HRV, háromnapos baseline+6 bpm RHR, >20% heti load-emelkedés, három egymást követő saját 70. percentilis feletti nap, két egymást követő erős alsótestnap, fájdalom, betegség és 36 óránál régebbi sync. Minden flag adatot, küszöböt és beavatkozást ad.
 
+## Tervezett kontra tényleges edzés
+
+A párosítás sorrendje: kézzel rögzített Garmin-aktivitásazonosító, majd azonos nap és modalitás szerinti első még fel nem használt aktivitás. Időtartamarány alapján 0% elmaradt, 1–74% részben teljesült, 75–125% teljesült, 125% felett túlteljesült. Magas intenzitású terv túlteljesítése a következő ajánlást legfeljebb közepes intenzitásra korlátozza. Több elmaradt edzést a rendszer nem próbál automatikusan bepótoltatni.
+
 ## Korlátok
 
 Az algoritmus determinisztikus, de nem klinikailag validált. A wearable adatok mérési hibásak lehetnek; a load proxy nem TSS. A readiness sportdöntési jel, nem betegség- vagy sérülésdiagnózis. A küszöböket hosszabb személyes előtörténettel és edzői visszajelzéssel kell kalibrálni.

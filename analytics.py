@@ -408,6 +408,65 @@ def weekly_summary(frame: pd.DataFrame, activities: pd.DataFrame, flags: list[di
     return {"total_load": round(total), "change_pct": None if change is None else round(change), "strength_sessions": strength_sessions, "recovery_days": int((current["hybrid_load"] < 10).sum()), "zone2_min": None if pd.isna(zone2) else round(float(zone2)), "high_intensity_min": None if pd.isna(high_intensity) else round(float(high_intensity)), "flags": len(flags), "recommendations": recommendations[:4] or ["Tartsd a jelenlegi, kiegyensúlyozott struktúrát."]}
 
 
+def plan_completion_status(planned_minutes: float, actual_minutes: float) -> str:
+    if actual_minutes <= 0:
+        return "elmaradt"
+    ratio = actual_minutes / max(planned_minutes, 1)
+    if ratio < 0.75:
+        return "részben teljesült"
+    if ratio <= 1.25:
+        return "teljesült"
+    return "túlteljesült"
+
+
+def evaluate_training_plans(plans: list[dict[str, Any]], activities: pd.DataFrame) -> list[dict[str, Any]]:
+    """Match plans manually first, otherwise by same-day modality."""
+    output: list[dict[str, Any]] = []
+    used_activity_ids: set[str] = set()
+    for plan in sorted(plans, key=lambda item: (str(item["planned_date"]), int(item.get("id", 0)))):
+        plan_day = pd.Timestamp(plan["planned_date"]).normalize()
+        matched = pd.DataFrame()
+        manual_id = str(plan.get("matched_activity_id") or "")
+        if manual_id and not activities.empty:
+            matched = activities[activities["activity_id"].astype(str) == manual_id]
+        if matched.empty and not activities.empty:
+            candidates = activities[
+                (activities["date"] == plan_day)
+                & (activities["modality"] == plan["modality"])
+                & (~activities["activity_id"].astype(str).isin(used_activity_ids))
+            ]
+            if not candidates.empty:
+                matched = candidates.iloc[[0]]
+        actual_minutes = float(matched["duration_min"].sum()) if not matched.empty else 0.0
+        activity_id = str(matched.iloc[0]["activity_id"]) if not matched.empty else None
+        if activity_id:
+            used_activity_ids.add(activity_id)
+        output.append({
+            **plan,
+            "actual_duration_min": round(actual_minutes),
+            "actual_activity_id": activity_id,
+            "status": plan_completion_status(float(plan["duration_min"]), actual_minutes),
+            "duration_deviation_min": round(actual_minutes - float(plan["duration_min"])),
+            "match_method": "kézi" if manual_id and activity_id == manual_id else "automatikus" if activity_id else "nincs párosítás",
+        })
+    return output
+
+
+def plan_adjustment_message(evaluated_plans: list[dict[str, Any]]) -> str:
+    completed = [plan for plan in evaluated_plans if pd.Timestamp(plan["planned_date"]) <= pd.Timestamp.today().normalize()]
+    if not completed:
+        return "Még nincs értékelhető korábbi terv."
+    recent = completed[-3:]
+    if any(plan["status"] == "túlteljesült" and plan["intensity"] == "magas" for plan in recent):
+        return "A közelmúltban magas intenzitású tervet túlteljesítettél; a következő ajánlás legyen konzervatívabb."
+    missed = sum(plan["status"] == "elmaradt" for plan in recent)
+    if missed >= 2:
+        return "Több edzés elmaradt. Ne próbáld egyszerre bepótolni őket; tervezz újra reális heti kerettel."
+    if all(plan["status"] == "teljesült" for plan in recent):
+        return "A legutóbbi tervek megfelelően teljesültek; nincs szükség automatikus korrekcióra."
+    return "A terv részben tért el a tényleges terheléstől; a következő edzésnél a friss readiness legyen az elsődleges."
+
+
 def tsb_zone(value: float) -> tuple[str, str]:
     return ("Friss", "#54D6A0") if value > 5 else ("Optimális terhelés", "#F5C451") if value >= -20 else ("Túlterhelési kockázat", "#FF6B6B")
 

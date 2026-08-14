@@ -3,7 +3,8 @@ import pandas as pd
 
 from analytics import (
     ReadinessResult, build_daily_frames, cardio_load, data_quality, extract_hr_zone_minutes,
-    exponential_load, explainable_readiness, modality, musculoskeletal_load,
+    evaluate_training_plans, exponential_load, explainable_readiness, modality, musculoskeletal_load,
+    plan_adjustment_message, plan_completion_status,
     performance_management, personal_baseline, red_flags, robust_z_score,
     strength_load, training_decision, weekly_summary,
 )
@@ -123,3 +124,31 @@ def test_consecutive_lower_body_load_triggers_recovery_flag():
     frame.loc[frame.index[-4], "lower_body_load"] = 50
     frame.loc[frame.index[-2:], "lower_body_load"] = 100
     assert any("alsótest" in item["title"].lower() for item in red_flags(frame))
+
+
+def test_plan_completion_boundaries():
+    assert plan_completion_status(60, 0) == "elmaradt"
+    assert plan_completion_status(60, 40) == "részben teljesült"
+    assert plan_completion_status(60, 60) == "teljesült"
+    assert plan_completion_status(60, 90) == "túlteljesült"
+
+
+def test_plans_match_manual_first_then_same_day_modality():
+    activities = pd.DataFrame([
+        {"activity_id": "11", "date": pd.Timestamp("2026-08-14"), "modality": "Cardio", "duration_min": 70},
+        {"activity_id": "12", "date": pd.Timestamp("2026-08-14"), "modality": "Strength / Functional", "duration_min": 45},
+    ])
+    plans = [
+        {"id": 1, "planned_date": "2026-08-14", "modality": "Cardio", "duration_min": 60, "intensity": "közepes", "matched_activity_id": None},
+        {"id": 2, "planned_date": "2026-08-14", "modality": "Cardio", "duration_min": 45, "intensity": "magas", "matched_activity_id": "12"},
+    ]
+    evaluated = evaluate_training_plans(plans, activities)
+    assert evaluated[0]["actual_activity_id"] == "11"
+    assert evaluated[0]["status"] == "teljesült"
+    assert evaluated[1]["actual_activity_id"] == "12"
+    assert evaluated[1]["match_method"] == "kézi"
+
+
+def test_plan_adjustment_does_not_recommend_catching_up_missed_sessions():
+    plans = [{"planned_date": "2026-08-01", "status": "elmaradt", "intensity": "közepes"}] * 2
+    assert "Ne próbáld egyszerre bepótolni" in plan_adjustment_message(plans)

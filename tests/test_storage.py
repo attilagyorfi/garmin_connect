@@ -21,3 +21,19 @@ def test_generated_snapshots_roundtrip(tmp_path):
     db.save_json("daily_recommendations", "day", "2026-08-14", {"type": "Zone 2", "confidence": "magas"})
     rows = db.list_json("daily_recommendations", "day")
     assert rows == [{"day": "2026-08-14", "type": "Zone 2", "confidence": "magas"}]
+
+
+def test_goal_and_training_plan_crud(tmp_path):
+    db = Database(tmp_path / "training.sqlite3")
+    goal_id = db.save_goal(name="Mátra 30", event_date="2026-10-01", event_type="terepfutás", weekly_hours=7, cardio_target_pct=65)
+    assert db.list_goals()[0]["weekly_hours"] == 7
+    db.save_goal(goal_id, name="Mátra 35", event_date="2026-10-01", event_type="terepfutás", weekly_hours=8)
+    assert db.list_goals()[0]["name"] == "Mátra 35"
+
+    plan_id = db.save_plan(planned_date="2026-08-15", modality="Cardio", duration_min=60, intensity="közepes", purpose="Zone 2", target_rpe=5)
+    db.match_plan(plan_id, "123")
+    assert db.list_plans()[0]["matched_activity_id"] == "123"
+    db.delete_plan(plan_id)
+    db.delete_goal(goal_id)
+    assert db.list_plans() == []
+    assert db.list_goals() == []

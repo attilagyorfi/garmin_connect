@@ -15,7 +15,8 @@ import streamlit as st
 
 from analytics import (
     build_daily_frames, data_quality, explainable_readiness, personal_baseline,
-    red_flags, training_decision, tsb_zone, weekly_summary,
+    evaluate_training_plans, plan_adjustment_message, red_flags, training_decision,
+    tsb_zone, weekly_summary,
 )
 from garmin_sync import GarminSync, GarminSyncError, demo_data
 from storage import Database
@@ -47,7 +48,7 @@ sync = GarminSync(CACHE_DIR)
 
 with st.sidebar:
     st.title("HIBRID // EDZŐ")
-    page = st.radio("Navigáció", ["Ma", "Terhelés és trendek", "Naptár", "Egyensúly", "Heti jelentés", "Beállítások és módszertan"])
+    page = st.radio("Navigáció", ["Ma", "Terhelés és trendek", "Naptár", "Egyensúly", "Célok és tervek", "Heti jelentés", "Beállítások és módszertan"])
     st.divider()
     demo = st.toggle("Bemutató mód", value=not bool(os.getenv("GARMIN_EMAIL")), help="Legalább 90 nap determinisztikus mintaadat.")
     history_days = st.select_slider("Előzmény", [30, 60, 90, 120, 180], value=90)
@@ -70,9 +71,12 @@ if not payload:
 
 stored_checkins = db.list_checkins()
 stored_feedback = db.list_feedback()
+goals = db.list_goals()
+plans = db.list_plans()
 checkins = {**payload.get("demo_checkins", {}), **stored_checkins}
 feedback = {**payload.get("demo_feedback", {}), **stored_feedback}
 wellness, activities = build_daily_frames(payload, feedback)
+evaluated_plans = evaluate_training_plans(plans, activities)
 today_key = str(wellness.index[-1].date()) if not wellness.empty else date.today().isoformat()
 today_checkin = checkins.get(today_key)
 readiness = explainable_readiness(wellness, today_checkin, BASELINE_DAYS)
@@ -86,6 +90,12 @@ baseline_valid_days = personal_baseline(wellness["hrv"].iloc[:-1], BASELINE_DAYS
 quality = data_quality(wellness.iloc[-1], baseline_valid_days, bool(today_checkin), sync_age) if not wellness.empty else {"score": 0, "level": "alacsony", "missing": ["minden adat"]}
 flags = red_flags(wellness, today_checkin, sync_age)
 decision = training_decision(readiness, wellness, today_checkin, flags)
+plan_guidance = plan_adjustment_message(evaluated_plans)
+if plan_guidance.startswith("A közelmúltban magas intenzitású tervet túlteljesítettél"):
+    decision["max_intensity"] = "legfeljebb közepes"
+    decision["avoid"] = f"{decision['avoid']}; újabb magas intenzitás"
+    decision["rules"] = [*decision["rules"], "tervtúlteljesítés-védőkorlát"]
+    decision["rationale"] = f"{decision['rationale']}; a legutóbbi magas intenzitású terv túlteljesült."
 summary = weekly_summary(wellness, activities, flags)
 week_start = str((wellness.index[-1] - timedelta(days=int(wellness.index[-1].weekday()))).date()) if not wellness.empty else str(date.today())
 db.save_json("daily_recommendations", "day", today_key, decision)
@@ -155,6 +165,90 @@ def render_feedback() -> None:
             st.success(f"Mentve. Edzésterhelés: {labels[selected].split(' · ')[-1].split()[0]} perc × {rpe} RPE.")
 
 
+def render_goals_and_plans() -> None:
+    st.title("Célok és edzéstervek")
+    st.caption("Az eseménycélok irányt adnak, a napi terv pedig összevethető a tényleges Garmin-aktivitással.")
+    goal_tab, plan_tab, comparison_tab = st.tabs(["Célok és események", "Edzés tervezése", "Terv és tény"])
+
+    with goal_tab:
+        goal_labels = {0: "Új cél létrehozása", **{int(goal["id"]): f"{goal['name']} · {goal.get('event_date') or 'nincs dátum'}" for goal in goals}}
+        selected_goal_id = st.selectbox("Szerkesztendő cél", list(goal_labels), format_func=goal_labels.get)
+        current_goal = next((goal for goal in goals if int(goal["id"]) == selected_goal_id), {})
+        event_types = ["futóverseny", "terepfutás", "magashegyi trekking", "többnapos trekking", "erőcél", "általános hibrid teljesítménycél"]
+        rest_days = ["hétfő", "kedd", "szerda", "csütörtök", "péntek", "szombat", "vasárnap"]
+        with st.form("goal-form"):
+            name = st.text_input("Cél vagy esemény neve", current_goal.get("name", ""))
+            event_date = st.date_input("Dátum", value=pd.to_datetime(current_goal.get("event_date")).date() if current_goal.get("event_date") else date.today() + timedelta(days=90))
+            event_type = st.selectbox("Típus", event_types, index=event_types.index(current_goal.get("event_type", event_types[0])) if current_goal.get("event_type") in event_types else 0)
+            c1, c2, c3 = st.columns(3)
+            distance_km = c1.number_input("Táv (km)", 0.0, 500.0, float(current_goal.get("distance_km", 0) or 0))
+            elevation_m = c2.number_input("Szintemelkedés (m)", 0, 20000, int(current_goal.get("elevation_m", 0) or 0))
+            altitude_m = c3.number_input("Várható magasság (m)", 0, 9000, int(current_goal.get("altitude_m", 0) or 0))
+            strength_goal = st.text_input("Erőcél", current_goal.get("strength_goal", ""), placeholder="Például: 5 szabályos húzódzkodás")
+            c4, c5, c6 = st.columns(3)
+            weekly_hours = c4.number_input("Heti rendelkezésre állás (óra)", 1.0, 40.0, float(current_goal.get("weekly_hours", 7) or 7), step=0.5)
+            rest_day = c5.selectbox("Preferált pihenőnap", rest_days, index=rest_days.index(current_goal.get("rest_day", "vasárnap")) if current_goal.get("rest_day") in rest_days else 6)
+            cardio_target_pct = c6.slider("Cél kardióarány (%)", 0, 100, int(current_goal.get("cardio_target_pct", 60) or 60))
+            equipment = st.text_input("Elérhető felszerelés", current_goal.get("equipment", ""), placeholder="Súlyzók, futópad, hátizsák…")
+            if st.form_submit_button("Cél mentése", type="primary", use_container_width=True):
+                if not name.strip():
+                    st.error("A cél neve kötelező.")
+                else:
+                    db.save_goal(selected_goal_id or None, name=name.strip(), event_date=str(event_date), event_type=event_type, distance_km=distance_km or None, elevation_m=elevation_m or None, altitude_m=altitude_m or None, strength_goal=strength_goal, weekly_hours=weekly_hours, rest_day=rest_day, cardio_target_pct=cardio_target_pct, strength_target_pct=100-cardio_target_pct, equipment=equipment)
+                    st.success("A cél elmentve. Frissítsd az oldalt a listához.")
+        if selected_goal_id and st.button("Kiválasztott cél törlése", type="secondary"):
+            db.delete_goal(selected_goal_id)
+            st.success("A cél törölve.")
+
+        if goals:
+            st.subheader("Felkészülési állapot")
+            goal_rows = []
+            for goal in goals:
+                event_day = pd.Timestamp(goal["event_date"]) if goal.get("event_date") else None
+                days_left = (event_day.normalize() - pd.Timestamp.today().normalize()).days if event_day is not None else None
+                status = "lejárt" if days_left is not None and days_left < 0 else "közelgő" if days_left is not None and days_left <= 28 else "építési szakasz"
+                goal_rows.append({"Cél": goal["name"], "Típus": goal["event_type"], "Dátum": goal.get("event_date"), "Hátralévő nap": days_left, "Státusz": status, "Heti keret": f"{goal.get('weekly_hours', '—')} óra", "Célarány": f"{goal.get('cardio_target_pct', '—')}% kardió / {goal.get('strength_target_pct', '—')}% erő"})
+            st.dataframe(pd.DataFrame(goal_rows), hide_index=True, use_container_width=True)
+
+    with plan_tab:
+        plan_labels = {0: "Új edzés tervezése", **{int(plan["id"]): f"{plan['planned_date']} · {MODALITY_HU.get(plan['modality'], plan['modality'])} · {plan['duration_min']} perc" for plan in plans}}
+        selected_plan_id = st.selectbox("Szerkesztendő terv", list(plan_labels), format_func=plan_labels.get)
+        current_plan = next((plan for plan in plans if int(plan["id"]) == selected_plan_id), {})
+        modality_options = ["Cardio", "Strength / Functional", "Other"]
+        intensity_options = ["könnyű", "közepes", "magas"]
+        with st.form("plan-form"):
+            planned_date = st.date_input("Tervezett nap", value=pd.to_datetime(current_plan.get("planned_date")).date() if current_plan.get("planned_date") else date.today() + timedelta(days=1), key="planned-date")
+            modality_value = st.selectbox("Modalitás", modality_options, index=modality_options.index(current_plan.get("modality", "Cardio")), format_func=MODALITY_HU.get)
+            c1, c2, c3 = st.columns(3)
+            duration_min = c1.number_input("Időtartam (perc)", 10, 600, int(current_plan.get("duration_min", 60) or 60), step=5)
+            intensity = c2.selectbox("Intenzitás", intensity_options, index=intensity_options.index(current_plan.get("intensity", "közepes")))
+            target_rpe = c3.slider("Cél-RPE", 1, 10, int(current_plan.get("target_rpe", 5) or 5))
+            purpose = st.text_input("Edzés célja", current_plan.get("purpose", ""), placeholder="Zone 2 alapozás, felsőtest-erő…")
+            note = st.text_area("Megjegyzés", current_plan.get("note", ""), key="plan-note")
+            if st.form_submit_button("Edzésterv mentése", type="primary", use_container_width=True):
+                db.save_plan(selected_plan_id or None, planned_date=planned_date, modality=modality_value, duration_min=duration_min, intensity=intensity, purpose=purpose, target_rpe=target_rpe, note=note, matched_activity_id=current_plan.get("matched_activity_id"))
+                st.success("Az edzésterv elmentve. Frissítsd az oldalt a listához.")
+        if selected_plan_id and st.button("Kiválasztott terv törlése", type="secondary"):
+            db.delete_plan(selected_plan_id)
+            st.success("Az edzésterv törölve.")
+
+    with comparison_tab:
+        if not evaluated_plans:
+            st.info("Még nincs összehasonlítható edzésterv.")
+        else:
+            comparison = pd.DataFrame(evaluated_plans)
+            comparison["modality"] = comparison["modality"].map(MODALITY_HU).fillna(comparison["modality"])
+            st.dataframe(comparison[["planned_date", "modality", "duration_min", "actual_duration_min", "status", "duration_deviation_min", "match_method"]].rename(columns={"planned_date":"Tervezett nap","modality":"Modalitás","duration_min":"Terv (perc)","actual_duration_min":"Tény (perc)","status":"Státusz","duration_deviation_min":"Eltérés (perc)","match_method":"Párosítás"}), hide_index=True, use_container_width=True)
+            st.info(plan_adjustment_message(evaluated_plans))
+            plan_to_match = st.selectbox("Kézi párosítás terve", [int(plan["id"]) for plan in plans], format_func=lambda value: next((label for key, label in plan_labels.items() if key == value), str(value)))
+            activity_choices = [""] + (activities["activity_id"].astype(str).tolist() if not activities.empty else [])
+            activity_label_map = {"": "Automatikus párosítás", **{str(row.activity_id): f"{row.date.date()} · {row['name']} · {row.duration_min:.0f} perc" for _, row in activities.iterrows()}}
+            activity_to_match = st.selectbox("Garmin-aktivitás", activity_choices, format_func=activity_label_map.get)
+            if st.button("Párosítás mentése"):
+                db.match_plan(plan_to_match, activity_to_match or None)
+                st.success("A párosítás elmentve.")
+
+
 def load_chart(prefix: str = "hybrid") -> go.Figure:
     data = wellness.reset_index(names="date")
     fig = go.Figure()
@@ -185,6 +279,8 @@ if page == "Ma":
         st.subheader("Kiemelt jelzések")
         for flag in flags:
             (st.error if flag["severity"] == "high" else st.warning if flag["severity"] == "medium" else st.info)(f"**{flag['title']}** — {flag['trigger']}. {flag['action']}")
+    if evaluated_plans:
+        st.info(f"**Terv–tény visszacsatolás:** {plan_guidance}")
     left, right = st.columns([1.2, 1])
     with left:
         st.subheader("Mi alakította a pontszámot?")
@@ -255,6 +351,9 @@ elif page == "Egyensúly":
             container.plotly_chart(px.pie(values=grouped.values, names=grouped.index, hole=.55, title=title), use_container_width=True)
         weekly = chart_frame.assign(week=chart_frame["date"].dt.to_period("W").astype(str)).groupby(["week","modality"])["duration_min"].sum().reset_index()
         st.plotly_chart(px.bar(weekly, x="week", y="duration_min", color="modality", barmode="group", labels={"duration_min":"Perc","week":"Hét","modality":"Modalitás"}), use_container_width=True)
+
+elif page == "Célok és tervek":
+    render_goals_and_plans()
 
 elif page == "Heti jelentés":
     st.title("Heti edzői összefoglaló")
