@@ -69,4 +69,6 @@ A párosítás sorrendje: kézzel rögzített Garmin-aktivitásazonosító, majd
 
 A 28 napos Mountain score célspecifikus iránytű. Komponensei: táv 20%, szintemelkedés 25%, hosszú nap 20%, egymást követő hosszú napok 15%, lejtmeneti kitettség 10% és erőalap 10%. A cél nélküli nézet konzervatív alapértékeket használ. A confidence a specifikus aktivitások, szintadatok, erőedzések és céladatok lefedettségétől függ. Ez nem célidő-előrejelzés és nem egészségügyi minősítés.
 
+A többnapos score 56 napot vizsgál: a 120 perces hosszú napok és az egymást követő 90 perces napok egyenként 35%, a manuálisan rögzített stabilitási és egylábas munka egyenként 15% súlyt kap. A SpO₂ csak 14 napos medián kontextusként jelenik meg, a score-t és az edzésajánlást nem módosítja.
+
 Az algoritmus determinisztikus, de nem klinikailag validált. A wearable adatok mérési hibásak lehetnek; a load proxy nem TSS. A readiness sportdöntési jel, nem betegség- vagy sérülésdiagnózis. A küszöböket hosszabb személyes előtörténettel és edzői visszajelzéssel kell kalibrálni.

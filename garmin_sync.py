@@ -151,6 +151,7 @@ class GarminSync:
                 "sleep_score": _sleep_score(sleep_daily) or _sleep_score(sleep),
                 "sleep_hours": sleep_seconds / 3600 if sleep_seconds else None,
                 "resting_hr": _first_number(heart, "restingHeartRate", "restingHeartRateValue"),
+                "spo2": _first_number(sleep_daily, "averageSpO2Value", "averageSpo2", "avgSpO2"),
             })
         if not activities and all(not any(v for k, v in day.items() if k != "date") for day in wellness):
             cached = self.load_cache()
@@ -175,7 +176,7 @@ def demo_data(days: int = 90, seed: int = 23) -> dict[str, Any]:
         deload = 0.72 if 42 <= i < 49 else 1.0
         fatigue = 8 if days - 8 <= i < days - 4 else 0
         illness = i == days - 3
-        wellness.append({"date": day.isoformat(), "hrv": round(58 + rng.gauss(0, 3.5) - fatigue, 1), "sleep_score": round(max(45, min(96, 82 + rng.gauss(0, 6) - fatigue)), 0), "sleep_hours": round(max(5, min(9, 7.6 + rng.gauss(0, .55) - fatigue / 10)), 1), "resting_hr": round(51 + rng.gauss(0, 1.5) + fatigue / 2, 0)})
+        wellness.append({"date": day.isoformat(), "hrv": round(58 + rng.gauss(0, 3.5) - fatigue, 1), "sleep_score": round(max(45, min(96, 82 + rng.gauss(0, 6) - fatigue)), 0), "sleep_hours": round(max(5, min(9, 7.6 + rng.gauss(0, .55) - fatigue / 10)), 1), "resting_hr": round(51 + rng.gauss(0, 1.5) + fatigue / 2, 0), "spo2": round(96 + rng.gauss(0, .7), 1)})
         if i % 2 == 0 or i % 7 == 5:
             kind = kinds[(i // 2) % len(kinds)]
             duration_min = int(rng.randint(35, 95) * deload)
