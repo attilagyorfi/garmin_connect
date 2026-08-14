@@ -16,7 +16,7 @@ import streamlit as st
 from analytics import (
     build_daily_frames, data_quality, explainable_readiness, personal_baseline,
     deload_taper_recommendation, evaluate_training_plans, event_preparation_analysis,
-    mountain_readiness, mountain_weekly_trends, multiday_readiness, plan_adjustment_message, red_flags, training_decision, tsb_zone,
+    mountain_readiness, mountain_weekly_trends, multiday_readiness, personal_patterns, plan_adjustment_message, red_flags, training_decision, tsb_zone,
     weekly_plan_template, weekly_summary,
 )
 from garmin_sync import GarminSync, GarminSyncError, demo_data
@@ -49,7 +49,7 @@ sync = GarminSync(CACHE_DIR)
 
 with st.sidebar:
     st.title("HIBRID // EDZŐ")
-    page = st.radio("Navigáció", ["Ma", "Terhelés és trendek", "Naptár", "Egyensúly", "Hegyi felkészültség", "Célok és tervek", "Heti jelentés", "Beállítások és módszertan"])
+    page = st.radio("Navigáció", ["Ma", "Terhelés és trendek", "Naptár", "Egyensúly", "Hegyi felkészültség", "Mi működik nálam?", "Célok és tervek", "Heti jelentés", "Beállítások és módszertan"])
     st.divider()
     demo = st.toggle("Bemutató mód", value=not bool(os.getenv("GARMIN_EMAIL")), help="Legalább 90 nap determinisztikus mintaadat.")
     history_days = st.select_slider("Előzmény", [30, 60, 90, 120, 180], value=90)
@@ -370,6 +370,30 @@ elif page == "Egyensúly":
 
 elif page == "Célok és tervek":
     render_goals_and_plans()
+
+elif page == "Mi működik nálam?":
+    st.title("Mi működik nálam?")
+    st.caption("Retrospektív személyes mintázatok a következő napi HRV és nyugalmi pulzus alapú regenerációval. Kapcsolatot mutat, nem ok-okozatot.")
+    patterns = personal_patterns(wellness, activities, feedback)
+    progress = min(1.0, patterns["valid_days"] / patterns["minimum_days"])
+    st.progress(progress, text=f"Érvényes napok: {patterns['valid_days']} / {patterns['minimum_days']}")
+    if patterns["status"] != "ready":
+        st.info(patterns["message"])
+    else:
+        st.info(patterns["message"])
+        if patterns["associations"]:
+            association_frame = pd.DataFrame(patterns["associations"])
+            st.dataframe(association_frame.rename(columns={"factor":"Tényező", "rho":"Spearman ρ", "sample_size":"Mintanagyság", "strength":"Kapcsolat erőssége", "confidence":"Bizonyosság", "statement":"Értelmezés"}), hide_index=True, use_container_width=True)
+            st.plotly_chart(px.bar(association_frame, x="factor", y="rho", color="confidence", labels={"factor":"Tényező", "rho":"Rangkorreláció", "confidence":"Bizonyosság"}), use_container_width=True)
+        if patterns["modalities"]:
+            st.subheader("Modalitás és következő napi regeneráció")
+            modality_frame = pd.DataFrame(patterns["modalities"])
+            modality_frame["modality"] = modality_frame["modality"].map(MODALITY_HU).fillna(modality_frame["modality"])
+            st.dataframe(modality_frame.rename(columns={"modality":"Modalitás", "sample_size":"Mintanagyság", "next_recovery_median":"Regenerációs medián", "confidence":"Bizonyosság"}), hide_index=True, use_container_width=True)
+    st.subheader("Adatminőség és outlierek")
+    quality_rows = [{"Metrika": key, "Hiányzó %": patterns["quality"]["missing_pct"].get(key, 0), "Outlierek": patterns["quality"]["outliers"].get(key, 0)} for key in patterns["quality"]["missing_pct"]]
+    st.dataframe(pd.DataFrame(quality_rows), hide_index=True, use_container_width=True)
+    st.warning("Az eredmény megfigyeléses és zavaró tényezőket tartalmazhat. Ne változtass egyetlen gyenge vagy alacsony bizonyosságú kapcsolat alapján az edzéseden.")
 
 elif page == "Hegyi felkészültség":
     st.title("Hegyi felkészültség")

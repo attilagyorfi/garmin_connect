@@ -7,7 +7,7 @@ from analytics import (
     exponential_load, explainable_readiness, modality, musculoskeletal_load,
     plan_adjustment_message, plan_completion_status,
     performance_management, personal_baseline, red_flags, robust_z_score,
-    mountain_readiness, mountain_weekly_trends, multiday_readiness, strength_load, training_decision, weekly_plan_template, weekly_summary,
+    mountain_readiness, mountain_weekly_trends, multiday_readiness, personal_patterns, strength_load, training_decision, weekly_plan_template, weekly_summary,
 )
 from garmin_sync import demo_data
 
@@ -218,3 +218,19 @@ def test_multiday_readiness_counts_exposure_and_keeps_spo2_contextual():
     assert result["metrics"]["long_days_56d"] == 2
     assert result["metrics"]["consecutive_pairs_56d"] == 1
     assert "medián" in result["spo2_context"]
+
+
+def test_personal_patterns_require_minimum_valid_days():
+    _, frame, activities = demo_frames(30)
+    result = personal_patterns(frame.tail(40), activities, minimum_days=60)
+    assert result["status"] == "insufficient"
+    assert result["associations"] == []
+
+
+def test_personal_patterns_report_sample_confidence_and_quality():
+    payload, frame, activities = demo_frames(120)
+    result = personal_patterns(frame, activities, payload["demo_feedback"], minimum_days=60)
+    assert result["status"] == "ready"
+    assert result["associations"]
+    assert all({"rho", "sample_size", "confidence", "statement"} <= set(item) for item in result["associations"])
+    assert "missing_pct" in result["quality"] and "outliers" in result["quality"]
