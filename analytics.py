@@ -754,11 +754,12 @@ def validate_recovery_model(frame: pd.DataFrame, activities: pd.DataFrame, feedb
 
     test_size = min(30, max(14, (len(labeled) - 90) // 3))
     first_test = len(labeled) - 3 * test_size
-    predictions, baselines, actuals, folds = [], [], [], []
+    predictions, baselines, actuals, folds, fold_coefficients = [], [], [], [], []
     for fold_index in range(3):
         test_start = first_test + fold_index * test_size
         train, test = labeled.iloc[:test_start], labeled.iloc[test_start:test_start + test_size]
-        model_pred, baseline, _ = fit_predict(train, test)
+        model_pred, baseline, fitted_fold = fit_predict(train, test)
+        fold_coefficients.append(fitted_fold["coefficients"])
         actual = test["target"].to_numpy(dtype=float)
         model_mae = float(np.mean(np.abs(actual - model_pred)))
         baseline_mae = float(np.mean(np.abs(actual - baseline)))
@@ -776,7 +777,49 @@ def validate_recovery_model(frame: pd.DataFrame, activities: pd.DataFrame, feedb
     forecast = float((fitted["intercept"] + latest_x @ fitted["coefficients"])[0])
     residuals = actual_array - prediction_array
     low, high = forecast + np.quantile(residuals, [.1, .9])
-    return {"status": "validated", "eligible": eligible, "samples": len(labeled), "folds": folds, "model_mae": round(model_mae, 3), "baseline_mae": round(baseline_mae, 3), "improvement_pct": round(improvement, 1), "forecast": round(forecast, 2) if eligible else None, "forecast_interval": [round(float(low), 2), round(float(high), 2)] if eligible else None, "message": "A modell engedélyezhető: idősorosan felülmúlta a baseline-t." if eligible else "A modell nem jelenít meg előrejelzést: nem teljesítette az 5%-os és a legalább 2/3 foldos kaput."}
+    coefficient_matrix = np.vstack(fold_coefficients)
+    feature_audit = []
+    for index, feature in enumerate(feature_columns):
+        values = coefficient_matrix[:, index]
+        nonzero_signs = {int(np.sign(value)) for value in values if abs(value) > .01}
+        feature_audit.append({"feature": feature, "coefficient_median": round(float(np.median(values)), 3), "coefficient_range": f"{values.min():+.3f} … {values.max():+.3f}", "sign_stable": len(nonzero_signs) <= 1, "available_pct": round(float(labeled[feature].notna().mean() * 100), 1)})
+    return {"status": "validated", "eligible": eligible, "samples": len(labeled), "folds": folds, "model_mae": round(model_mae, 3), "baseline_mae": round(baseline_mae, 3), "improvement_pct": round(improvement, 1), "forecast": round(forecast, 2) if eligible else None, "forecast_interval": [round(float(low), 2), round(float(high), 2)] if eligible else None, "feature_audit": sorted(feature_audit, key=lambda item: abs(item["coefficient_median"]), reverse=True), "message": "A modell engedélyezhető: idősorosan felülmúlta a baseline-t." if eligible else "A modell nem jelenít meg előrejelzést: nem teljesítette az 5%-os és a legalább 2/3 foldos kaput."}
+
+
+def feature_drift_audit(frame: pd.DataFrame, activities: pd.DataFrame, feedback: dict[str, dict[str, Any]] | None = None, window: int = 60) -> dict[str, Any]:
+    """Compare recent feature distributions with the directly preceding window."""
+    features = ["sleep_score", "hrv", "resting_hr", "hybrid_tsb", "hybrid_load", "session_rpe"]
+    if len(frame) < window * 2:
+        return {"status": "insufficient", "window": window, "features": [], "alerts": 0, "message": f"Legalább {window * 2} nap szükséges a drift-audithoz."}
+    data = frame.copy().sort_index()
+    data["session_rpe"] = np.nan
+    if not activities.empty:
+        enriched = activities.copy()
+        enriched["rpe"] = [number((feedback or {}).get(str(activity_id), {}).get("rpe")) for activity_id in enriched["activity_id"]]
+        data["session_rpe"] = enriched.groupby("date")["rpe"].max().reindex(data.index)
+    previous, recent = data.iloc[-window * 2:-window], data.iloc[-window:]
+    rows = []
+    for feature in features:
+        old, new = previous[feature].dropna(), recent[feature].dropna()
+        missing_delta = float((recent[feature].isna().mean() - previous[feature].isna().mean()) * 100)
+        if len(old) < 10 or len(new) < 10:
+            rows.append({"feature": feature, "psi": None, "median_shift_iqr": None, "missing_delta_pp": round(missing_delta, 1), "severity": "magas" if missing_delta >= 20 else "alacsony", "message": "Kevés érvényes adat az eloszlás összevetéséhez."})
+            continue
+        q1, q3 = old.quantile(.25), old.quantile(.75)
+        iqr = max(float(q3 - q1), 1e-9)
+        shift = abs(float(new.median() - old.median())) / iqr
+        edges = np.unique(np.quantile(old, [0, .2, .4, .6, .8, 1]))
+        if len(edges) >= 3:
+            edges[0], edges[-1] = -np.inf, np.inf
+            old_dist = pd.cut(old, edges, include_lowest=True).value_counts(normalize=True, sort=False).to_numpy() + 1e-6
+            new_dist = pd.cut(new, edges, include_lowest=True).value_counts(normalize=True, sort=False).to_numpy() + 1e-6
+            psi = float(np.sum((new_dist - old_dist) * np.log(new_dist / old_dist)))
+        else:
+            psi = 0.0
+        severity = "magas" if psi >= .25 or shift >= 1 or missing_delta >= 20 else "közepes" if psi >= .1 or shift >= .5 or missing_delta >= 10 else "alacsony"
+        rows.append({"feature": feature, "psi": round(psi, 3), "median_shift_iqr": round(shift, 2), "missing_delta_pp": round(missing_delta, 1), "severity": severity, "message": "jelentős eloszlásváltozás" if severity == "magas" else "figyelendő változás" if severity == "közepes" else "stabil eloszlás"})
+    alerts = sum(row["severity"] == "magas" for row in rows)
+    return {"status": "ready", "window": window, "features": rows, "alerts": alerts, "message": "Jelentős drift miatt az előrejelzést fokozott óvatossággal kezeld." if alerts else "Nem látható jelentős feature-drift az utolsó két ablak között."}
 
 
 def tsb_zone(value: float) -> tuple[str, str]:

@@ -55,7 +55,9 @@
 - elkészült: outlier- és missingness-jelentés
 - elkészült: 60/90/120 napos időablak-érzékenység és determinisztikus bootstrap bizonytalansági tartomány
 - elkészült: három bővülő idősoros fold, baseline-összevetés és automatikus élesítési kapu
-- következő: a valós teljes történet eredménye alapján feature- és drift-audit
+- elkészült: foldonkénti feature-együttható-, iránystabilitási és lefedettségi audit
+- elkészült: 60+60 napos PSI-, IQR-eltolódás- és missingness-alapú drift-audit
+- következő: drift esetén automatikus újratanítási és modellverziózási folyamat
 
 ## Ismert korlátok
 
