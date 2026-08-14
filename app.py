@@ -52,11 +52,12 @@ with st.sidebar:
     page = st.radio("Navigáció", ["Ma", "Terhelés és trendek", "Naptár", "Egyensúly", "Hegyi felkészültség", "Mi működik nálam?", "Célok és tervek", "Heti jelentés", "Beállítások és módszertan"])
     st.divider()
     demo = st.toggle("Bemutató mód", value=not bool(os.getenv("GARMIN_EMAIL")), help="Legalább 90 nap determinisztikus mintaadat.")
-    history_days = st.select_slider("Előzmény", [30, 60, 90, 120, 180], value=90)
+    history_choice = st.selectbox("Szinkronizálandó előzmény", [30, 60, 90, 180, 365, 730, "all"], index=2, format_func=lambda value: "Összes rendelkezésre álló adat" if value == "all" else f"{value} nap")
+    history_days = None if history_choice == "all" else int(history_choice)
     force_sync = st.button("Garmin szinkron most", type="primary", use_container_width=True, disabled=demo)
-    st.caption("A Garmin-hozzáférés csak olvasási műveleteket használ. Az app nem szinkronizál újrarendereléskor.")
+    st.caption("A Garmin-hozzáférés csak olvasási műveleteket használ. Az Összes adat mód lapozott, folytatható backfillt végez; az első futás hosszabb lehet.")
 
-payload = demo_data(history_days) if demo else sync.load_cache()
+payload = demo_data(history_days or 365) if demo else sync.load_cache()
 if force_sync:
     with st.spinner("Garmin-adatok szinkronizálása…"):
         try:
@@ -69,6 +70,9 @@ if force_sync:
 if not payload:
     st.warning("Nincs gyorsítótárazott Garmin-adat. Állítsd be a környezeti változókat és indíts kézi szinkront, vagy kapcsold be a bemutató módot.")
     st.stop()
+
+if payload.get("backfill_in_progress"):
+    st.warning("A teljes historikus backfill egy korábbi futásban félbeszakadt. A **Garmin szinkron most** gombbal a meglévő cache-től folytathatod.")
 
 stored_checkins = db.list_checkins()
 stored_feedback = db.list_feedback()
