@@ -577,6 +577,29 @@ def mountain_readiness(activities: pd.DataFrame, feedback: dict[str, dict[str, A
     return {"score": score, "confidence": confidence, "components": components, "metrics": {"distance_28d_km": round(distance, 1), "ascent_28d_m": round(ascent), "descent_28d_m": round(descent), "longest_day_min": round(longest), "back_to_back_pairs": back_to_back, "strength_sessions": strength_sessions, "pack_sessions": pack_sessions, "max_pack_kg": max(packs, default=0)}, "gaps": gaps or ["nincs egyértelmű hegyi felkészülési hiány"]}
 
 
+def mountain_weekly_trends(activities: pd.DataFrame, feedback: dict[str, dict[str, Any]] | None = None, weeks: int = 8) -> tuple[pd.DataFrame, list[dict[str, str]]]:
+    """Aggregate mountain-relevant weekly exposure and flag abrupt progression."""
+    columns = ["week", "distance_km", "ascent_m", "descent_m", "duration_min", "pack_kg_max"]
+    if activities.empty:
+        return pd.DataFrame(columns=columns), []
+    data = activities.copy().sort_values("date")
+    data = data[data["date"] >= data["date"].max() - pd.Timedelta(weeks=weeks)]
+    data["week"] = data["date"].dt.to_period("W-MON").astype(str)
+    data["pack_kg"] = [float((feedback or {}).get(str(activity_id), {}).get("pack_kg") or 0) for activity_id in data["activity_id"]]
+    weekly = data.groupby("week", as_index=False).agg(distance_km=("distance_km", "sum"), ascent_m=("ascent_m", "sum"), descent_m=("descent_m", "sum"), duration_min=("duration_min", "sum"), pack_kg_max=("pack_kg", "max")).tail(weeks)
+    warnings: list[dict[str, str]] = []
+    if len(weekly) >= 2:
+        previous, current = weekly.iloc[-2], weekly.iloc[-1]
+        labels = {"distance_km": "heti táv", "ascent_m": "heti szintemelkedés", "descent_m": "heti lejtmenet", "duration_min": "heti idő"}
+        for metric, label in labels.items():
+            if previous[metric] > 0 and current[metric] > previous[metric] * 1.25:
+                change = round((current[metric] / previous[metric] - 1) * 100)
+                warnings.append({"metric": metric, "title": f"Gyors {label}növekedés", "detail": f"+{change}% az előző héthez képest", "action": "A következő héten stabilizáld ezt a terhelési dimenziót."})
+        if previous["pack_kg_max"] > 0 and current["pack_kg_max"] > previous["pack_kg_max"] + 2:
+            warnings.append({"metric": "pack_kg_max", "title": "Gyors hátizsák-terhelés növekedés", "detail": f"{previous['pack_kg_max']:g} kg → {current['pack_kg_max']:g} kg", "action": "Tartsd a zsák tömegét, és előbb a tolerált időt növeld."})
+    return weekly, warnings
+
+
 def tsb_zone(value: float) -> tuple[str, str]:
     return ("Friss", "#54D6A0") if value > 5 else ("Optimális terhelés", "#F5C451") if value >= -20 else ("Túlterhelési kockázat", "#FF6B6B")
 

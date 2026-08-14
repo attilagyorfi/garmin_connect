@@ -16,7 +16,7 @@ import streamlit as st
 from analytics import (
     build_daily_frames, data_quality, explainable_readiness, personal_baseline,
     deload_taper_recommendation, evaluate_training_plans, event_preparation_analysis,
-    mountain_readiness, plan_adjustment_message, red_flags, training_decision, tsb_zone,
+    mountain_readiness, mountain_weekly_trends, plan_adjustment_message, red_flags, training_decision, tsb_zone,
     weekly_plan_template, weekly_summary,
 )
 from garmin_sync import GarminSync, GarminSyncError, demo_data
@@ -383,6 +383,17 @@ elif page == "Hegyi felkészültség":
     st.subheader("Pontszám összetevői")
     st.dataframe(pd.DataFrame(mountain["components"]).rename(columns={"name":"Komponens", "score":"Pont", "weight":"Súly %"}), hide_index=True, use_container_width=True)
     st.warning("**Fejlesztendő területek:** " + ", ".join(mountain["gaps"]))
+    mountain_trends, mountain_warnings = mountain_weekly_trends(activities, feedback)
+    st.subheader("Heti hegyi terhelési trend")
+    if mountain_trends.empty:
+        st.info("Nincs elegendő aktivitás a heti trendhez.")
+    else:
+        trend_long = mountain_trends.melt(id_vars="week", value_vars=["distance_km", "ascent_m", "descent_m"], var_name="metric", value_name="value")
+        trend_long["metric"] = trend_long["metric"].map({"distance_km":"Táv (km)", "ascent_m":"Szint fel (m)", "descent_m":"Szint le (m)"})
+        st.plotly_chart(px.line(trend_long, x="week", y="value", color="metric", markers=True, facet_row="metric", labels={"week":"Hét", "value":"Heti érték", "metric":"Metrika"}), use_container_width=True)
+        st.plotly_chart(px.bar(mountain_trends, x="week", y="pack_kg_max", labels={"week":"Hét", "pack_kg_max":"Max. hátizsák (kg)"}), use_container_width=True)
+    for warning in mountain_warnings:
+        st.warning(f"**{warning['title']}** — {warning['detail']}. {warning['action']}")
     st.caption("A score sportteljesítményi iránytű: nem jósol célidőt, nem diagnosztizál, és kevés specifikus adatnál csökkenti a bizonyosságot.")
 
 elif page == "Heti jelentés":
