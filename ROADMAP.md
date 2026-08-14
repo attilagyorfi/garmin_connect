@@ -42,10 +42,11 @@
 
 ## P4 – „Mi működik nálam?”
 
-- csak 60–90+ érvényes napnál induló retrospektív elemzés
-- mintanagyság és bizonytalanság minden megállapítás mellett
-- alvás/TSB/RPE/HRV és modalitás kapcsolatok robusztus, nem kauzális elemzése
-- outlier- és missingness-jelentés; prediktív modell csak megfelelő validációval
+- elkészült: csak 60+ érvényes napnál induló retrospektív elemzés
+- elkészült: mintanagyság és bizonytalanság minden megállapítás mellett
+- elkészült: alvás/TSB/RPE/HRV és modalitás rangkorrelációs, nem kauzális elemzése
+- elkészült: outlier- és missingness-jelentés
+- következő: időablak-érzékenység és bootstrap bizonytalansági tartomány; prediktív modell csak megfelelő validációval
 
 ## Ismert korlátok
 

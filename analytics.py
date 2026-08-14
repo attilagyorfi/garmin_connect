@@ -624,6 +624,58 @@ def multiday_readiness(activities: pd.DataFrame, wellness: pd.DataFrame, feedbac
     return {"score": score, "confidence": confidence, "components": components, "metrics": {"long_days_56d": long_days, "consecutive_pairs_56d": consecutive_pairs, "stability_min": round(stability), "single_leg_min": round(single_leg)}, "gaps": gaps or ["nincs egyértelmű többnapos felkészülési hiány"], "spo2_context": spo2_context}
 
 
+def personal_patterns(frame: pd.DataFrame, activities: pd.DataFrame, feedback: dict[str, dict[str, Any]] | None = None, minimum_days: int = 60) -> dict[str, Any]:
+    """Explore non-causal personal associations with next-day recovery."""
+    required = ["hrv", "resting_hr", "sleep_score", "hybrid_load", "hybrid_tsb"]
+    if frame.empty:
+        return {"status": "insufficient", "valid_days": 0, "minimum_days": minimum_days, "associations": [], "modalities": [], "quality": {"missing_pct": {}, "outliers": {}}, "message": "Nincs elemezhető adat."}
+    data = frame.copy().sort_index()
+    valid_days = int(data[["hrv", "resting_hr"]].dropna().shape[0])
+    missing_pct = {column: round(float(data.get(column, pd.Series(index=data.index, dtype=float)).isna().mean() * 100), 1) for column in required}
+    outliers: dict[str, int] = {}
+    for column in required:
+        values = data.get(column, pd.Series(dtype=float)).dropna()
+        if values.empty:
+            outliers[column] = 0
+            continue
+        q1, q3 = values.quantile(.25), values.quantile(.75)
+        iqr = q3 - q1
+        outliers[column] = int(((values < q1 - 1.5 * iqr) | (values > q3 + 1.5 * iqr)).sum()) if iqr > 0 else 0
+    quality = {"missing_pct": missing_pct, "outliers": outliers}
+    if valid_days < minimum_days:
+        return {"status": "insufficient", "valid_days": valid_days, "minimum_days": minimum_days, "associations": [], "modalities": [], "quality": quality, "message": f"Még {minimum_days - valid_days} érvényes nap szükséges a retrospektív elemzéshez."}
+    hrv = data["hrv"]
+    rhr = data["resting_hr"]
+    hrv_scale = max(float((hrv - hrv.median()).abs().median()), 1.0)
+    rhr_scale = max(float((rhr - rhr.median()).abs().median()), 1.0)
+    data["next_recovery"] = (((hrv - hrv.median()) / hrv_scale) - ((rhr - rhr.median()) / rhr_scale)).shift(-1)
+    daily_rpe = pd.Series(index=data.index, dtype=float)
+    daily_modality = pd.Series(index=data.index, dtype=object)
+    if not activities.empty:
+        enriched = activities.copy()
+        enriched["rpe"] = [number((feedback or {}).get(str(activity_id), {}).get("rpe")) for activity_id in enriched["activity_id"]]
+        daily_rpe = enriched.groupby("date")["rpe"].max().reindex(data.index)
+        daily_modality = enriched.sort_values("duration_min").groupby("date").tail(1).set_index("date")["modality"].reindex(data.index)
+    data["session_rpe"] = daily_rpe
+    feature_labels = {"sleep_score": "Alváspontszám", "hrv": "HRV", "hybrid_tsb": "TSB", "hybrid_load": "Hibrid terhelés", "session_rpe": "Edzés-RPE"}
+    associations = []
+    for column, label in feature_labels.items():
+        pairs = data[[column, "next_recovery"]].dropna()
+        if len(pairs) < 20 or pairs[column].nunique() < 3:
+            continue
+        rho = float(pairs[column].rank().corr(pairs["next_recovery"].rank()))
+        strength = "erős" if abs(rho) >= .5 else "mérsékelt" if abs(rho) >= .3 else "gyenge"
+        confidence = "magas" if len(pairs) >= 90 else "közepes" if len(pairs) >= 60 else "alacsony"
+        direction = "jobb" if rho > 0 else "gyengébb"
+        associations.append({"factor": label, "rho": round(rho, 2), "sample_size": len(pairs), "strength": strength, "confidence": confidence, "statement": f"A magasabb {label.lower()} {direction} következő napi regenerációval járt együtt ebben az adatsorban."})
+    modality_frame = pd.DataFrame({"modality": daily_modality, "next_recovery": data["next_recovery"]}).dropna()
+    modalities = []
+    for modality_name, group in modality_frame.groupby("modality"):
+        if len(group) >= 3:
+            modalities.append({"modality": modality_name, "sample_size": len(group), "next_recovery_median": round(float(group["next_recovery"].median()), 2), "confidence": "közepes" if len(group) >= 10 else "alacsony"})
+    return {"status": "ready", "valid_days": valid_days, "minimum_days": minimum_days, "associations": sorted(associations, key=lambda item: abs(item["rho"]), reverse=True), "modalities": modalities, "quality": quality, "message": "A megállapítások retrospektív kapcsolatok, nem bizonyított ok-okozati hatások."}
+
+
 def tsb_zone(value: float) -> tuple[str, str]:
     return ("Friss", "#54D6A0") if value > 5 else ("Optimális terhelés", "#F5C451") if value >= -20 else ("Túlterhelési kockázat", "#FF6B6B")
 

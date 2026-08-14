@@ -71,4 +71,8 @@ A 28 napos Mountain score célspecifikus iránytű. Komponensei: táv 20%, szint
 
 A többnapos score 56 napot vizsgál: a 120 perces hosszú napok és az egymást követő 90 perces napok egyenként 35%, a manuálisan rögzített stabilitási és egylábas munka egyenként 15% súlyt kap. A SpO₂ csak 14 napos medián kontextusként jelenik meg, a score-t és az edzésajánlást nem módosítja.
 
+### Személyes mintázatok
+
+A retrospektív nézet legalább 60 érvényes HRV/RHR napot igényel. A következő napi regenerációs index a HRV pozitív és a nyugalmi pulzus negatív, medián/MAD szerint skálázott eltérése. Az előző napi alvás, HRV, TSB, terhelés és RPE kapcsolatát rangkorrelációval vizsgálja. Minden eredmény mintanagyságot és bizonyosságot kap; az IQR-alapú outlierek és a hiányzások külön jelennek meg. Az eredmény megfigyeléses kapcsolat, nem kauzális bizonyíték.
+
 Az algoritmus determinisztikus, de nem klinikailag validált. A wearable adatok mérési hibásak lehetnek; a load proxy nem TSS. A readiness sportdöntési jel, nem betegség- vagy sérülésdiagnózis. A küszöböket hosszabb személyes előtörténettel és edzői visszajelzéssel kell kalibrálni.
