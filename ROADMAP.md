@@ -59,7 +59,9 @@
 - elkészült: 60+60 napos PSI-, IQR-eltolódás- és missingness-alapú drift-audit
 - elkészült: auditálható SQLite modellverziók reprodukálható artifacttal
 - elkészült: automatikus aktiválás csak validált és az aktív modellnél jobb MAE-jű jelöltnél
-- következő: ütemezett újratanítás és modell-visszaállítási UI
+- elkészült: 30 új adatnap, 30 napos modellkor vagy magas drift alapján magyar újratanítási jelzés
+- elkészült: aktív modell auditnézet, kétverziós összevetés és megerősített visszaállítás
+- következő: opcionális ütemezett újratanítás a telepítési környezet ütemezőjével
 
 ## Ismert korlátok
 

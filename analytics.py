@@ -800,6 +800,27 @@ def model_promotion_decision(validation: dict[str, Any], versions: list[dict[str
     return {"promote": False, "reason": f"Az aktív modell MAE-je nem rosszabb: {active_mae:.3f} ≤ {candidate_mae:.3f}."}
 
 
+def retraining_recommendation(versions: list[dict[str, Any]], drift: dict[str, Any], current_data_end: Any, today: Any | None = None) -> dict[str, Any]:
+    """Explain whether a new candidate should be trained; never activates it."""
+    active = next((version for version in versions if version.get("active")), None)
+    if active is None:
+        return {"due": True, "reasons": ["nincs aktív modell"], "new_data_days": None, "model_age_days": None}
+    now = pd.Timestamp(today or pd.Timestamp.today()).tz_localize(None).normalize()
+    trained_at = pd.Timestamp(active["trained_at"]).tz_localize(None).normalize()
+    active_end = pd.Timestamp(active["data_end"]).normalize()
+    current_end = pd.Timestamp(current_data_end).normalize()
+    age_days = max(0, (now - trained_at).days)
+    new_data_days = max(0, (current_end - active_end).days)
+    reasons = []
+    if new_data_days >= 30:
+        reasons.append(f"{new_data_days} új adatnap érkezett")
+    if age_days >= 30:
+        reasons.append(f"az aktív modell {age_days} napos")
+    if int(drift.get("alerts", 0)) > 0:
+        reasons.append(f"{drift['alerts']} magas feature-drift jelzés aktív")
+    return {"due": bool(reasons), "reasons": reasons or ["nincs újratanítást indokló jel"], "new_data_days": new_data_days, "model_age_days": age_days}
+
+
 def feature_drift_audit(frame: pd.DataFrame, activities: pd.DataFrame, feedback: dict[str, dict[str, Any]] | None = None, window: int = 60) -> dict[str, Any]:
     """Compare recent feature distributions with the directly preceding window."""
     features = ["sleep_score", "hrv", "resting_hr", "hybrid_tsb", "hybrid_load", "session_rpe"]

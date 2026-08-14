@@ -16,7 +16,7 @@ import streamlit as st
 from analytics import (
     build_daily_frames, data_quality, explainable_readiness, personal_baseline,
     deload_taper_recommendation, evaluate_training_plans, event_preparation_analysis,
-    feature_drift_audit, model_promotion_decision, mountain_readiness, mountain_weekly_trends, multiday_readiness, pattern_uncertainty, personal_patterns, plan_adjustment_message, red_flags, training_decision, tsb_zone, validate_recovery_model,
+    feature_drift_audit, model_promotion_decision, mountain_readiness, mountain_weekly_trends, multiday_readiness, pattern_uncertainty, personal_patterns, plan_adjustment_message, red_flags, retraining_recommendation, training_decision, tsb_zone, validate_recovery_model,
     weekly_plan_template, weekly_summary,
 )
 from garmin_sync import GarminSync, GarminSyncError, demo_data
@@ -449,6 +449,27 @@ elif page == "Mi működik nálam?":
     if model_versions:
         version_rows = [{"Verzió": item["id"], "Aktív": item["active"], "Tanítás": item["trained_at"], "Adatablak": f"{item['data_start']} – {item['data_end']}", "Mintanagyság": item["sample_count"], "Modell MAE": item.get("model_mae"), "Baseline MAE": item.get("baseline_mae"), "Javulás %": item.get("improvement_pct"), "Driftjelzések": item.get("drift", {}).get("alerts", 0)} for item in model_versions]
         st.dataframe(pd.DataFrame(version_rows), hide_index=True, use_container_width=True)
+        retraining = retraining_recommendation(model_versions, drift, wellness.index.max())
+        (st.warning if retraining["due"] else st.success)("**Újratanítás:** " + "; ".join(retraining["reasons"]))
+        active_model = next((item for item in model_versions if item["active"]), None)
+        if active_model:
+            with st.expander(f"Aktív modell részletes auditja · v{active_model['id']}"):
+                st.write(f"**Adatablak:** {active_model['data_start']} – {active_model['data_end']} · **Mintanagyság:** {active_model['sample_count']} · **MAE:** {active_model.get('model_mae')}")
+                st.dataframe(pd.DataFrame(active_model.get("folds", [])), hide_index=True, use_container_width=True)
+                st.dataframe(pd.DataFrame(active_model.get("feature_audit", [])), hide_index=True, use_container_width=True)
+        if len(model_versions) >= 2:
+            compare_ids = st.multiselect("Összehasonlítandó modellverziók", [item["id"] for item in model_versions], max_selections=2)
+            if len(compare_ids) == 2:
+                compared = [item for item in model_versions if item["id"] in compare_ids]
+                compare_rows = [{"Mutató":"Modell MAE", **{f"v{item['id']}":item.get("model_mae") for item in compared}}, {"Mutató":"Baseline MAE", **{f"v{item['id']}":item.get("baseline_mae") for item in compared}}, {"Mutató":"Javulás %", **{f"v{item['id']}":item.get("improvement_pct") for item in compared}}, {"Mutató":"Mintanagyság", **{f"v{item['id']}":item.get("sample_count") for item in compared}}, {"Mutató":"Driftjelzések", **{f"v{item['id']}":item.get("drift", {}).get("alerts", 0) for item in compared}}]
+                st.dataframe(pd.DataFrame(compare_rows), hide_index=True, use_container_width=True)
+        inactive_models = [item for item in model_versions if not item["active"]]
+        if inactive_models:
+            rollback_id = st.selectbox("Visszaállítandó korábbi modell", [item["id"] for item in inactive_models], format_func=lambda value: f"v{value} · " + next(item["trained_at"] for item in inactive_models if item["id"] == value))
+            confirm_rollback = st.checkbox("Megerősítem, hogy ezt a korábbi modellt szeretném aktiválni")
+            if st.button("Korábbi modell aktiválása", disabled=not confirm_rollback):
+                db.activate_model_version(rollback_id)
+                st.success(f"A v{rollback_id} modell aktív. Frissítsd az oldalt az új állapothoz.")
     else:
         st.caption("Még nincs mentett modellverzió.")
     st.warning("Az eredmény megfigyeléses és zavaró tényezőket tartalmazhat. Ne változtass egyetlen gyenge vagy alacsony bizonyosságú kapcsolat alapján az edzéseden.")
