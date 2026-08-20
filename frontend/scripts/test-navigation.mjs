@@ -51,6 +51,13 @@ try {
   if (!explainedKpi?.dataset.explanation?.includes("regenerációs igényt")) throw new Error("A laikus mérőszám-magyarázat nem épült fel.");
   if (explainedKpi.getAttribute("tabindex")!=="0") throw new Error("A mérőszám-magyarázat nem érhető el billentyűzettel.");
   console.log("OK desktop logó és laikus mérőszám-magyarázat");
+  await act(async () => new Promise(resolve=>setTimeout(resolve,25)));
+  const readinessMetric=document.querySelector('.metric-wrap .metric');
+  if (!readinessMetric) throw new Error("A readiness mérőszámsor nem jelent meg.");
+  await act(async () => readinessMetric.click());
+  if (!document.querySelector('.metric-detail')?.textContent.includes("MIT JELENT MOST?")) throw new Error("A readiness részletes értelmezése nem nyitható meg.");
+  if (!document.querySelector('.metric-detail')?.textContent.includes("ADATMINŐSÉG")) throw new Error("A readiness adatminőségi magyarázata hiányzik.");
+  console.log("OK readiness részletek és adatminőség");
   const sync = [...document.querySelectorAll("button")].find(node => node.textContent.trim() === "SZINKRON");
   await act(async () => sync.click());
   if (!document.querySelector(".header-actions")?.textContent.includes("Az online Garmin-szinkron még nincs bekötve")) throw new Error("A nem JSON szinkronhiba nem kapott érthető üzenetet.");
@@ -87,10 +94,26 @@ try {
       await act(async () => [...document.querySelectorAll("button")].find(node => node.textContent.includes("SZERKESZTÉS")).click());
       await act(async () => [...document.querySelectorAll(".plan-editor button")].find(node => node.textContent.includes("Törlés")).click());
       if (!cloudPatches.some(patch=>patch.deletePlan)) throw new Error("Az edzésterv törlése nem mentődött.");
-      const template = [...document.querySelectorAll("button")].find(node => node.textContent.trim() === "SZEMÉLYES HETI SABLON MENTÉSE");
+      const template = [...document.querySelectorAll("button")].find(node => node.textContent.trim() === "HETI SABLON SZEMÉLYRE SZABÁSA");
       await act(async () => template.click());
+      const templateEditor=document.querySelector(".template-editor");
+      if (!templateEditor?.textContent.includes("Oszd ki az edzéseket a saját hetedre")) throw new Error("A heti sablon napkiosztási szerkesztője nem nyílt meg.");
+      const firstTemplateName=templateEditor.querySelector('input[aria-label="1. edzés neve"]');
+      const originalName=firstTemplateName.value;
+      await act(async()=>{firstTemplateName.value=`${originalName} – egyéni`;firstTemplateName.dispatchEvent(new window.Event("input",{bubbles:true}))});
+      const templateSave=[...templateEditor.querySelectorAll("button")].find(node=>node.textContent.trim()==="Heti terv mentése");
+      await act(async () => templateSave.click());
       if (!cloudPatches.some(patch=>patch.plans?.length)) throw new Error("A heti sablon nem mentődött.");
-      console.log("OK edzésterv CRUD és heti sablon");
+      const batchMove=[...document.querySelectorAll("button")].find(node=>node.textContent.trim()==="TÖBB EDZÉS MOZGATÁSA");
+      if (!batchMove||batchMove.disabled) throw new Error("A csoportos edzésmozgatás nem érhető el több tervnél.");
+      await act(async()=>batchMove.click());
+      const batchEditor=document.querySelector(".batch-move-editor");
+      if (!batchEditor?.textContent.includes("köztük lévő ritmus változatlan marad")) throw new Error("A csoportos mozgatás magyarázata hiányzik.");
+      const batchSave=[...batchEditor.querySelectorAll("button")].find(node=>node.textContent.trim()==="Kijelölt edzések mozgatása");
+      const patchesBeforeMove=cloudPatches.length;
+      await act(async()=>batchSave.click());
+      if (cloudPatches.length<=patchesBeforeMove||!cloudPatches.at(-1)?.plans?.every(item=>item.date)) throw new Error("A csoportos dátummódosítás nem mentődött.");
+      console.log("OK edzésterv CRUD, heti sablon és csoportos mozgatás");
     }
     if (label === "Trendek") {
       await act(async () => new Promise(resolve=>setTimeout(resolve,5)));

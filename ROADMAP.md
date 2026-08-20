@@ -35,10 +35,10 @@
 - tervezett kontra tényleges edzés automatikus vagy kézi Garmin-aktivitás párosítással
 - terveltérés visszacsatolása a következő ajánlásba
 
-## Következő P2 finomítások
+## Elkészült P2 tervezési finomítás
 
-- több edzés együttes mozgatása
-- a heti sablon egyedi napkiosztásának szerkesztése mentés előtt
+- a heti sablon egyedi napkiosztásának, típusának, nevének és időtartamának szerkesztése mentés előtt, kihagyható edzésekkel és napütközés-jelzéssel
+- több tervezett edzés együttes mozgatása előre vagy hátra, a heti ritmus megtartásával, dátum-előnézettel és napütközés-védelemmel
 
 ## Elkészült P2 finomítások
 

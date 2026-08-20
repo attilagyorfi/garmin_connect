@@ -101,6 +101,36 @@ final result: passed
 
 final result: passed
 
+## Csoportos edzésmozgatás — 2026-08-20
+
+- Több tervezett edzés egyszerre kijelölhető, illetve a teljes lista egy kattintással kiválasztható vagy törölhető.
+- A pozitív és negatív napeltolás megtartja az edzések közötti eredeti ritmust.
+- Minden sor az eredeti és a tervezett új dátumot egymás mellett mutatja.
+- A másik tervvel ütköző új dátum piros hibajelzést kap; az ütközés feloldásáig a mentés le van tiltva.
+- Automatizált ellenőrzés: a kiválasztás, dátummozgatás és felhőmentés teljes navigációs tesztje sikeres.
+
+final result: passed
+
+## Személyre szabható heti sablon — 2026-08-20
+
+- A generált heti terv mentés előtt külön modális szerkesztőben ellenőrizhető.
+- Edzésenként módosítható a nap, a típus, a név és az időtartam; az egyes sorok kihagyhatók.
+- Az összesítő az aktív edzések számát és teljes időtartamát azonnal újraszámolja.
+- Az azonos napra kiosztott edzéseket a felület hibaként jelzi, és a javításig letiltja a mentést.
+- Automatizált ellenőrzés: teljes navigációs/mentési teszt sikeres, mind a 4 Sites-teszt sikeres, production build sikeres.
+
+final result: passed
+
+## Tooltip-elhelyezés és readiness-részletek — 2026-08-20
+
+- A magyarázó tooltip a célérték alatt nyílik meg; a nyíl a célértékre mutat, a jobb oldali KPI-knél pedig a panel a kártya szélén belül marad.
+- A readiness összetevői kattintható, billentyűzettel is értelmezhető sorok. A lenyitott állapot elmagyarázza az aktuális jelentést, az adatminőséget és a gyakorlati következményt.
+- Üres Garmin mérőszámlista esetén a felület a bemutató mérőszámokra áll vissza, ezért nem keletkezik üres kártya.
+- Interakciós ellenőrzés: a readiness-részlet nyitása, a magyarázó szövegek és a teljes navigációs folyamat sikeresen lefutott.
+- Automatizált ellenőrzés: navigációs teszt sikeres, mind a 4 Sites-csomagolási teszt sikeres, production build sikeres.
+
+final result: passed
+
 ## Brand asset integration — 2026-08-20
 
 - Source visual truth: `C:/Users/User/Documents/ChatGPT/Garmin/.design-import-mobile/design_handoff_hybrid_athlete/screenshots/desktop/01-ma-fresh.png`.
