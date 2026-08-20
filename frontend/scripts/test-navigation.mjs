@@ -44,6 +44,13 @@ try {
   const { App } = await vite.ssrLoadModule("/src/App.jsx");
   const root = createRoot(document.getElementById("root"));
   await act(async () => root.render(React.createElement(App)));
+  const bundledLogo=document.querySelector('.brand-logo img');
+  if (!bundledLogo?.getAttribute("src")||bundledLogo.getAttribute("src")==="[object Object]") throw new Error("A bundle-ölt Hybrid Athlete logó hiányzik.");
+  await act(async () => new Promise(resolve=>setTimeout(resolve,5)));
+  const explainedKpi=document.querySelector('.week-stats>div.explained-value');
+  if (!explainedKpi?.dataset.explanation?.includes("regenerációs igényt")) throw new Error("A laikus mérőszám-magyarázat nem épült fel.");
+  if (explainedKpi.getAttribute("tabindex")!=="0") throw new Error("A mérőszám-magyarázat nem érhető el billentyűzettel.");
+  console.log("OK desktop logó és laikus mérőszám-magyarázat");
   const sync = [...document.querySelectorAll("button")].find(node => node.textContent.trim() === "SZINKRON");
   await act(async () => sync.click());
   if (!document.querySelector(".header-actions")?.textContent.includes("Az online Garmin-szinkron még nincs bekötve")) throw new Error("A nem JSON szinkronhiba nem kapott érthető üzenetet.");
@@ -86,6 +93,8 @@ try {
       console.log("OK edzésterv CRUD és heti sablon");
     }
     if (label === "Trendek") {
+      await act(async () => new Promise(resolve=>setTimeout(resolve,5)));
+      if (!document.querySelector('.chart-card .metric-header-explanation')?.dataset.explanation?.includes("hosszú távú edzettség")) throw new Error("A CTL/ATL/TSB grafikon laikus magyarázata hiányzik.");
       const range = [...document.querySelectorAll(".segmented button")].find(node => node.textContent.trim() === "30 nap");
       await act(async () => range.click());
       if (!range.classList.contains("active")) throw new Error("A trendek időszakváltása nem működik.");
@@ -100,6 +109,8 @@ try {
       console.log("OK célfelkészültség és profilszerkesztés");
     }
     if (label === "Napló") {
+      await act(async () => new Promise(resolve=>setTimeout(resolve,5)));
+      if (document.querySelectorAll('.table-wrap th.metric-header-explanation').length<5) throw new Error("A Napló számoszlopainak magyarázata hiányzik.");
       const activity = document.querySelector(".activity-row");
       if (!activity) throw new Error("A Garmin-edzés nem jelent meg a naplóban.");
       await act(async () => activity.click());

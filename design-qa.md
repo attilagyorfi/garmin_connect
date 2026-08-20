@@ -67,6 +67,40 @@ final result: passed
 - Intentional difference: raw Garmin activity names remain source data and are not automatically translated.
 - Final result for this extension: passed.
 
+## Desktop readability and metric explainability — 2026-08-20
+
+- Source visual truth: user-supplied desktop screenshot and the saved Hybrid Athlete desktop handoff.
+- Implementation: browser-rendered `http://127.0.0.1:4173/` after the readability and explainability pass.
+- Viewports: 1920 × 1080 and 1280 × 1080 CSS px, dark mode, device scale controlled by the in-app browser.
+- State: `Ma`, `Trendek`, `Cél` and `Napló`; the `Ma` view was also tested with a focused KPI tooltip.
+- Full-view evidence: at 1920 px the sidebar, dashboard grid and right rail fit without horizontal overflow; the bundled Hybrid Athlete SVG lockup is visibly rendered at 60 × 45 px.
+- Focused evidence: keyboard focus on the weekly load KPI opens a plain-Hungarian tooltip explaining what the number measures, why it matters and how to interpret higher values. Trend cards expose distinct CTL, ATL, TSB, training-frequency and RPE explanations. Numeric journal headers expose explanations even before rows load.
+
+### Required fidelity surfaces
+
+- Fonts and typography: 1920 px targets are 34 px page title, 16 px navigation, 15 px metric labels, 21–25 px KPI values and at least 11–12 px compact metadata. At 1280 px the corresponding minimums are 32, 15 and 14 px.
+- Spacing and layout: 1280–1399 px now changes to a single-column primary dashboard with a two-column secondary rail, avoiding the previous horizontal overflow. The 1920 px two-column hierarchy is preserved.
+- Colors and tokens: tooltips use the existing obsidian, border and user-selected accent tokens; no new competing color system was introduced.
+- Image quality: the supplied logo SVG is imported into the Vite bundle as a data asset, eliminating deployment-path dependency while preserving vector sharpness.
+- Copy and content: explanations are Hungarian and use non-clinical, non-causal language. They state meaning, practical impact and interpretation limits.
+
+### Accessibility and interaction
+
+- Every generated explanation target receives `tabindex="0"` and a complete Hungarian `aria-label`.
+- Tooltips open on hover, focus and focus-within; visible focus rings use the active accent.
+- Tested pages: `Ma` 12 explanation targets, `Trendek` 7, `Cél` 8; `Napló` always exposes five numeric header explanations and adds cell-level explanations when activity rows exist.
+- Browser console: no errors.
+- Automated verification: full navigation test, 4 Sites packaging tests and production build passed.
+
+### Comparison history
+
+- Initial P1: the desktop readability layer was loaded before the base stylesheet and was overwritten, leaving 9–12 px text at large widths. Fixed by loading it last and adding explicit 1080/1400 px minimums.
+- Initial P1: the logo depended on a public path and was reported missing in deployment. Fixed by bundling the supplied SVG through Vite and using that asset in the sidebar and onboarding.
+- Initial P2: KPI tooltip positioning caused horizontal overflow at the right rail. Fixed with right-aligned tooltip anchoring and a 1280–1399 px layout breakpoint.
+- Post-fix evidence: no horizontal overflow at 1280 or 1920 px, bundled logo has a non-zero natural size, keyboard tooltip display is `block`, and no console errors remain.
+
+final result: passed
+
 ## Brand asset integration — 2026-08-20
 
 - Source visual truth: `C:/Users/User/Documents/ChatGPT/Garmin/.design-import-mobile/design_handoff_hybrid_athlete/screenshots/desktop/01-ma-fresh.png`.

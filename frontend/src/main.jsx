@@ -10,6 +10,8 @@ import "./journal-feedback.css";
 import "./trend-history.css";
 import "./goal-readiness.css";
 import "./brand.css";
+import "./readability.css";
+import "./explainability.css";
 
 createRoot(document.getElementById("root")).render(
   <React.StrictMode>
