@@ -39,6 +39,8 @@ def test_profile_accent_checkin_and_feedback_are_merged(memory_store):
     {"checkin": {"date": "nem-dátum", "value": {}}},
     {"feedback": {"activityId": "", "value": {}}},
     {"profile": {"experience": "profi"}},
+    {"plan": {"date": "2026-08-24", "type": "Úszás"}},
+    {"deletePlan": ""},
 ])
 def test_invalid_state_is_rejected(memory_store, patch):
     with pytest.raises((ValueError, TypeError)):
@@ -54,3 +56,26 @@ def test_local_history_can_be_imported_once(memory_store):
     })
     assert state["checkins"]["2026-08-19"]["fatigue"] == 3
     assert state["feedback"]["activity-1"]["rpe"] == 7
+
+
+def test_training_plan_full_crud_and_bulk_template(memory_store):
+    created = user_state.apply_patch({"plan": {
+        "id": "plan-1", "date": "2026-08-24", "type": "Futás", "title": "Zone 2 futás",
+        "duration": 55, "intensity": "könnyű", "rpe": 4, "purpose": "Aerob alap",
+    }})
+    assert created["plans"][0]["title"] == "Zone 2 futás"
+
+    updated = user_state.apply_patch({"plan": {
+        **created["plans"][0], "duration": 65, "note": "Sík útvonal",
+    }})
+    assert len(updated["plans"]) == 1
+    assert updated["plans"][0]["duration"] == 65
+
+    templated = user_state.apply_patch({"plans": [{
+        "id": "template-2026-08-25", "date": "2026-08-25", "type": "Erő",
+        "title": "Teljes testes erő", "duration": 45, "intensity": "közepes", "rpe": 6,
+    }]})
+    assert len(templated["plans"]) == 2
+
+    deleted = user_state.apply_patch({"deletePlan": "plan-1"})
+    assert [plan["id"] for plan in deleted["plans"]] == ["template-2026-08-25"]

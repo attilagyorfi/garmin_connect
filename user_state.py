@@ -1,7 +1,7 @@
 """Validation and persistence for the single-user desktop application state."""
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime, timezone
 from typing import Any
 
 from cloud_cache import load_json, save_json
@@ -13,10 +13,12 @@ EXPERIENCE = {"kezdő", "középhaladó", "haladó"}
 GOALS = {"Hibrid teljesítmény", "Futóteljesítmény", "Erőfejlesztés", "Hegyi állóképesség", "Általános egészség"}
 PREFERENCES = {"kiegyensúlyozott", "teljesítmény", "regeneráció"}
 DAYS = {"H", "K", "Sze", "Cs", "P", "Szo", "V"}
+PLAN_TYPES = {"Kardió", "Erő", "Futás", "Túrázás", "Kerékpár", "Mobilitás", "Pihenő"}
+PLAN_INTENSITIES = {"regeneráló", "könnyű", "könnyű–közepes", "közepes", "közepes–magas", "magas"}
 
 
 def empty_state() -> dict[str, Any]:
-    return {"version": 1, "profile": None, "accent": "teal", "checkins": {}, "feedback": {}}
+    return {"version": 2, "profile": None, "accent": "teal", "checkins": {}, "feedback": {}, "plans": []}
 
 
 def _text(value: Any, maximum: int) -> str:
@@ -70,9 +72,36 @@ def validate_feedback(value: Any) -> dict[str, Any]:
     return {"rpe": max(1, min(10, int(value.get("rpe", 5)))), "feeling": feeling, "note": _text(value.get("note"), 2000), "savedAt": _text(value.get("savedAt"), 40)}
 
 
+def validate_plan(value: Any, plan_id: str | None = None) -> dict[str, Any]:
+    if not isinstance(value, dict):
+        raise ValueError("Érvénytelen edzésterv.")
+    planned_date = _text(value.get("date"), 10)
+    date.fromisoformat(planned_date)
+    plan_type = value.get("type", "Kardió")
+    intensity = value.get("intensity", "közepes")
+    if plan_type not in PLAN_TYPES or intensity not in PLAN_INTENSITIES:
+        raise ValueError("Az edzésterv választott értéke érvénytelen.")
+    clean_id = _text(plan_id or value.get("id"), 80)
+    if not clean_id:
+        clean_id = f"plan-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S%f')}"
+    return {
+        "id": clean_id,
+        "date": planned_date,
+        "type": plan_type,
+        "title": _text(value.get("title"), 160) or f"{plan_type} edzés",
+        "duration": max(0 if plan_type == "Pihenő" else 10, min(600, int(value.get("duration", 60)))),
+        "intensity": intensity,
+        "rpe": max(1, min(10, int(value.get("rpe", 5)))),
+        "purpose": _text(value.get("purpose"), 500),
+        "note": _text(value.get("note"), 2000),
+        "status": "planned",
+        "updatedAt": datetime.now(timezone.utc).isoformat(),
+    }
+
+
 def load_state() -> dict[str, Any]:
     stored = load_json(STATE_KEY) or {}
-    return {**empty_state(), **stored, "checkins": stored.get("checkins") or {}, "feedback": stored.get("feedback") or {}}
+    return {**empty_state(), **stored, "version": 2, "checkins": stored.get("checkins") or {}, "feedback": stored.get("feedback") or {}, "plans": stored.get("plans") or []}
 
 
 def apply_patch(patch: Any) -> dict[str, Any]:
@@ -109,5 +138,25 @@ def apply_patch(patch: Any) -> dict[str, Any]:
             clean_id = _text(activity_id, 120)
             if clean_id:
                 state["feedback"][clean_id] = validate_feedback(value)
+    if "plan" in patch:
+        item = patch["plan"]
+        plan_id = _text(item.get("id") if isinstance(item, dict) else "", 80)
+        validated = validate_plan(item, plan_id or None)
+        state["plans"] = [plan for plan in state["plans"] if plan.get("id") != validated["id"]]
+        state["plans"].append(validated)
+        state["plans"].sort(key=lambda plan: (plan["date"], plan["id"]))
+    if "plans" in patch:
+        if not isinstance(patch["plans"], list) or len(patch["plans"]) > 366:
+            raise ValueError("Érvénytelen heti terv.")
+        existing = {plan.get("id"): plan for plan in state["plans"]}
+        for item in patch["plans"]:
+            validated = validate_plan(item)
+            existing[validated["id"]] = validated
+        state["plans"] = sorted(existing.values(), key=lambda plan: (plan["date"], plan["id"]))
+    if "deletePlan" in patch:
+        plan_id = _text(patch["deletePlan"], 80)
+        if not plan_id:
+            raise ValueError("Hiányzó tervazonosító.")
+        state["plans"] = [plan for plan in state["plans"] if plan.get("id") != plan_id]
     save_json(STATE_KEY, state)
     return state

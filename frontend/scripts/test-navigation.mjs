@@ -17,7 +17,7 @@ const dashboardFixture={
   sessions:[{id:"test-activity",date:"2026-08-18",type:"Futás",name:"Teszt Zone 2 futás",durationMin:48,avgHr:137,distanceKm:8.2,load:64}],heat:[],metrics:[],trends:[],zones:[0,48,0,0,0]
 };
 const cloudPatches=[];
-let mockedCloudState={version:1,profile:null,accent:"teal",checkins:{},feedback:{}};
+let mockedCloudState={version:2,profile:null,accent:"teal",checkins:{},feedback:{},plans:[]};
 globalThis.fetch = async (input,options={}) => {
   const url=String(input);
   if(url.endsWith("/api/sync"))return {ok:false,status:404,text:async()=>"The page could not be found"};
@@ -28,6 +28,9 @@ globalThis.fetch = async (input,options={}) => {
       if(patch.accent)mockedCloudState.accent=patch.accent;
       if(patch.checkin)mockedCloudState.checkins[patch.checkin.date]=patch.checkin.value;
       if(patch.feedback)mockedCloudState.feedback[patch.feedback.activityId]=patch.feedback.value;
+      if(patch.plan)mockedCloudState.plans=[...mockedCloudState.plans.filter(item=>item.id!==patch.plan.id),patch.plan];
+      if(patch.plans)mockedCloudState.plans=[...mockedCloudState.plans,...patch.plans];
+      if(patch.deletePlan)mockedCloudState.plans=mockedCloudState.plans.filter(item=>item.id!==patch.deletePlan);
     }
     return {ok:true,status:200,json:async()=>mockedCloudState,text:async()=>JSON.stringify(mockedCloudState)};
   }
@@ -63,12 +66,23 @@ try {
       throw new Error(`A(z) ${label} oldal nem renderelődött.`);
     }
     if (label === "Naptár") {
-      const details = [...document.querySelectorAll("button")].find(node => node.textContent.trim() === "EDZÉS RÉSZLETEI");
-      if (!details || details.disabled) throw new Error("A személyes heti terv részletei nem nyithatók meg.");
-      await act(async () => details.click());
-      if (!document.querySelector(".modal")?.textContent.includes("SZEMÉLYES HETI TERV")) throw new Error("Az edzésrészlet nem jelent meg.");
-      const close = document.querySelector(".modal .close");
-      await act(async () => close.click());
+      const add = [...document.querySelectorAll("button")].find(node => node.textContent.includes("EDZÉS HOZZÁADÁSA"));
+      await act(async () => add.click());
+      const savePlan = [...document.querySelectorAll(".plan-editor button")].find(node => node.textContent.trim() === "Edzésterv mentése");
+      await act(async () => savePlan.click());
+      const createdPatch=cloudPatches.find(patch=>patch.plan?.id);
+      if (!createdPatch) throw new Error("Az új edzésterv nem indított Neon-mentést.");
+      const edit = [...document.querySelectorAll("button")].find(node => node.textContent.includes("SZERKESZTÉS"));
+      await act(async () => edit.click());
+      await act(async () => [...document.querySelectorAll(".plan-editor button")].find(node => node.textContent.trim() === "Edzésterv mentése").click());
+      if (cloudPatches.filter(patch=>patch.plan?.id===createdPatch.plan.id).length<2) throw new Error("Az edzésterv módosítása nem mentődött.");
+      await act(async () => [...document.querySelectorAll("button")].find(node => node.textContent.includes("SZERKESZTÉS")).click());
+      await act(async () => [...document.querySelectorAll(".plan-editor button")].find(node => node.textContent.includes("Törlés")).click());
+      if (!cloudPatches.some(patch=>patch.deletePlan)) throw new Error("Az edzésterv törlése nem mentődött.");
+      const template = [...document.querySelectorAll("button")].find(node => node.textContent.trim() === "SZEMÉLYES HETI SABLON MENTÉSE");
+      await act(async () => template.click());
+      if (!cloudPatches.some(patch=>patch.plans?.length)) throw new Error("A heti sablon nem mentődött.");
+      console.log("OK edzésterv CRUD és heti sablon");
     }
     if (label === "Trendek") {
       const range = [...document.querySelectorAll(".segmented button")].find(node => node.textContent.trim() === "30 nap");
@@ -116,7 +130,7 @@ try {
   await act(async () => root.unmount());
 
   localStorage.clear();
-  mockedCloudState={version:1,profile:null,accent:"teal",checkins:{},feedback:{}};
+  mockedCloudState={version:2,profile:null,accent:"teal",checkins:{},feedback:{},plans:[]};
   const onboardingRoot = createRoot(document.getElementById("root"));
   await act(async () => onboardingRoot.render(React.createElement(App)));
   for (let step = 1; step <= 3; step += 1) {
