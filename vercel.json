@@ -8,6 +8,10 @@
       "maxDuration": 30,
       "excludeFiles": "{tests/**,frontend/**,data/**,output/**,.pytest-tmp-*/**}"
     },
+    "api/state.py": {
+      "maxDuration": 30,
+      "excludeFiles": "{tests/**,frontend/**,data/**,output/**,.pytest-tmp-*/**}"
+    },
     "api/sync.py": {
       "maxDuration": 300,
       "excludeFiles": "{tests/**,frontend/**,data/**,output/**,.pytest-tmp-*/**}"

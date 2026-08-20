@@ -12,10 +12,27 @@ globalThis.HTMLElement = dom.window.HTMLElement;
 globalThis.SVGElement = dom.window.SVGElement;
 dom.window.HTMLElement.prototype.attachEvent = () => {};
 globalThis.ResizeObserver = class { observe() {} unobserve() {} disconnect() {} };
-globalThis.fetch = async input => String(input).endsWith("/api/sync") ? ({ok:false,status:404,text:async()=>"The page could not be found"}) : ({ ok: true, json: async () => ({
+const dashboardFixture={
   today:"2026-08-19",readiness:78,confidence:"magas",decision:{title:"Zone 2 alapozás",duration:"45–70 perc",intensity:"közepes",rationale:"Teszt regenerációs indoklás."},week:{total_load:420,change_pct:4,recommendations:["Tartsd a kiegyensúlyozott struktúrát."]},
   sessions:[{id:"test-activity",date:"2026-08-18",type:"Futás",name:"Teszt Zone 2 futás",durationMin:48,avgHr:137,distanceKm:8.2,load:64}],heat:[],metrics:[],trends:[],zones:[0,48,0,0,0]
-}) });
+};
+const cloudPatches=[];
+let mockedCloudState={version:1,profile:null,accent:"teal",checkins:{},feedback:{}};
+globalThis.fetch = async (input,options={}) => {
+  const url=String(input);
+  if(url.endsWith("/api/sync"))return {ok:false,status:404,text:async()=>"The page could not be found"};
+  if(url.endsWith("/api/state")){
+    if(options.method==="PATCH"){
+      const patch=JSON.parse(options.body);cloudPatches.push(patch);
+      if(patch.profile)mockedCloudState.profile=patch.profile;
+      if(patch.accent)mockedCloudState.accent=patch.accent;
+      if(patch.checkin)mockedCloudState.checkins[patch.checkin.date]=patch.checkin.value;
+      if(patch.feedback)mockedCloudState.feedback[patch.feedback.activityId]=patch.feedback.value;
+    }
+    return {ok:true,status:200,json:async()=>mockedCloudState,text:async()=>JSON.stringify(mockedCloudState)};
+  }
+  return {ok:true,status:200,json:async()=>dashboardFixture,text:async()=>JSON.stringify(dashboardFixture)};
+};
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 localStorage.setItem("hybrid-onboarding-version", "2");
 
@@ -35,6 +52,7 @@ try {
   await act(async () => saveCheckin.click());
   if (!document.querySelector(".decision-copy")?.textContent.includes("Teljes pihenő")) throw new Error("A betegségérzet nem írta felül biztonságosan az ajánlást.");
   if (![...Array(localStorage.length).keys()].map(index=>localStorage.key(index)).some(key=>key?.startsWith("hybrid-checkin-"))) throw new Error("A napi check-in nem mentődött el.");
+  if (!cloudPatches.some(patch=>patch.checkin?.date==="2026-08-19")) throw new Error("A napi check-in nem indított Neon-mentést.");
   console.log("OK napi check-in és biztonsági felülírás");
   for (const label of ["Naptár", "Trendek", "Cél", "Insights", "Napló", "Profil", "Beállítások"]) {
     const button = [...document.querySelectorAll("button")].find(node => node.textContent.trim() === label);
@@ -78,13 +96,27 @@ try {
       await act(async () => save.click());
       const stored = JSON.parse(localStorage.getItem("hybrid-activity-feedback") || "{}");
       if (stored["test-activity"]?.rpe !== 8) throw new Error("Az edzés-visszajelzés nem mentődött el.");
+      if (!cloudPatches.some(patch=>patch.feedback?.activityId==="test-activity"&&patch.feedback.value.rpe===8)) throw new Error("Az RPE nem indított Neon-mentést.");
       console.log("OK edzésrészlet és RPE-visszajelzés");
+    }
+    if (label === "Profil") {
+      const saveProfile = [...document.querySelectorAll("button")].find(node => node.textContent.trim() === "Profil mentése");
+      await act(async () => saveProfile.click());
+      if (!cloudPatches.some(patch=>patch.profile?.name==="Attila")) throw new Error("A profil nem indított Neon-mentést.");
+    }
+    if (label === "Beállítások") {
+      const blue = [...document.querySelectorAll('[role="radio"]')].find(node => node.textContent.trim() === "Kék");
+      await act(async () => blue.click());
+      const saveAccent = [...document.querySelectorAll("button")].find(node => node.textContent.trim() === "Választás mentése");
+      await act(async () => saveAccent.click());
+      if (!cloudPatches.some(patch=>patch.accent==="blue")) throw new Error("Az akcentusszín nem indított Neon-mentést.");
     }
     console.log(`OK ${label}`);
   }
   await act(async () => root.unmount());
 
   localStorage.clear();
+  mockedCloudState={version:1,profile:null,accent:"teal",checkins:{},feedback:{}};
   const onboardingRoot = createRoot(document.getElementById("root"));
   await act(async () => onboardingRoot.render(React.createElement(App)));
   for (let step = 1; step <= 3; step += 1) {
