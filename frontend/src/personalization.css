@@ -1,0 +1,12 @@
+:root{--accent:#14b8a6;--accent-soft:rgba(20,184,166,.16);--accent-deep:#123b36;--accent-text:#5eead4}
+.sidebar nav button.active{background:var(--accent-soft)}.sidebar nav button.active svg,.eyebrow,.ring strong,.why,.metric em,.insight svg{color:var(--accent)}
+.header-actions button{border-color:var(--accent-deep);background:var(--accent-soft);color:var(--accent-text)}
+.scale-row button.selected{border-color:var(--accent);background:var(--accent-soft);color:var(--accent-text)}
+.metric .bar i,.weekbar i,.insight i{background:var(--accent)}
+.metric-icon{color:var(--accent);background:var(--accent-soft)}
+.heatmap i[data-level="1"],.heat-legend i[data-level="1"]{background:color-mix(in srgb,var(--accent) 28%,#111)}
+.heatmap i[data-level="2"],.heat-legend i[data-level="2"]{background:color-mix(in srgb,var(--accent) 65%,#111)}
+.heatmap i[data-level="3"],.heat-legend i[data-level="3"]{background:var(--accent)}
+.accent-page{max-width:920px}.accent-card{padding:30px}.accent-card h2{font-size:24px;margin:8px 0}.accent-card>p{color:#a3a5a4;font-size:14px;line-height:1.6;max-width:650px}.accent-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin:28px 0}.accent-option{min-height:106px;border:1px solid #343636;border-radius:12px;background:#202121;color:#d9dbda;display:grid;place-items:center;gap:8px;padding:14px;cursor:pointer}.accent-option:hover,.accent-option.selected{border-color:var(--choice);box-shadow:0 0 0 2px color-mix(in srgb,var(--choice) 22%,transparent)}.accent-option i{width:34px;height:34px;border-radius:50%;background:var(--choice);display:block}.accent-option b{font-size:13px}.accent-actions{display:flex;justify-content:flex-end;gap:12px}.accent-actions button{min-height:44px;border-radius:7px;padding:0 20px;border:1px solid #3a3c3b;background:#242625;color:#dfe1e0}.accent-actions .primary{border-color:var(--accent);background:var(--accent);color:#071a18}
+.onboarding-backdrop{position:fixed;z-index:100;inset:0;background:rgba(4,5,5,.9);display:grid;place-items:center;padding:32px}.onboarding{width:min(760px,100%);padding:38px;background:#191b1a;border:1px solid #323433;border-radius:18px;box-shadow:0 28px 90px rgba(0,0,0,.55)}.onboarding h1{font-size:34px;margin:10px 0 12px}.onboarding>p{color:#a9acab;font-size:15px;line-height:1.6}.onboarding .accent-grid{grid-template-columns:repeat(5,1fr)}
+@media(max-width:900px){.accent-grid,.onboarding .accent-grid{grid-template-columns:repeat(2,1fr)}}

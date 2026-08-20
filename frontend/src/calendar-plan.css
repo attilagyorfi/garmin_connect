@@ -1,0 +1,5 @@
+.calendar-grid>button>div.done{background:var(--accent-soft);box-shadow:inset 3px 0 0 var(--accent)}
+.calendar-grid>button>div.planned{box-shadow:inset 3px 0 0 #68706e}
+.calendar-grid>button>div small{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.calendar-grid>button>div svg{color:var(--accent)}
+.calendar-detail button:disabled{opacity:.38;cursor:not-allowed}

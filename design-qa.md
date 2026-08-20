@@ -66,3 +66,57 @@ final result: passed
 - Automated verification: all 52 tests passed; the final targeted two-page render check also passed.
 - Intentional difference: raw Garmin activity names remain source data and are not automatically translated.
 - Final result for this extension: passed.
+
+## Brand asset integration — 2026-08-20
+
+- Source visual truth: `C:/Users/User/Documents/ChatGPT/Garmin/.design-import-mobile/design_handoff_hybrid_athlete/screenshots/desktop/01-ma-fresh.png`.
+- Source asset truth: `C:/Users/User/Documents/ChatGPT/Garmin/.design-import-mobile/design_handoff_hybrid_athlete/assets/`.
+- Browser-rendered implementation: `C:/Users/User/Documents/ChatGPT/Garmin/output/brand-main-1920x1180.png`.
+- Combined comparison: `C:/Users/User/Documents/ChatGPT/Garmin/output/brand-design-comparison.png`.
+- State: desktop dark-mode `Ma` view after completed onboarding, local API unavailable with intentional demo fallback.
+- Browser viewport: 1920 × 1180 CSS px; captured app pixels: 1920 × 1065 at device scale factor 1. Source pixels: 919 × 540. For the combined evidence, the implementation was aspect-filled and cropped to the source export size; browser presentation chrome was excluded from product findings.
+
+### Full-view and focused comparison
+
+The full-view comparison confirms the source hierarchy remains intact while the supplied production mark, desktop grid/tint background and header motifs now provide the intended brand signature. Focused inspection covered the sidebar lockup, `Ma` header, onboarding icon and empty-state asset placement; no generated, placeholder or CSS-drawn substitute remains for those supplied assets.
+
+### Required fidelity surfaces
+
+- Fonts and typography: Geist and Geist Mono hierarchy is unchanged and remains aligned with the handoff.
+- Spacing and layout rhythm: the brand assets are decorative layers and do not shift the established desktop card grid, sidebar width or control sizing.
+- Colors and visual tokens: supplied SVGs use the handoff teal/obsidian palette; the UI's user-selected accent still controls functional highlights.
+- Image quality and asset fidelity: original production SVGs are used directly for the logo, icon, shell, view motifs and empty states, preserving vector sharpness.
+- Copy and content: the document language and title are now Hungarian/Hybrid Athlete; live data and Hungarian product copy remain unchanged.
+
+### Interaction and runtime evidence
+
+- Primary interactions tested in the in-app browser: onboarding completion and navigation through `Naptár`, `Trendek`, `Insights`, `Napló`, `Profil`, then back to `Ma`.
+- Asset checks: the production logo URL and desktop-shell computed background URL were verified in the rendered DOM.
+- Browser console: no warnings or errors after the final reload and navigation pass.
+- Automated checks: production build passed, 4 Sites packaging tests passed, and the full navigation test passed.
+
+### Comparison history
+
+- Initial pass found one P2 presentation issue: a raw JSON parse failure was shown in the top bar when the optional local API was unavailable.
+- Fix: replaced the raw exception with a concise Hungarian demo-fallback status and repeated the browser capture.
+- Post-fix evidence: `output/brand-main-1920x1180.png`; no actionable P0/P1/P2 visual differences remain for this scoped brand integration.
+
+### Follow-up polish
+
+- P3: add the supplied light-mode logo variant when the currently visual-only theme button receives full theme behavior.
+
+final result: passed
+
+## Secondary-view extension — Trendek és Insights
+
+- Source visuals: `05-trendek.png` and `06-insights.png` from the saved Hybrid Athlete desktop handoff.
+- Implementation captures: `output/trends-qa.png` and `output/insights-qa.png`.
+- Combined evidence: `output/trends-comparison.png` and `output/insights-comparison.png`.
+- Viewport: 1920 × 1180, dark mode, deterministic demo history.
+- Trendek: the implementation matches the reference hierarchy with a 90-day ATL/CTL/TSB hero chart, five-zone time distribution, and cardio/strength/musculoskeletal load composition. Detailed recovery signals, methodology and RPE editing remain available in collapsed secondary panels.
+- Insights: findings lead the page with statement, strength bar, sample size, Spearman rho and confidence; weekly KPIs, the deload/taper recommendation and drift status follow before the existing technical validation and model lifecycle tools.
+- Intentional differences: live analytics determine the values and number of findings; the design's locked sample insight is omitted because the local application has no entitlement model. Existing model-validation tools are retained below the design-led summary.
+- Browser console: no warnings or errors. Document width equals the 1920 px viewport; no horizontal overflow.
+- Automated verification: all 52 tests passed.
+- Remaining P3 polish: a future entitlement feature may add the reference's locked insight card; a future layout pass may move the deload recommendation into a persistent right rail when the Streamlit shell supports that without duplicating analytics logic.
+- Final result for this extension: passed.

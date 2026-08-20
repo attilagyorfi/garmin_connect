@@ -1,0 +1,3 @@
+@keyframes sync-spin { to { transform: rotate(360deg); } }
+.spin { animation: sync-spin .9s linear infinite; }
+.header-actions button:disabled { cursor: wait; opacity: .7; }

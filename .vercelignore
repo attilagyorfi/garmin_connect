@@ -1,0 +1,11 @@
+.git/
+.pytest_cache/
+.pytest-tmp-*/
+__pycache__/
+data/
+output/
+frontend/node_modules/
+frontend/dist/
+*.log
+.env*
+!.env.example

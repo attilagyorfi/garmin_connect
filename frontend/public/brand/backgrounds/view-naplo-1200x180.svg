@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="180" viewBox="0 0 1200 180" fill="none">
+<defs><pattern id="grid" width="60" height="60" patternUnits="userSpaceOnUse"><path d="M60 0 H0 V60" fill="none" stroke="rgba(255,255,255,0.04)" stroke-width="1"></path></pattern>
+<radialGradient id="t" cx="14%" cy="0%" r="72%"><stop offset="0%" stop-color="#14B8A6" stop-opacity="0.13"></stop><stop offset="100%" stop-color="#14B8A6" stop-opacity="0"></stop></radialGradient></defs>
+<rect width="1200" height="180" fill="#0f0f0f"></rect><rect width="1200" height="180" fill="url(#grid)"></rect><rect width="1200" height="180" fill="url(#t)"></rect>
+<g stroke-linecap="round"><path d="M700 44 H1160" stroke="rgba(255,255,255,.12)" stroke-width="1.2" opacity="1"></path><path d="M714 64 H1138" stroke="rgba(255,255,255,.12)" stroke-width="1.2" opacity="1"></path><path d="M728 84 H1116" stroke="#14B8A6" stroke-width="2" opacity="0.55"></path><path d="M742 104 H1094" stroke="rgba(255,255,255,.12)" stroke-width="1.2" opacity="1"></path><path d="M756 124 H1072" stroke="rgba(255,255,255,.12)" stroke-width="1.2" opacity="1"></path><path d="M770 144 H1050" stroke="rgba(255,255,255,.12)" stroke-width="1.2" opacity="1"></path></g>
+</svg>
