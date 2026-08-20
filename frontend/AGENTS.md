@@ -11,3 +11,5 @@ Build app UI in `src/`. Keep `.openai/hosting.json`, `worker/index.js`, `scripts
 ## Product-specific desktop rule
 
 The primary target is a desktop application around 1920 px. Use comfortable desktop readability rather than reproducing the small apparent scale of the exported screenshots. On large desktop viewports, body and table text should normally be 14–16 px, compact metadata at least 11 px, navigation 16 px, icons 22–24 px, and primary controls 42–48 px high. The dashboard should use the available viewport height instead of clustering shallow cards at the top. Keep cards spacious and scannable while preserving the reference hierarchy.
+
+The supplied Hybrid Athlete SVG mark must remain clearly visible as part of a full sidebar logo lockup. Preserve its native 4:3 aspect ratio, keep the wordmark readable on desktop, and retain a distinct compact mark when the sidebar is collapsed. Use the supplied mark—not a typographic placeholder or generic app tile—in onboarding and branded entry states.

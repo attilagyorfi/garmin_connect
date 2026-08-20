@@ -107,6 +107,25 @@ The full-view comparison confirms the source hierarchy remains intact while the 
 
 final result: passed
 
+## Desktop logo-lockup correction — 2026-08-20
+
+- Source visual truth: `frontend/public/brand/logo/mark-onDark.svg` and the saved Hybrid Athlete desktop handoff.
+- Browser-rendered implementation: in-app browser capture of `http://127.0.0.1:4173/`, desktop dark-mode `Ma` view.
+- Viewport: 1264 × 712 CSS px at device scale factor 1; focused logo region measured 199.2 × 39 px, with the original SVG rendered at 52 × 39 px.
+- State: expanded sidebar, completed visual load; compact sidebar was also exercised.
+- Full-view evidence: the logo now leads the sidebar hierarchy at native aspect ratio and remains distinct from navigation icons.
+- Focused evidence: original SVG mark, `HYBRID ATHLETE` wordmark and `SZEMÉLYES EDZÉSDÖNTÉS` descriptor render as one lockup; collapsed mode keeps a 45 × 34 px source mark without text clipping.
+- Fonts and typography: Geist Mono wordmark, 13 px/0.17 em desktop treatment, white primary and muted descriptor.
+- Spacing/layout: 13 px mark-to-copy gap; no collision with collapse control or first navigation item.
+- Colors/tokens: original white/teal SVG colors preserved; no CSS recoloring or substitute artwork.
+- Image quality: supplied vector asset is used directly and remains sharp at both sizes.
+- Copy/content: official product name and Hungarian descriptor are unchanged.
+- Primary interactions tested: expanded and collapsed sidebar states.
+- Browser console: no errors.
+- Comparison history: the earlier implementation rendered the mark in a square 36–42 px slot and it read as a tiny decoration (P2). The fix restores the native ratio, enlarges it to 52–60 px desktop width, and defines an explicit compact state. No actionable P0/P1/P2 finding remains.
+
+final result: passed
+
 ## Secondary-view extension — Trendek és Insights
 
 - Source visuals: `05-trendek.png` and `06-insights.png` from the saved Hybrid Athlete desktop handoff.

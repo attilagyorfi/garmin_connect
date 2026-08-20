@@ -61,9 +61,10 @@ def test_local_history_can_be_imported_once(memory_store):
 def test_training_plan_full_crud_and_bulk_template(memory_store):
     created = user_state.apply_patch({"plan": {
         "id": "plan-1", "date": "2026-08-24", "type": "Futás", "title": "Zone 2 futás",
-        "duration": 55, "intensity": "könnyű", "rpe": 4, "purpose": "Aerob alap",
+        "duration": 55, "intensity": "könnyű", "rpe": 4, "purpose": "Aerob alap", "matchedActivityId": "garmin-42",
     }})
     assert created["plans"][0]["title"] == "Zone 2 futás"
+    assert created["plans"][0]["matchedActivityId"] == "garmin-42"
 
     updated = user_state.apply_patch({"plan": {
         **created["plans"][0], "duration": 65, "note": "Sík útvonal",

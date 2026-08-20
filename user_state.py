@@ -94,6 +94,7 @@ def validate_plan(value: Any, plan_id: str | None = None) -> dict[str, Any]:
         "rpe": max(1, min(10, int(value.get("rpe", 5)))),
         "purpose": _text(value.get("purpose"), 500),
         "note": _text(value.get("note"), 2000),
+        "matchedActivityId": _text(value.get("matchedActivityId"), 120),
         "status": "planned",
         "updatedAt": datetime.now(timezone.utc).isoformat(),
     }
