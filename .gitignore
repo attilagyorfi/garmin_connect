@@ -17,6 +17,7 @@ exports/
 output/
 streamlit-*.log
 .pytest-tmp-*/
+test-tmp-*/
 frontend/node_modules/
 frontend/dist/
 frontend-vite*.log
