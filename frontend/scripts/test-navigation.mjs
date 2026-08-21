@@ -17,7 +17,7 @@ const dashboardFixture={
   sessions:[{id:"test-activity",date:"2026-08-18",type:"Futás",name:"Teszt Zone 2 futás",durationMin:48,avgHr:137,distanceKm:8.2,load:64}],heat:[],metrics:[],trends:[],zones:[0,48,0,0,0]
 };
 const cloudPatches=[];
-let mockedCloudState={version:2,profile:null,accent:"teal",checkins:{},feedback:{},plans:[]};
+let mockedCloudState={version:2,profile:{name:"Attila",goal:"Általános fittség",weeklyHours:7,strengthRatio:25},accent:"teal",checkins:{},feedback:{},plans:[]};
 globalThis.fetch = async (input,options={}) => {
   const url=String(input);
   if(url.endsWith("/api/auth"))return {ok:true,status:200,json:async()=>({user:{id:"test-user",email:"attilla@example.com",name:"Attila"}}),text:async()=>""};
@@ -46,8 +46,20 @@ try {
   const { App } = await vite.ssrLoadModule("/src/App.jsx");
   const root = createRoot(document.getElementById("root"));
   await act(async () => root.render(React.createElement(App)));
+  await act(async () => new Promise(resolve => setTimeout(resolve, 25)));
   const bundledLogo=document.querySelector('.brand-logo img');
   if (!bundledLogo?.getAttribute("src")||bundledLogo.getAttribute("src")==="[object Object]") throw new Error("A bundle-ölt Hybrid Athlete logó hiányzik.");
+  if (!document.querySelector(".content")?.textContent.includes("FEJLŐDÉSTÖRTÉNET")) throw new Error("Az Áttekintés nem a kezdőképernyő.");
+  await act(async () => [...document.querySelectorAll("button")].find(node=>node.textContent.trim()==="Ma").click());
+  if (!document.querySelector(".checkin-gate")) throw new Error("A Ma oldal nem az állapotfelméréssel kezdődik.");
+  for (const row of document.querySelectorAll(".checkin-gate .scale-row")) await act(async()=>row.querySelector("button").click());
+  const illness = [...document.querySelectorAll("button")].find(node => node.textContent.trim() === "Betegségérzetem van");
+  await act(async () => illness.click());
+  const saveCheckin = [...document.querySelectorAll("button")].find(node => node.textContent.trim() === "Mentés és a javaslat kiszámítása");
+  await act(async () => saveCheckin.click());
+  if (!document.querySelector(".decision-copy")?.textContent.includes("Teljes pihenő")) throw new Error("A betegségérzet nem írta felül biztonságosan az ajánlást.");
+  if (!cloudPatches.some(patch=>patch.checkin?.date==="2026-08-19")) throw new Error("A napi check-in nem indított Neon-mentést.");
+  console.log("OK kötelező napi check-in és biztonsági felülírás");
   await act(async () => new Promise(resolve=>setTimeout(resolve,5)));
   const explainedKpi=document.querySelector('.week-stats>div.explained-value');
   if (!explainedKpi?.dataset.explanation?.includes("regenerációs igényt")) throw new Error("A laikus mérőszám-magyarázat nem épült fel.");
@@ -61,25 +73,16 @@ try {
   if (!document.querySelector('.metric-detail')?.textContent.includes("MIT JELENT MOST?")) throw new Error("A readiness részletes értelmezése nem nyitható meg.");
   if (!document.querySelector('.metric-detail')?.textContent.includes("ADATMINŐSÉG")) throw new Error("A readiness adatminőségi magyarázata hiányzik.");
   console.log("OK readiness részletek és adatminőség");
-  const sync = [...document.querySelectorAll("button")].find(node => node.textContent.trim() === "SZINKRON");
+  const sync = [...document.querySelectorAll("button")].find(node => node.textContent.trim() === "SZINKRONIZÁLÁS");
   await act(async () => sync.click());
   if (!document.querySelector(".header-actions")?.textContent.includes("Az online Garmin-szinkron még nincs bekötve")) throw new Error("A nem JSON szinkronhiba nem kapott érthető üzenetet.");
   console.log("OK online szinkronhiba kezelése");
-  const illness = [...document.querySelectorAll("button")].find(node => node.textContent.trim() === "Betegségérzetem van");
-  if (!illness) throw new Error("Hiányzik a betegségérzet check-in vezérlője.");
-  await act(async () => illness.click());
-  const saveCheckin = [...document.querySelectorAll("button")].find(node => node.textContent.trim() === "Mentés és újraszámolás");
-  await act(async () => saveCheckin.click());
-  if (!document.querySelector(".decision-copy")?.textContent.includes("Teljes pihenő")) throw new Error("A betegségérzet nem írta felül biztonságosan az ajánlást.");
-  if (![...Array(localStorage.length).keys()].map(index=>localStorage.key(index)).some(key=>key?.startsWith("hybrid-checkin-"))) throw new Error("A napi check-in nem mentődött el.");
-  if (!cloudPatches.some(patch=>patch.checkin?.date==="2026-08-19")) throw new Error("A napi check-in nem indított Neon-mentést.");
-  console.log("OK napi check-in és biztonsági felülírás");
-  for (const label of ["Naptár", "Trendek", "Cél", "Insights", "Napló", "Profil", "Beállítások"]) {
+  for (const label of ["Naptár", "Trendek", "Cél", "Elemzések", "Napló", "Profil", "Beállítások"]) {
     const button = [...document.querySelectorAll("button")].find(node => node.textContent.trim() === label);
     if (!button) throw new Error(`Hiányzó navigációs gomb: ${label}`);
     await act(async () => button.click());
     const content = document.querySelector(".content")?.textContent || "";
-    if (!content.includes(label === "Insights" ? "Mi működik nálam" : label === "Cél" ? "Felkészültség" : label === "Napló" ? "Edzések" : label === "Naptár" ? "Terv és tény" : label === "Trendek" ? "Terhelés és forma" : label)) {
+    if (!content.includes(label === "Elemzések" ? "Mi működik nálam" : label === "Cél" ? "Felkészültség" : label === "Napló" ? "Edzések" : label === "Naptár" ? "Terv és tény" : label === "Trendek" ? "Terhelés és forma" : label)) {
       throw new Error(`A(z) ${label} oldal nem renderelődött.`);
     }
     if (label === "Naptár") {
