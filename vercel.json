@@ -8,6 +8,14 @@
       "maxDuration": 30,
       "excludeFiles": "{tests/**,frontend/**,data/**,output/**,.pytest-tmp-*/**}"
     },
+    "api/auth.py": {
+      "maxDuration": 30,
+      "excludeFiles": "{tests/**,frontend/**,data/**,output/**,.pytest-tmp-*/**}"
+    },
+    "api/garmin.py": {
+      "maxDuration": 30,
+      "excludeFiles": "{tests/**,frontend/**,data/**,output/**,.pytest-tmp-*/**}"
+    },
     "api/state.py": {
       "maxDuration": 30,
       "excludeFiles": "{tests/**,frontend/**,data/**,output/**,.pytest-tmp-*/**}"

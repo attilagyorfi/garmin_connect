@@ -67,19 +67,61 @@ def save_json(state_key: str, payload: dict[str, Any], connection: psycopg.Conne
             db.close()
 
 
+def initialize_user_state(connection: psycopg.Connection[Any]) -> None:
+    connection.execute("""
+        CREATE TABLE IF NOT EXISTS hybrid_user_state (
+            user_id UUID NOT NULL,
+            state_key TEXT NOT NULL,
+            payload JSONB NOT NULL,
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            PRIMARY KEY (user_id, state_key)
+        )
+    """)
+    connection.commit()
+
+
+def load_user_json(user_id: str, state_key: str, connection: psycopg.Connection[Any] | None = None) -> dict[str, Any] | None:
+    owns_connection = connection is None
+    db = connection or connect()
+    try:
+        initialize_user_state(db)
+        row = db.execute("SELECT payload FROM hybrid_user_state WHERE user_id = %s AND state_key = %s", (user_id, state_key)).fetchone()
+        return row[0] if row and isinstance(row[0], dict) else None
+    finally:
+        if owns_connection:
+            db.close()
+
+
+def save_user_json(user_id: str, state_key: str, payload: dict[str, Any], connection: psycopg.Connection[Any] | None = None) -> None:
+    owns_connection = connection is None
+    db = connection or connect()
+    try:
+        initialize_user_state(db)
+        db.execute("""
+            INSERT INTO hybrid_user_state (user_id, state_key, payload, updated_at)
+            VALUES (%s, %s, %s::jsonb, NOW())
+            ON CONFLICT (user_id, state_key) DO UPDATE
+            SET payload = EXCLUDED.payload, updated_at = NOW()
+        """, (user_id, state_key, json.dumps(payload, ensure_ascii=False, separators=(",", ":"))))
+        db.commit()
+    finally:
+        if owns_connection:
+            db.close()
+
+
 @contextmanager
-def sync_lock() -> Iterator[psycopg.Connection[Any] | None]:
+def sync_lock(user_id: str = "legacy") -> Iterator[psycopg.Connection[Any] | None]:
     """Allow only one expensive Garmin refresh at a time."""
     db = connect()
     try:
         initialize(db)
         acquired = db.execute(
-            "SELECT pg_try_advisory_lock(hashtext(%s))", ("hybrid-athlete-garmin-sync",)
+            "SELECT pg_try_advisory_lock(hashtext(%s))", (f"hybrid-athlete-garmin-sync:{user_id}",)
         ).fetchone()[0]
         yield db if acquired else None
     finally:
         try:
-            db.execute("SELECT pg_advisory_unlock(hashtext(%s))", ("hybrid-athlete-garmin-sync",))
+            db.execute("SELECT pg_advisory_unlock(hashtext(%s))", (f"hybrid-athlete-garmin-sync:{user_id}",))
         except Exception:
             pass
         db.close()

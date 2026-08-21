@@ -10,8 +10,11 @@ import "./journal-feedback.css";
 import "./trend-history.css";
 import "./goal-readiness.css";
 import "./brand.css";
+import "./logo-animation.css";
 import "./readability.css";
 import "./explainability.css";
+import "./auth.css";
+import "./garmin-connection.css";
 
 createRoot(document.getElementById("root")).render(
   <React.StrictMode>

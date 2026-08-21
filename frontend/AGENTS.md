@@ -15,3 +15,7 @@ The primary target is a desktop application around 1920 px. Use comfortable desk
 The supplied Hybrid Athlete SVG mark must remain clearly visible as part of a full sidebar logo lockup. Preserve its native 4:3 aspect ratio, keep the wordmark readable on desktop, and retain a distinct compact mark when the sidebar is collapsed. Use the supplied mark—not a typographic placeholder or generic app tile—in onboarding and branded entry states.
 
 The product is intended to translate professional training data for non-experts. Every visible KPI or technical abbreviation must have a plain-Hungarian explanation available on hover and keyboard focus, covering what the value measures, why it matters, and what a high/low or changing value can imply. On 1920 px desktop screens, do not allow base UI text to fall back to the original small mockup scale; navigation should be about 16 px, data labels about 14–16 px, metadata at least 11–12 px, and primary KPI values 21 px or larger.
+
+Do not add hover tooltips to rows or controls that already reveal the same explanation through an expandable/collapsible interaction. For those elements, the explicit expansion is the single source of detail and must remain keyboard accessible.
+
+Personalization includes a persistent profile identity. Keep the avatar or uploaded profile photo visible in the sidebar and profile summary, and preserve it with the cloud-saved profile. Uploaded photos must be resized and compressed client-side before persistence.

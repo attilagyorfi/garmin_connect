@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from http.server import BaseHTTPRequestHandler
 
+from auth_store import current_user
 from user_state import apply_patch, load_state
 
 
@@ -18,16 +19,24 @@ class handler(BaseHTTPRequestHandler):
 
     def do_GET(self) -> None:  # noqa: N802
         try:
-            self._send(load_state())
+            user = current_user(self.headers)
+            if not user:
+                self._send({"error": "A művelethez bejelentkezés szükséges."}, 401)
+                return
+            self._send(load_state(user["id"]))
         except Exception:
             self._send({"error": "A személyes beállítások jelenleg nem tölthetők be."}, 503)
 
     def do_PATCH(self) -> None:  # noqa: N802
         try:
+            user = current_user(self.headers)
+            if not user:
+                self._send({"error": "A művelethez bejelentkezés szükséges."}, 401)
+                return
             size = int(self.headers.get("Content-Length", "0"))
             if size <= 0 or size > 262_144:
                 raise ValueError("Érvénytelen kérésméret.")
-            self._send(apply_patch(json.loads(self.rfile.read(size))))
+            self._send(apply_patch(json.loads(self.rfile.read(size)), user["id"]))
         except (ValueError, TypeError, json.JSONDecodeError) as exc:
             self._send({"error": str(exc) or "Érvénytelen személyes adat."}, 400)
         except Exception:

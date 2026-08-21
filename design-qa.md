@@ -101,6 +101,38 @@ final result: passed
 
 final result: passed
 
+## Adaptív heti újratervezés — 2026-08-20
+
+- A következő hét a readiness, a legutóbbi check-in, a Garmin-teljesítések és a terv–tény követés alapján értékelődik újra.
+- A javaslat külön mutatja az eredeti és módosított időtartamot, cél-RPE-t és intenzitást.
+- Minden változtatás magyar, laikus indoklást kap; fájdalom, betegségérzet, alacsony readiness és magas fáradtság elsőbbséget élvez.
+- Több elmaradt edzés esetén a volumen csökken, a rendszer nem próbálja a kimaradt munkát a következő hétbe besűríteni.
+- A terv csak kifejezett felhasználói jóváhagyás után cseréli le a következő hét érintett naptárbejegyzéseit.
+- Automatizált ellenőrzés: adaptív előnézet, indoklás, tervösszevetés és felhőmentés sikeres.
+
+final result: passed
+
+## Eseményspecifikus periodizáció — 2026-08-20
+
+- A Cél nézetben 4, 8 és 12 hetes felkészülési ciklus választható.
+- A terv alapozó, építő, tehermentesítő, csúcs- és esemény/levezető fázisokat képez, a heti időkeret és az erő–kardió arány szerint.
+- Az előnézet hetente mutatja a fázist, volumenarányt, fókuszt, teljes időt és minden generált edzést dátummal, időtartammal és cél-RPE-vel.
+- A meglévő naptártervekkel ütköző napok külön megerősítéssel, az érintett dátumok célzott lecserélésével kezelhetők.
+- A mentett ciklus minden edzése külön szerkeszthető marad a Naptárban.
+- Automatizált ellenőrzés: 4 hetes ciklusgenerálás, fázisok, naptármentés és dátumcsere sikeres; 11 user-state teszt sikeres.
+
+final result: passed
+
+## Tooltip-egyszerűsítés és profilavatar — 2026-08-20
+
+- A lenyitható readiness-sorok már nem kapnak külön hover tooltipet; a részletes magyarázat kizárólag a jól látható kibontással érhető el.
+- A Beállítások négy sportos avatarválasztást és saját JPG/PNG/WebP profilkép feltöltését kínálja.
+- A feltöltött kép kliensoldalon középre vágott, 256 × 256 pixeles WebP képpé alakul; a szerver a data URL formátumot és a 220 000 karakteres felső korlátot is ellenőrzi.
+- A mentett identitás megjelenik az oldalsávban és a Profil összefoglalójában, valamint a többi profiladattal együtt felhőben tárolódik.
+- Automatizált ellenőrzés: frontend navigációs/avatarmentési teszt sikeres; 11 szerveroldali user-state teszt sikeres.
+
+final result: passed
+
 ## Csoportos edzésmozgatás — 2026-08-20
 
 - Több tervezett edzés egyszerre kijelölhető, illetve a teljes lista egy kattintással kiválasztható vagy törölhető.
@@ -203,3 +235,43 @@ final result: passed
 - Automated verification: all 52 tests passed.
 - Remaining P3 polish: a future entitlement feature may add the reference's locked insight card; a future layout pass may move the deload recommendation into a persistent right rail when the Streamlit shell supports that without duplicating analytics logic.
 - Final result for this extension: passed.
+
+## Claude Design logóanimáció — 2026-08-21
+
+- Source visual truth: authenticated Claude Design project `Hybrid Athlete Logo Animation.dc.html` at `https://claude.ai/design/p/72ddfe0c-d14b-4e17-be46-5ee8c900cdcf?file=Hybrid+Athlete+Logo+Animation.dc.html`.
+- Source capture: `C:/Users/User/Documents/ChatGPT/Garmin/output/logo-animation-qa/source-claude-design.png`.
+- Browser-rendered implementation: `C:/Users/User/Documents/ChatGPT/Garmin/output/logo-animation-qa/implementation-splash-1920x1080.png`.
+- Combined focused comparison: `C:/Users/User/Documents/ChatGPT/Garmin/output/logo-animation-qa/source-vs-implementation.png`.
+- Target viewport: 1920 × 1080 CSS px, dark mode, device scale factor 1. The in-app browser produced a 1905 × 1072 implementation capture after scrollbar allocation. The Claude editor preview remained constrained to its 319 × 696 preview column; the focused comparison normalizes the animation regions to two 800 × 600 panels.
+- State: the source and implementation are both mid-cycle `ÖSSZEÁLLÁS` states. Their independent loops were not frame-locked, so the combined image is used to verify geometry, palette, scale hierarchy and surface treatment rather than pixel-level position at one timestamp.
+
+### Full-view and focused comparison
+
+The implementation intentionally turns the source's demonstration card into a full-screen product splash. The mark remains centered on an obsidian surface with a restrained teal radial glow, followed by the existing Geist Mono Hybrid Athlete lockup. The focused comparison verifies the same two slanted white pillars, rising teal crossbar, four-direction assembly concept and source aspect ratio. The sync state uses the source's second `HELYBEN FUTÁS` SVG anatomy with five teal wind strokes, two white wind strokes, alternating legs, body bob and moving dashed ground.
+
+### Required fidelity surfaces
+
+- Fonts and typography: the lockup uses the product's existing Geist Mono family, uppercase weight hierarchy and tracked Hungarian descriptor. It is deliberately larger than the reference board label because the implementation is a desktop splash, not a documentation card.
+- Spacing and layout rhythm: the mark is centered and capped at 320 px, with 34 px logo-to-wordmark spacing and no collision at the 1920 px desktop target.
+- Colors and visual tokens: near-black `#0b0b0b`, white mark pillars and the active user accent map to the source's obsidian/teal/white system. Accent personalization therefore remains functional without changing the mark anatomy.
+- Image quality and asset fidelity: the exact source SVG path/rect geometry and CSS keyframe values are implemented as vector markup; no raster, emoji, placeholder or approximated logo asset is used.
+- Copy and content: `HYBRID ATHLETE` and `SZEMÉLYES EDZÉSDÖNTÉS` retain the established Hungarian product lockup. The splash introduces no instructional copy.
+- Accessibility and motion: the SVGs expose Hungarian accessible names. `prefers-reduced-motion` replaces assembly with a 200 ms fade, freezes running motion, and hides wind and ground movement.
+
+### Interaction and runtime evidence
+
+- Primary states checked: first-session splash; forced repeat via `?splash=1`; normal dashboard transition after 4.2 seconds; compact running mark wired into the disabled synchronization button.
+- Production build passed. All four Sites packaging tests passed. The complete navigation/regression test passed, including synchronization error handling, onboarding, avatar persistence, planning, trends, goal, insights, journal and settings flows.
+- The local optional Garmin API was unavailable during browser capture and correctly fell back to the existing Hungarian demo status; this does not affect the animation.
+
+### Comparison history
+
+- Initial implementation test exposed a P1 test-environment regression: direct `location` and `sessionStorage` globals were not available during server-side/jsdom rendering.
+- Fix: feature detection now reads `globalThis.window?.location` and optional `globalThis.sessionStorage`, preserving browser behavior while keeping navigation tests executable.
+- Post-fix evidence: the complete navigation suite passes and the 1920 px browser capture shows the assembled mark without clipping or layout shift.
+
+### Remaining P3 polish
+
+- The source preview and local splash cannot be frame-locked across separate browser documents; a future dedicated visual-regression harness could compare both at an identical animation timestamp.
+
+final result: passed

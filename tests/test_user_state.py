@@ -15,7 +15,7 @@ def test_profile_accent_checkin_and_feedback_are_merged(memory_store):
     state = user_state.apply_patch({"profile": {
         "name": "Attila", "experience": "középhaladó", "goal": "Hibrid teljesítmény",
         "weeklyHours": 9, "strengthRatio": 35, "trainingDays": ["H", "Sze", "P"],
-        "restDay": "V", "preference": "kiegyensúlyozott",
+        "restDay": "V", "preference": "kiegyensúlyozott", "avatarPreset": "strength",
     }})
     assert state["profile"]["weeklyHours"] == 9
 
@@ -32,6 +32,7 @@ def test_profile_accent_checkin_and_feedback_are_merged(memory_store):
     assert final["checkins"]["2026-08-20"]["fatigue"] == 4
     assert final["feedback"]["4242"]["rpe"] == 8
     assert final["profile"]["name"] == "Attila"
+    assert final["profile"]["avatarPreset"] == "strength"
 
 
 @pytest.mark.parametrize("patch", [
@@ -39,6 +40,8 @@ def test_profile_accent_checkin_and_feedback_are_merged(memory_store):
     {"checkin": {"date": "nem-dátum", "value": {}}},
     {"feedback": {"activityId": "", "value": {}}},
     {"profile": {"experience": "profi"}},
+    {"profile": {"avatarPreset": "ismeretlen"}},
+    {"profile": {"avatarPreset": "photo", "avatarImage": "https://example.com/avatar.png"}},
     {"plan": {"date": "2026-08-24", "type": "Úszás"}},
     {"deletePlan": ""},
 ])
@@ -78,5 +81,12 @@ def test_training_plan_full_crud_and_bulk_template(memory_store):
     }]})
     assert len(templated["plans"]) == 2
 
+    replaced = user_state.apply_patch({
+        "replacePlanDates": ["2026-08-25"],
+        "plans": [{"id": "period-2026-08-25", "date": "2026-08-25", "type": "Kardió", "title": "Periodizált edzés"}],
+    })
+    assert not any(plan["id"] == "template-2026-08-25" for plan in replaced["plans"])
+    assert any(plan["id"] == "period-2026-08-25" for plan in replaced["plans"])
+
     deleted = user_state.apply_patch({"deletePlan": "plan-1"})
-    assert [plan["id"] for plan in deleted["plans"]] == ["template-2026-08-25"]
+    assert [plan["id"] for plan in deleted["plans"]] == ["period-2026-08-25"]

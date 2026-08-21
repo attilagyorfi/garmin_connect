@@ -20,6 +20,8 @@ const cloudPatches=[];
 let mockedCloudState={version:2,profile:null,accent:"teal",checkins:{},feedback:{},plans:[]};
 globalThis.fetch = async (input,options={}) => {
   const url=String(input);
+  if(url.endsWith("/api/auth"))return {ok:true,status:200,json:async()=>({user:{id:"test-user",email:"attilla@example.com",name:"Attila"}}),text:async()=>""};
+  if(url.endsWith("/api/garmin"))return {ok:true,status:200,json:async()=>({status:"connected",email_hint:"at••••@example.com"}),text:async()=>""};
   if(url.endsWith("/api/sync"))return {ok:false,status:404,text:async()=>"The page could not be found"};
   if(url.endsWith("/api/state")){
     if(options.method==="PATCH"){
@@ -29,7 +31,7 @@ globalThis.fetch = async (input,options={}) => {
       if(patch.checkin)mockedCloudState.checkins[patch.checkin.date]=patch.checkin.value;
       if(patch.feedback)mockedCloudState.feedback[patch.feedback.activityId]=patch.feedback.value;
       if(patch.plan)mockedCloudState.plans=[...mockedCloudState.plans.filter(item=>item.id!==patch.plan.id),patch.plan];
-      if(patch.plans)mockedCloudState.plans=[...mockedCloudState.plans,...patch.plans];
+      if(patch.plans){const replaceDates=new Set(patch.replacePlanDates||[]);mockedCloudState.plans=[...mockedCloudState.plans.filter(item=>!replaceDates.has(item.date)),...patch.plans];}
       if(patch.deletePlan)mockedCloudState.plans=mockedCloudState.plans.filter(item=>item.id!==patch.deletePlan);
     }
     return {ok:true,status:200,json:async()=>mockedCloudState,text:async()=>JSON.stringify(mockedCloudState)};
@@ -54,6 +56,7 @@ try {
   await act(async () => new Promise(resolve=>setTimeout(resolve,25)));
   const readinessMetric=document.querySelector('.metric-wrap .metric');
   if (!readinessMetric) throw new Error("A readiness mérőszámsor nem jelent meg.");
+  if (readinessMetric.classList.contains("explained-value")) throw new Error("A lenyitható readiness soron felesleges hover tooltip maradt.");
   await act(async () => readinessMetric.click());
   if (!document.querySelector('.metric-detail')?.textContent.includes("MIT JELENT MOST?")) throw new Error("A readiness részletes értelmezése nem nyitható meg.");
   if (!document.querySelector('.metric-detail')?.textContent.includes("ADATMINŐSÉG")) throw new Error("A readiness adatminőségi magyarázata hiányzik.");
@@ -126,6 +129,26 @@ try {
     }
     if (label === "Cél") {
       if (document.querySelectorAll(".goal-component").length !== 5) throw new Error("A felkészültségi összetevők hiányoznak.");
+      const fourWeeks=[...document.querySelectorAll('.periodization-actions .segmented button')].find(node=>node.textContent.trim()==="4 hét");
+      await act(async()=>fourWeeks.click());
+      const preview=[...document.querySelectorAll("button")].find(node=>node.textContent.trim()==="TERV ELŐNÉZETE");
+      await act(async()=>preview.click());
+      const periodization=document.querySelector('.periodization-modal');
+      if (!periodization||periodization.querySelectorAll('.periodization-weeks details').length!==4) throw new Error("A 4 hetes periodizációs előnézet hiányzik.");
+      if (!periodization.textContent.includes("Alapozás")||!periodization.textContent.includes("Levezetés")) throw new Error("A periodizáció fázisai hiányoznak.");
+      const saveCycle=[...periodization.querySelectorAll("button")].find(node=>node.textContent.trim()==="Ciklus mentése a Naptárba");
+      await act(async()=>saveCycle.click());
+      if (!cloudPatches.some(patch=>patch.replacePlanDates?.length&&patch.plans?.every(item=>item.id.startsWith("period-")))) throw new Error("A periodizált ciklus nem mentődött a Naptárba.");
+      console.log("OK 4–12 hetes eseményspecifikus periodizáció");
+      const adaptivePreview=[...document.querySelectorAll("button")].find(node=>node.textContent.trim()==="MÓDOSÍTÁSOK ÁTTEKINTÉSE");
+      await act(async()=>adaptivePreview.click());
+      const adaptiveModal=document.querySelector('.adaptive-modal');
+      if (!adaptiveModal?.textContent.includes("Mi változik a következő héten?")) throw new Error("Az adaptív heti előnézet nem nyílt meg.");
+      if (!adaptiveModal.querySelector('.adaptive-reasons')||!adaptiveModal.querySelector('.adaptive-comparison')) throw new Error("Az adaptív hét indoklása vagy tervösszevetése hiányzik.");
+      const saveAdaptive=[...adaptiveModal.querySelectorAll("button")].find(node=>node.textContent.trim()==="Adaptált hét mentése");
+      await act(async()=>saveAdaptive.click());
+      if (!cloudPatches.some(patch=>patch.plans?.some(item=>item.note?.includes("Adaptív heti módosítás")))) throw new Error("Az adaptált következő hét nem mentődött.");
+      console.log("OK Garmin/readiness/check-in alapú heti újratervezés");
       const edit = [...document.querySelectorAll("button")].find(node => node.textContent.trim() === "CÉL SZERKESZTÉSE");
       await act(async () => edit.click());
       if (!document.querySelector(".content")?.textContent.includes("Profil")) throw new Error("A Cél oldalról nem nyitható meg a Profil.");
@@ -147,6 +170,16 @@ try {
       if (stored["test-activity"]?.rpe !== 8) throw new Error("Az edzés-visszajelzés nem mentődött el.");
       if (!cloudPatches.some(patch=>patch.feedback?.activityId==="test-activity"&&patch.feedback.value.rpe===8)) throw new Error("Az RPE nem indított Neon-mentést.");
       console.log("OK edzésrészlet és RPE-visszajelzés");
+    }
+    if (label === "Beállítások") {
+      const avatarOptions=[...document.querySelectorAll('.avatar-options button')];
+      if (avatarOptions.length!==4) throw new Error("Az avatarválasztó lehetőségei hiányoznak.");
+      await act(async()=>avatarOptions[1].click());
+      const saveAvatar=[...document.querySelectorAll("button")].find(node=>node.textContent.trim()==="Profilkép mentése");
+      await act(async()=>saveAvatar.click());
+      if (!cloudPatches.some(patch=>patch.profile?.avatarPreset==="strength")) throw new Error("A kiválasztott avatar nem mentődött a profilba.");
+      if (!document.querySelector('.profile .user-avatar svg')) throw new Error("A mentett avatar nem jelent meg az oldalsávban.");
+      console.log("OK profilkép- és avatarbeállítás");
     }
     if (label === "Profil") {
       const saveProfile = [...document.querySelectorAll("button")].find(node => node.textContent.trim() === "Profil mentése");

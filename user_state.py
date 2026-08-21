@@ -4,7 +4,7 @@ from __future__ import annotations
 from datetime import date, datetime, timezone
 from typing import Any
 
-from cloud_cache import load_json, save_json
+from cloud_cache import load_json, load_user_json, save_json, save_user_json
 
 
 STATE_KEY = "user_state_v1"
@@ -15,6 +15,7 @@ PREFERENCES = {"kiegyensúlyozott", "teljesítmény", "regeneráció"}
 DAYS = {"H", "K", "Sze", "Cs", "P", "Szo", "V"}
 PLAN_TYPES = {"Kardió", "Erő", "Futás", "Túrázás", "Kerékpár", "Mobilitás", "Pihenő"}
 PLAN_INTENSITIES = {"regeneráló", "könnyű", "könnyű–közepes", "közepes", "közepes–magas", "magas"}
+AVATAR_PRESETS = {"athlete", "strength", "endurance", "classic", "photo"}
 
 
 def empty_state() -> dict[str, Any]:
@@ -35,6 +36,12 @@ def validate_profile(value: Any) -> dict[str, Any]:
     rest_day = value.get("restDay", "V")
     if experience not in EXPERIENCE or goal not in GOALS or preference not in PREFERENCES or rest_day not in DAYS:
         raise ValueError("A profil választott értéke érvénytelen.")
+    avatar_preset = value.get("avatarPreset", "athlete")
+    avatar_image = str(value.get("avatarImage") or "")
+    if avatar_preset not in AVATAR_PRESETS:
+        raise ValueError("Érvénytelen profilavatar.")
+    if avatar_image and (len(avatar_image) > 220_000 or not avatar_image.startswith(("data:image/webp;base64,", "data:image/png;base64,", "data:image/jpeg;base64,"))):
+        raise ValueError("A profilkép formátuma vagy mérete érvénytelen.")
     return {
         "name": _text(value.get("name"), 80) or "Sportoló",
         "experience": experience,
@@ -47,6 +54,8 @@ def validate_profile(value: Any) -> dict[str, Any]:
         "restDay": rest_day,
         "limitations": _text(value.get("limitations"), 1000),
         "preference": preference,
+        "avatarPreset": avatar_preset,
+        "avatarImage": avatar_image,
     }
 
 
@@ -100,15 +109,15 @@ def validate_plan(value: Any, plan_id: str | None = None) -> dict[str, Any]:
     }
 
 
-def load_state() -> dict[str, Any]:
-    stored = load_json(STATE_KEY) or {}
+def load_state(user_id: str | None = None) -> dict[str, Any]:
+    stored = (load_user_json(user_id, STATE_KEY) if user_id else load_json(STATE_KEY)) or {}
     return {**empty_state(), **stored, "version": 2, "checkins": stored.get("checkins") or {}, "feedback": stored.get("feedback") or {}, "plans": stored.get("plans") or []}
 
 
-def apply_patch(patch: Any) -> dict[str, Any]:
+def apply_patch(patch: Any, user_id: str | None = None) -> dict[str, Any]:
     if not isinstance(patch, dict):
         raise ValueError("Érvénytelen módosítás.")
-    state = load_state()
+    state = load_state(user_id)
     if "profile" in patch:
         state["profile"] = validate_profile(patch["profile"])
     if "accent" in patch:
@@ -149,7 +158,15 @@ def apply_patch(patch: Any) -> dict[str, Any]:
     if "plans" in patch:
         if not isinstance(patch["plans"], list) or len(patch["plans"]) > 366:
             raise ValueError("Érvénytelen heti terv.")
-        existing = {plan.get("id"): plan for plan in state["plans"]}
+        replace_dates = patch.get("replacePlanDates", [])
+        if not isinstance(replace_dates, list) or len(replace_dates) > 366:
+            raise ValueError("Érvénytelen lecserélendő tervdátum.")
+        clean_replace_dates = set()
+        for value in replace_dates:
+            clean_date = _text(value, 10)
+            date.fromisoformat(clean_date)
+            clean_replace_dates.add(clean_date)
+        existing = {plan.get("id"): plan for plan in state["plans"] if plan.get("date") not in clean_replace_dates}
         for item in patch["plans"]:
             validated = validate_plan(item)
             existing[validated["id"]] = validated
@@ -159,5 +176,8 @@ def apply_patch(patch: Any) -> dict[str, Any]:
         if not plan_id:
             raise ValueError("Hiányzó tervazonosító.")
         state["plans"] = [plan for plan in state["plans"] if plan.get("id") != plan_id]
-    save_json(STATE_KEY, state)
+    if user_id:
+        save_user_json(user_id, STATE_KEY, state)
+    else:
+        save_json(STATE_KEY, state)
     return state
