@@ -1,5 +1,39 @@
 # Roadmap
 
+## P0 – Többfelhasználós fiók- és adatszigetelési alap
+
+- elkészült: PostgreSQL-alapú regisztráció és bejelentkezés scrypt jelszóhash-sel
+- elkészült: véletlen, lejáró munkamenet HttpOnly + SameSite cookie-ban
+- elkészült: profil, terv, check-in, Garmin-cache, dashboard és szinkronállapot elkülönítése `user_id` szerint
+- elkészült: felhasználónkénti szinkronzár
+- következő: e-mail-megerősítés, jelszó-visszaállítás és belépési próbálkozások korlátozása
+- elkészült: felhasználónkénti, Fernet-titkosított Garmin-kapcsolat; a jelszó nem kerül vissza a klienshez
+- következő: tartós Garmin-tokenkezelés és MFA bootstrap; addig az MFA-s többfelhasználós Garmin-szinkron nem tekinthető késznek
+
+## P0 – Vercel teljes történeti szinkron
+
+- elkészült: a monolitikus, időtúllépésre érzékeny teljes szinkron felbontása rövid, újraindítható szerverless lépésekre
+- elkészült: tartós Neon job-állapot, fázis, százalék, aktivitás-/pulzuszóna-/wellness számlálók és részleges hibák
+- elkészült: böngészőből vezérelt folytatás és automatikus újracsatlakozás oldal-újratöltés után
+- elkészült: asztali szinkronfolyamat-panel a futó Hybrid Athlete logóval
+- következő: Garmin-tokenek titkosított, tartós tárolása és MFA bootstrap folyamat
+- következő: valós fiókos, többéves backfill terhelés- és rate-limit teszt Vercelen
+
+## P5 – Személyes AI-asszisztens
+
+- asztali, jobboldali, összecsukható chatpanel beégetett kérdésindítókkal és szabadszavas bevitellel
+- felhasználónként elkülönített beszélgetések és törölhető, opcionális beszélgetési memória
+- a modell nem kerül egészségadatokkal betanításra; minden válasz jogosultságkezelt, aktuális kontextust kap
+- strukturált kontextus: Garmin-idősorok, baseline, readiness, load, terv–tény, check-in, célok és periodizáció
+- tudáskontextus: módszertan, mérőszám-definíciók, korlátok és sportbiztonsági szabályok
+- a determinisztikus analitikai motor számol; az AI értelmez, összegez és alternatívákat fogalmaz meg
+- minden adatállításnál megjeleníthető forrásidőszak és használt mérőszám
+- olvasási műveletek alapból engedélyezettek; terv- vagy profilváltoztatás csak előnézet és kifejezett jóváhagyás után
+- orvosi diagnózis, sérüléskezelés és indokolatlan kauzális állítás tiltása; piros zászlóknál szakemberhez irányítás
+- adatminimalizálás: nyers Garmin payload helyett célzott, összesített kontextus; hitelesítő és token soha nem kerül modellpromptba
+- következő: asszisztens API-szerződés, kontextusépítő és jobb oldali desktop chat shell
+- következő: modell/provider és költségkorlát kiválasztása, naplózási és adatmegőrzési beállításokkal
+
 ## Elkészült üzemi megerősítés
 
 - GitHub Actions CI Python 3.11 és 3.13 alatt, teszt- és szintaxisellenőrzéssel
@@ -35,10 +69,12 @@
 - tervezett kontra tényleges edzés automatikus vagy kézi Garmin-aktivitás párosítással
 - terveltérés visszacsatolása a következő ajánlásba
 
-## Következő P2 finomítások
+## Elkészült P2 tervezési finomítás
 
-- több edzés együttes mozgatása
-- a heti sablon egyedi napkiosztásának szerkesztése mentés előtt
+- a heti sablon egyedi napkiosztásának, típusának, nevének és időtartamának szerkesztése mentés előtt, kihagyható edzésekkel és napütközés-jelzéssel
+- több tervezett edzés együttes mozgatása előre vagy hátra, a heti ritmus megtartásával, dátum-előnézettel és napütközés-védelemmel
+- 4/8/12 hetes eseményspecifikus periodizáció alapozó, építő, tehermentesítő, csúcs- és esemény/levezető fázissal; szerkeszthető naptártervek és biztonságos dátumcsere
+- adaptív következő heti újratervezés Garmin-teljesítések, tervkövetés, readiness és check-in alapján, magyarázható volumen-/intenzitásváltozással és kihagyott edzések visszasűrítése nélkül
 
 ## Elkészült P2 finomítások
 
@@ -76,4 +112,4 @@
 - A Garmin nem hivatalos web API-ja változhat; nincs élő accountos CI.
 - A jelenlegi cardio zóna-load akkor elsődleges, ha a payload már tartalmaz zónaperceket; külön részletlekérés még nincs.
 - A demo Mountain példákat ad, de a külön Mountain UI/score P3.
-- A cél- és tervkezelés elkészült; eseményspecifikus periodizáció még nincs.
+- Az eseményspecifikus periodizáció és a Garmin-tényadatokra reagáló heti adaptáció első szabályalapú változata elkészült; az automatikus alkalmazás továbbra is felhasználói jóváhagyást igényel.

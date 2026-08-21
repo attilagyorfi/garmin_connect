@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 
 import pytest
 
@@ -87,7 +87,8 @@ def test_full_history_sync_resumes_cached_wellness(tmp_path):
     second = sync.sync(None)
     assert first["days"] == "all"
     assert first["backfill_in_progress"] is False
-    assert len(first["wellness"]) == 3
+    expected_days = (date.today() - date(2026, 8, 12)).days + 1
+    assert len(first["wellness"]) == expected_days
     assert client.wellness_calls == initial_calls
     assert second["activities"][0]["activityId"] == 1
 

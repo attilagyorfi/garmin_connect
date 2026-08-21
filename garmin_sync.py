@@ -51,6 +51,8 @@ def _sleep_score(payload: Any) -> float | None:
 class GarminSync:
     cache_dir: Path | str | None = None
     ttl_hours: float | None = None
+    email: str | None = None
+    password: str | None = None
 
     def __post_init__(self) -> None:
         self.cache_dir = Path(self.cache_dir or os.getenv("CACHE_DIR", "data"))
@@ -65,7 +67,7 @@ class GarminSync:
         return self.cache_dir / "garmin_cache.json"
 
     def authenticate(self) -> Garmin:
-        email, password = os.getenv("GARMIN_EMAIL"), os.getenv("GARMIN_PASSWORD")
+        email, password = self.email or os.getenv("GARMIN_EMAIL"), self.password or os.getenv("GARMIN_PASSWORD")
         if not email or not password:
             raise GarminSyncError("Hiányzik a GARMIN_EMAIL vagy GARMIN_PASSWORD. Használd a demo módot, vagy állítsd be mindkettőt.")
         try:

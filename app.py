@@ -324,8 +324,8 @@ def render_goals_and_plans() -> None:
                 st.success("A párosítás elmentve.")
 
 
-def load_chart(prefix: str = "hybrid") -> go.Figure:
-    data = wellness.reset_index(names="date")
+def load_chart(prefix: str = "hybrid", days: int | None = None) -> go.Figure:
+    data = wellness.tail(days).reset_index(names="date") if days else wellness.reset_index(names="date")
     fig = go.Figure()
     fig.add_trace(go.Scatter(x=data["date"], y=data[f"{prefix}_ctl"], name="CTL · 42 nap", line=dict(color="#14B8A6", width=3)))
     fig.add_trace(go.Scatter(x=data["date"], y=data[f"{prefix}_atl"], name="ATL · 7 nap", line=dict(color="#F59E0B", width=2)))
@@ -385,18 +385,45 @@ if page == "Ma":
         st.markdown('<div class="ha-card" style="margin-top:18px"><div class="section-label">Adatfolytonosság</div><div style="display:flex;justify-content:space-between;color:var(--ha-secondary);font-size:12px"><span>Baseline</span><b>28 nap</b><span>Minőség</span><b>'+str(quality['score'])+'/100</b></div><div class="continuity">'+('<span></span>'*21)+'</div></div>', unsafe_allow_html=True)
 
 elif page == "Terhelés és trendek":
-    st.title("Terhelés és regeneráció")
+    st.markdown('<div class="ha-page-head"><div><div class="ha-eyebrow">UTOLSÓ 90 NAP</div><h1>Terhelés és forma</h1></div><div class="ha-sync">ATL · CTL · TSB</div></div>', unsafe_allow_html=True)
+    st.caption("A rövid távú fáradtság, a hosszú távú terhelhetőség és a pillanatnyi forma egy nézetben.")
     load_label = st.segmented_control("Terhelési dimenzió", ["Hibrid", "Kardió", "Erő / funkcionális"], default="Hibrid")
     load_type = {"Hibrid": "hybrid", "Kardió": "cardio", "Erő / funkcionális": "strength"}.get(load_label or "Hibrid", "hybrid")
-    st.plotly_chart(load_chart(load_type), use_container_width=True)
-    recent = wellness.reset_index(names="date")
-    st.plotly_chart(px.line(recent, x="date", y=["hrv", "resting_hr", "sleep_score"], labels={"value":"Érték", "variable":"Metrika"}), use_container_width=True)
-    st.subheader("Aktivitásonkénti terhelési módszer")
-    if not activities.empty:
-        visible = hungarian_activity_table(activities.sort_values("date", ascending=False))[["date","name","modality","duration_min","cardio_load","strength_load","musculoskeletal_load","lower_body_load","zone2_min","high_intensity_min","load_method","load_confidence"]]
-        st.dataframe(visible.rename(columns={"date":"Dátum","name":"Aktivitás","modality":"Modalitás","duration_min":"Időtartam (perc)","cardio_load":"Kardióterhelés","strength_load":"Erőterhelés","musculoskeletal_load":"Mozgásszervi terhelés","lower_body_load":"Alsótest-terhelés","zone2_min":"Zone 2 perc","high_intensity_min":"Magas intenzitású perc","load_method":"Számítási módszer","load_confidence":"Bizonyosság"}), hide_index=True, use_container_width=True)
-    st.subheader("Edzés-RPE és visszajelzés")
-    render_feedback()
+    st.plotly_chart(load_chart(load_type, 90), use_container_width=True, config={"displayModeBar": False})
+
+    zone_col, dimension_col = st.columns(2, gap="medium")
+    recent_activities = activities[activities["date"] >= wellness.index.max() - pd.Timedelta(days=89)] if not activities.empty else activities
+    with zone_col:
+        st.markdown('<div class="section-label">Pulzuszónák · 90 nap</div>', unsafe_allow_html=True)
+        zone_totals = [0.0] * 5
+        for value in recent_activities.get("hr_zone_minutes", pd.Series(dtype=object)).dropna():
+            for index, minutes in enumerate(list(value)[:5]):
+                zone_totals[index] += float(minutes or 0)
+        if sum(zone_totals):
+            zone_frame = pd.DataFrame({"Zóna": [f"Z{i}" for i in range(1, 6)], "Perc": zone_totals})
+            zone_fig = px.bar(zone_frame, x="Perc", y="Zóna", orientation="h", color="Zóna", color_discrete_sequence=["#3b82f6", "#14b8a6", "#84cc16", "#f59e0b", "#ef4444"], text_auto=".0f")
+            zone_fig.update_layout(height=300, showlegend=False, margin=dict(l=8,r=12,t=8,b=20), paper_bgcolor="#1e1e1e", plot_bgcolor="#1e1e1e", font=dict(color="#b0b0b0",family="Geist"), xaxis=dict(gridcolor="rgba(255,255,255,.05)"), yaxis=dict(categoryorder="array", categoryarray=["Z5","Z4","Z3","Z2","Z1"]))
+            st.plotly_chart(zone_fig, use_container_width=True, config={"displayModeBar": False})
+        else:
+            st.info("Ehhez az időszakhoz még nincs részletes pulzuszóna-adat.")
+    with dimension_col:
+        st.markdown('<div class="section-label">Terhelési összetétel · 90 nap</div>', unsafe_allow_html=True)
+        dimension_values = {"Kardió": float(recent_activities.get("cardio_load", pd.Series(dtype=float)).fillna(0).sum()), "Erő": float(recent_activities.get("strength_load", pd.Series(dtype=float)).fillna(0).sum()), "Mozgásszervi": float(recent_activities.get("musculoskeletal_load", pd.Series(dtype=float)).fillna(0).sum())}
+        dimension_total = sum(dimension_values.values()) or 1
+        dimension_frame = pd.DataFrame({"Dimenzió": list(dimension_values), "Arány": [100 * value / dimension_total for value in dimension_values.values()]})
+        dimension_fig = px.bar(dimension_frame, x="Arány", y="Dimenzió", orientation="h", color="Dimenzió", color_discrete_sequence=["#14b8a6", "#8b5cf6", "#f59e0b"], text_auto=".0f")
+        dimension_fig.update_traces(texttemplate="%{x:.0f}%", textposition="inside")
+        dimension_fig.update_layout(height=300, showlegend=False, margin=dict(l=8,r=12,t=8,b=20), paper_bgcolor="#1e1e1e", plot_bgcolor="#1e1e1e", font=dict(color="#b0b0b0",family="Geist"), xaxis=dict(range=[0,100],ticksuffix="%",gridcolor="rgba(255,255,255,.05)"))
+        st.plotly_chart(dimension_fig, use_container_width=True, config={"displayModeBar": False})
+
+    with st.expander("Regenerációs jelek és részletes terhelési adatok"):
+        recent = wellness.tail(90).reset_index(names="date")
+        st.plotly_chart(px.line(recent, x="date", y=["hrv", "resting_hr", "sleep_score"], labels={"value":"Érték", "variable":"Metrika"}), use_container_width=True)
+        if not activities.empty:
+            visible = hungarian_activity_table(activities.sort_values("date", ascending=False))[["date","name","modality","duration_min","cardio_load","strength_load","musculoskeletal_load","lower_body_load","zone2_min","high_intensity_min","load_method","load_confidence"]]
+            st.dataframe(visible.rename(columns={"date":"Dátum","name":"Aktivitás","modality":"Modalitás","duration_min":"Időtartam (perc)","cardio_load":"Kardióterhelés","strength_load":"Erőterhelés","musculoskeletal_load":"Mozgásszervi terhelés","lower_body_load":"Alsótest-terhelés","zone2_min":"Zone 2 perc","high_intensity_min":"Magas intenzitású perc","load_method":"Számítási módszer","load_confidence":"Bizonyosság"}), hide_index=True, use_container_width=True)
+    with st.expander("Edzés-RPE és visszajelzés"):
+        render_feedback()
 
 elif page == "Napló":
     st.title("Edzésnapló")
@@ -487,11 +514,39 @@ elif page == "Célok és tervek":
     render_goals_and_plans()
 
 elif page == "Mi működik nálam?":
-    st.title("Mi működik nálam?")
-    st.caption("Retrospektív személyes mintázatok a következő napi HRV és nyugalmi pulzus alapú regenerációval. Kapcsolatot mutat, nem ok-okozatot.")
+    st.markdown('<div class="ha-page-head"><div><div class="ha-eyebrow">SZEMÉLYES ELEMZÉS</div><h1>Mi működik nálam</h1></div><div class="ha-sync">MEGFIGYELÉSES</div></div>', unsafe_allow_html=True)
+    st.caption("A saját historikus adataidból kirajzolódó mintázatok. Kapcsolatot mutatnak, nem bizonyítanak ok-okozatot.")
     patterns = personal_patterns(wellness, activities, feedback)
     progress = min(1.0, patterns["valid_days"] / patterns["minimum_days"])
     st.progress(progress, text=f"Érvényes napok: {patterns['valid_days']} / {patterns['minimum_days']}")
+    drift = feature_drift_audit(wellness, activities, feedback)
+    recovery = deload_taper_recommendation(wellness, goals, checkins, feedback)
+
+    if patterns.get("associations"):
+        st.markdown('<div class="section-label" style="margin-top:18px">Legfontosabb felismerések</div>', unsafe_allow_html=True)
+        for finding in patterns["associations"][:4]:
+            strength_pct = min(100, max(8, int(abs(float(finding["rho"])) * 100)))
+            st.markdown(f'''<div class="ha-card" style="margin-bottom:9px"><div style="display:flex;gap:18px;align-items:center;justify-content:space-between"><div style="flex:1"><b>{html.escape(finding['statement'])}</b><div style="height:5px;background:#303030;border-radius:9px;margin-top:11px"><div style="height:5px;width:{strength_pct}%;background:#14b8a6;border-radius:9px"></div></div></div><div style="min-width:150px;text-align:right;font-family:'Geist Mono',monospace;font-size:10px;color:#8a8a8a">n={finding['sample_size']} · ρ={finding['rho']:+.2f}<br>{finding['confidence']} bizonyosság</div></div></div>''', unsafe_allow_html=True)
+    else:
+        st.info(patterns["message"])
+
+    st.markdown('<div class="section-label" style="margin-top:20px">Heti visszatekintés</div>', unsafe_allow_html=True)
+    change_label = "—" if summary["change_pct"] is None else f"{summary['change_pct']:+d}%"
+    st.markdown(f'''<div class="weekly-kpis" style="grid-template-columns:repeat(4,1fr)"><div class="weekly-kpi"><span>Terhelés</span><strong>{summary['total_load']}</strong><small>{change_label}</small></div><div class="weekly-kpi"><span>Zone 2</span><strong>{'—' if summary['zone2_min'] is None else summary['zone2_min']}</strong><small>perc</small></div><div class="weekly-kpi"><span>Erő</span><strong>{summary['strength_sessions']}</strong><small>alkalom</small></div><div class="weekly-kpi"><span>Regeneráló nap</span><strong>{summary['recovery_days']}</strong><small>nap</small></div></div>''', unsafe_allow_html=True)
+    recommendation_text = f"{recovery['type'].capitalize()} · {recovery['duration_days']} nap · {recovery['reduction_pct']}% volumencsökkentés — {recovery['rationale']}"
+    (st.warning if recovery["type"] in {"deload", "taper"} else st.info)(recommendation_text)
+
+    st.markdown('<div class="section-label" style="margin-top:20px">Adatstabilitás</div>', unsafe_allow_html=True)
+    if drift["status"] == "ready":
+        drift_cols = st.columns(min(3, max(1, len(drift["features"]))))
+        for container, item in zip(drift_cols, drift["features"][:3]):
+            label = {"sleep_score":"Alvás", "hrv":"HRV", "resting_hr":"Nyugalmi pulzus", "hybrid_tsb":"Forma", "hybrid_load":"Terhelés", "session_rpe":"RPE"}.get(item["feature"], item["feature"])
+            container.metric(label, item["severity"].capitalize(), f"PSI {item['psi']:.2f}")
+        (st.warning if drift["alerts"] else st.success)(drift["message"])
+    else:
+        st.info(drift["message"])
+
+    st.markdown('<div class="section-label" style="margin-top:24px">Részletes elemzés</div>', unsafe_allow_html=True)
     if patterns["status"] != "ready":
         st.info(patterns["message"])
     else:
@@ -538,7 +593,6 @@ elif page == "Mi működik nálam?":
             st.metric("Következő napi regenerációs becslés", validation["forecast"], f"80%-os empirikus tartomány: {validation['forecast_interval'][0]} … {validation['forecast_interval'][1]}")
         st.caption("A tesztablakok mindig a tanítóadatok után következnek. A baseline a tanító célérték mediánja; a modell ridge regresszió. Előrejelzés csak legalább 5% összesített javulás és minimum 2/3 nyertes fold esetén látható.")
     st.subheader("Feature-drift audit")
-    drift = feature_drift_audit(wellness, activities, feedback)
     if drift["status"] == "insufficient":
         st.info(drift["message"])
     else:

@@ -1,0 +1,4 @@
+.check-alerts{display:flex;gap:10px;margin-top:15px}
+.check-alerts button{min-height:38px;border:1px solid #3a3c3b;border-radius:7px;background:#202222;color:#aeb1af;padding:0 14px;font-size:12px}
+.check-alerts button.selected{border-color:#f59e0b;background:#332817;color:#fbbf24}
+@media(min-width:1500px){.check-alerts button{min-height:44px;font-size:13px}}

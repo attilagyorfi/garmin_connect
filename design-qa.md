@@ -66,3 +66,212 @@ final result: passed
 - Automated verification: all 52 tests passed; the final targeted two-page render check also passed.
 - Intentional difference: raw Garmin activity names remain source data and are not automatically translated.
 - Final result for this extension: passed.
+
+## Desktop readability and metric explainability — 2026-08-20
+
+- Source visual truth: user-supplied desktop screenshot and the saved Hybrid Athlete desktop handoff.
+- Implementation: browser-rendered `http://127.0.0.1:4173/` after the readability and explainability pass.
+- Viewports: 1920 × 1080 and 1280 × 1080 CSS px, dark mode, device scale controlled by the in-app browser.
+- State: `Ma`, `Trendek`, `Cél` and `Napló`; the `Ma` view was also tested with a focused KPI tooltip.
+- Full-view evidence: at 1920 px the sidebar, dashboard grid and right rail fit without horizontal overflow; the bundled Hybrid Athlete SVG lockup is visibly rendered at 60 × 45 px.
+- Focused evidence: keyboard focus on the weekly load KPI opens a plain-Hungarian tooltip explaining what the number measures, why it matters and how to interpret higher values. Trend cards expose distinct CTL, ATL, TSB, training-frequency and RPE explanations. Numeric journal headers expose explanations even before rows load.
+
+### Required fidelity surfaces
+
+- Fonts and typography: 1920 px targets are 34 px page title, 16 px navigation, 15 px metric labels, 21–25 px KPI values and at least 11–12 px compact metadata. At 1280 px the corresponding minimums are 32, 15 and 14 px.
+- Spacing and layout: 1280–1399 px now changes to a single-column primary dashboard with a two-column secondary rail, avoiding the previous horizontal overflow. The 1920 px two-column hierarchy is preserved.
+- Colors and tokens: tooltips use the existing obsidian, border and user-selected accent tokens; no new competing color system was introduced.
+- Image quality: the supplied logo SVG is imported into the Vite bundle as a data asset, eliminating deployment-path dependency while preserving vector sharpness.
+- Copy and content: explanations are Hungarian and use non-clinical, non-causal language. They state meaning, practical impact and interpretation limits.
+
+### Accessibility and interaction
+
+- Every generated explanation target receives `tabindex="0"` and a complete Hungarian `aria-label`.
+- Tooltips open on hover, focus and focus-within; visible focus rings use the active accent.
+- Tested pages: `Ma` 12 explanation targets, `Trendek` 7, `Cél` 8; `Napló` always exposes five numeric header explanations and adds cell-level explanations when activity rows exist.
+- Browser console: no errors.
+- Automated verification: full navigation test, 4 Sites packaging tests and production build passed.
+
+### Comparison history
+
+- Initial P1: the desktop readability layer was loaded before the base stylesheet and was overwritten, leaving 9–12 px text at large widths. Fixed by loading it last and adding explicit 1080/1400 px minimums.
+- Initial P1: the logo depended on a public path and was reported missing in deployment. Fixed by bundling the supplied SVG through Vite and using that asset in the sidebar and onboarding.
+- Initial P2: KPI tooltip positioning caused horizontal overflow at the right rail. Fixed with right-aligned tooltip anchoring and a 1280–1399 px layout breakpoint.
+- Post-fix evidence: no horizontal overflow at 1280 or 1920 px, bundled logo has a non-zero natural size, keyboard tooltip display is `block`, and no console errors remain.
+
+final result: passed
+
+## Adaptív heti újratervezés — 2026-08-20
+
+- A következő hét a readiness, a legutóbbi check-in, a Garmin-teljesítések és a terv–tény követés alapján értékelődik újra.
+- A javaslat külön mutatja az eredeti és módosított időtartamot, cél-RPE-t és intenzitást.
+- Minden változtatás magyar, laikus indoklást kap; fájdalom, betegségérzet, alacsony readiness és magas fáradtság elsőbbséget élvez.
+- Több elmaradt edzés esetén a volumen csökken, a rendszer nem próbálja a kimaradt munkát a következő hétbe besűríteni.
+- A terv csak kifejezett felhasználói jóváhagyás után cseréli le a következő hét érintett naptárbejegyzéseit.
+- Automatizált ellenőrzés: adaptív előnézet, indoklás, tervösszevetés és felhőmentés sikeres.
+
+final result: passed
+
+## Eseményspecifikus periodizáció — 2026-08-20
+
+- A Cél nézetben 4, 8 és 12 hetes felkészülési ciklus választható.
+- A terv alapozó, építő, tehermentesítő, csúcs- és esemény/levezető fázisokat képez, a heti időkeret és az erő–kardió arány szerint.
+- Az előnézet hetente mutatja a fázist, volumenarányt, fókuszt, teljes időt és minden generált edzést dátummal, időtartammal és cél-RPE-vel.
+- A meglévő naptártervekkel ütköző napok külön megerősítéssel, az érintett dátumok célzott lecserélésével kezelhetők.
+- A mentett ciklus minden edzése külön szerkeszthető marad a Naptárban.
+- Automatizált ellenőrzés: 4 hetes ciklusgenerálás, fázisok, naptármentés és dátumcsere sikeres; 11 user-state teszt sikeres.
+
+final result: passed
+
+## Tooltip-egyszerűsítés és profilavatar — 2026-08-20
+
+- A lenyitható readiness-sorok már nem kapnak külön hover tooltipet; a részletes magyarázat kizárólag a jól látható kibontással érhető el.
+- A Beállítások négy sportos avatarválasztást és saját JPG/PNG/WebP profilkép feltöltését kínálja.
+- A feltöltött kép kliensoldalon középre vágott, 256 × 256 pixeles WebP képpé alakul; a szerver a data URL formátumot és a 220 000 karakteres felső korlátot is ellenőrzi.
+- A mentett identitás megjelenik az oldalsávban és a Profil összefoglalójában, valamint a többi profiladattal együtt felhőben tárolódik.
+- Automatizált ellenőrzés: frontend navigációs/avatarmentési teszt sikeres; 11 szerveroldali user-state teszt sikeres.
+
+final result: passed
+
+## Csoportos edzésmozgatás — 2026-08-20
+
+- Több tervezett edzés egyszerre kijelölhető, illetve a teljes lista egy kattintással kiválasztható vagy törölhető.
+- A pozitív és negatív napeltolás megtartja az edzések közötti eredeti ritmust.
+- Minden sor az eredeti és a tervezett új dátumot egymás mellett mutatja.
+- A másik tervvel ütköző új dátum piros hibajelzést kap; az ütközés feloldásáig a mentés le van tiltva.
+- Automatizált ellenőrzés: a kiválasztás, dátummozgatás és felhőmentés teljes navigációs tesztje sikeres.
+
+final result: passed
+
+## Személyre szabható heti sablon — 2026-08-20
+
+- A generált heti terv mentés előtt külön modális szerkesztőben ellenőrizhető.
+- Edzésenként módosítható a nap, a típus, a név és az időtartam; az egyes sorok kihagyhatók.
+- Az összesítő az aktív edzések számát és teljes időtartamát azonnal újraszámolja.
+- Az azonos napra kiosztott edzéseket a felület hibaként jelzi, és a javításig letiltja a mentést.
+- Automatizált ellenőrzés: teljes navigációs/mentési teszt sikeres, mind a 4 Sites-teszt sikeres, production build sikeres.
+
+final result: passed
+
+## Tooltip-elhelyezés és readiness-részletek — 2026-08-20
+
+- A magyarázó tooltip a célérték alatt nyílik meg; a nyíl a célértékre mutat, a jobb oldali KPI-knél pedig a panel a kártya szélén belül marad.
+- A readiness összetevői kattintható, billentyűzettel is értelmezhető sorok. A lenyitott állapot elmagyarázza az aktuális jelentést, az adatminőséget és a gyakorlati következményt.
+- Üres Garmin mérőszámlista esetén a felület a bemutató mérőszámokra áll vissza, ezért nem keletkezik üres kártya.
+- Interakciós ellenőrzés: a readiness-részlet nyitása, a magyarázó szövegek és a teljes navigációs folyamat sikeresen lefutott.
+- Automatizált ellenőrzés: navigációs teszt sikeres, mind a 4 Sites-csomagolási teszt sikeres, production build sikeres.
+
+final result: passed
+
+## Brand asset integration — 2026-08-20
+
+- Source visual truth: `C:/Users/User/Documents/ChatGPT/Garmin/.design-import-mobile/design_handoff_hybrid_athlete/screenshots/desktop/01-ma-fresh.png`.
+- Source asset truth: `C:/Users/User/Documents/ChatGPT/Garmin/.design-import-mobile/design_handoff_hybrid_athlete/assets/`.
+- Browser-rendered implementation: `C:/Users/User/Documents/ChatGPT/Garmin/output/brand-main-1920x1180.png`.
+- Combined comparison: `C:/Users/User/Documents/ChatGPT/Garmin/output/brand-design-comparison.png`.
+- State: desktop dark-mode `Ma` view after completed onboarding, local API unavailable with intentional demo fallback.
+- Browser viewport: 1920 × 1180 CSS px; captured app pixels: 1920 × 1065 at device scale factor 1. Source pixels: 919 × 540. For the combined evidence, the implementation was aspect-filled and cropped to the source export size; browser presentation chrome was excluded from product findings.
+
+### Full-view and focused comparison
+
+The full-view comparison confirms the source hierarchy remains intact while the supplied production mark, desktop grid/tint background and header motifs now provide the intended brand signature. Focused inspection covered the sidebar lockup, `Ma` header, onboarding icon and empty-state asset placement; no generated, placeholder or CSS-drawn substitute remains for those supplied assets.
+
+### Required fidelity surfaces
+
+- Fonts and typography: Geist and Geist Mono hierarchy is unchanged and remains aligned with the handoff.
+- Spacing and layout rhythm: the brand assets are decorative layers and do not shift the established desktop card grid, sidebar width or control sizing.
+- Colors and visual tokens: supplied SVGs use the handoff teal/obsidian palette; the UI's user-selected accent still controls functional highlights.
+- Image quality and asset fidelity: original production SVGs are used directly for the logo, icon, shell, view motifs and empty states, preserving vector sharpness.
+- Copy and content: the document language and title are now Hungarian/Hybrid Athlete; live data and Hungarian product copy remain unchanged.
+
+### Interaction and runtime evidence
+
+- Primary interactions tested in the in-app browser: onboarding completion and navigation through `Naptár`, `Trendek`, `Insights`, `Napló`, `Profil`, then back to `Ma`.
+- Asset checks: the production logo URL and desktop-shell computed background URL were verified in the rendered DOM.
+- Browser console: no warnings or errors after the final reload and navigation pass.
+- Automated checks: production build passed, 4 Sites packaging tests passed, and the full navigation test passed.
+
+### Comparison history
+
+- Initial pass found one P2 presentation issue: a raw JSON parse failure was shown in the top bar when the optional local API was unavailable.
+- Fix: replaced the raw exception with a concise Hungarian demo-fallback status and repeated the browser capture.
+- Post-fix evidence: `output/brand-main-1920x1180.png`; no actionable P0/P1/P2 visual differences remain for this scoped brand integration.
+
+### Follow-up polish
+
+- P3: add the supplied light-mode logo variant when the currently visual-only theme button receives full theme behavior.
+
+final result: passed
+
+## Desktop logo-lockup correction — 2026-08-20
+
+- Source visual truth: `frontend/public/brand/logo/mark-onDark.svg` and the saved Hybrid Athlete desktop handoff.
+- Browser-rendered implementation: in-app browser capture of `http://127.0.0.1:4173/`, desktop dark-mode `Ma` view.
+- Viewport: 1264 × 712 CSS px at device scale factor 1; focused logo region measured 199.2 × 39 px, with the original SVG rendered at 52 × 39 px.
+- State: expanded sidebar, completed visual load; compact sidebar was also exercised.
+- Full-view evidence: the logo now leads the sidebar hierarchy at native aspect ratio and remains distinct from navigation icons.
+- Focused evidence: original SVG mark, `HYBRID ATHLETE` wordmark and `SZEMÉLYES EDZÉSDÖNTÉS` descriptor render as one lockup; collapsed mode keeps a 45 × 34 px source mark without text clipping.
+- Fonts and typography: Geist Mono wordmark, 13 px/0.17 em desktop treatment, white primary and muted descriptor.
+- Spacing/layout: 13 px mark-to-copy gap; no collision with collapse control or first navigation item.
+- Colors/tokens: original white/teal SVG colors preserved; no CSS recoloring or substitute artwork.
+- Image quality: supplied vector asset is used directly and remains sharp at both sizes.
+- Copy/content: official product name and Hungarian descriptor are unchanged.
+- Primary interactions tested: expanded and collapsed sidebar states.
+- Browser console: no errors.
+- Comparison history: the earlier implementation rendered the mark in a square 36–42 px slot and it read as a tiny decoration (P2). The fix restores the native ratio, enlarges it to 52–60 px desktop width, and defines an explicit compact state. No actionable P0/P1/P2 finding remains.
+
+final result: passed
+
+## Secondary-view extension — Trendek és Insights
+
+- Source visuals: `05-trendek.png` and `06-insights.png` from the saved Hybrid Athlete desktop handoff.
+- Implementation captures: `output/trends-qa.png` and `output/insights-qa.png`.
+- Combined evidence: `output/trends-comparison.png` and `output/insights-comparison.png`.
+- Viewport: 1920 × 1180, dark mode, deterministic demo history.
+- Trendek: the implementation matches the reference hierarchy with a 90-day ATL/CTL/TSB hero chart, five-zone time distribution, and cardio/strength/musculoskeletal load composition. Detailed recovery signals, methodology and RPE editing remain available in collapsed secondary panels.
+- Insights: findings lead the page with statement, strength bar, sample size, Spearman rho and confidence; weekly KPIs, the deload/taper recommendation and drift status follow before the existing technical validation and model lifecycle tools.
+- Intentional differences: live analytics determine the values and number of findings; the design's locked sample insight is omitted because the local application has no entitlement model. Existing model-validation tools are retained below the design-led summary.
+- Browser console: no warnings or errors. Document width equals the 1920 px viewport; no horizontal overflow.
+- Automated verification: all 52 tests passed.
+- Remaining P3 polish: a future entitlement feature may add the reference's locked insight card; a future layout pass may move the deload recommendation into a persistent right rail when the Streamlit shell supports that without duplicating analytics logic.
+- Final result for this extension: passed.
+
+## Claude Design logóanimáció — 2026-08-21
+
+- Source visual truth: authenticated Claude Design project `Hybrid Athlete Logo Animation.dc.html` at `https://claude.ai/design/p/72ddfe0c-d14b-4e17-be46-5ee8c900cdcf?file=Hybrid+Athlete+Logo+Animation.dc.html`.
+- Source capture: `C:/Users/User/Documents/ChatGPT/Garmin/output/logo-animation-qa/source-claude-design.png`.
+- Browser-rendered implementation: `C:/Users/User/Documents/ChatGPT/Garmin/output/logo-animation-qa/implementation-splash-1920x1080.png`.
+- Combined focused comparison: `C:/Users/User/Documents/ChatGPT/Garmin/output/logo-animation-qa/source-vs-implementation.png`.
+- Target viewport: 1920 × 1080 CSS px, dark mode, device scale factor 1. The in-app browser produced a 1905 × 1072 implementation capture after scrollbar allocation. The Claude editor preview remained constrained to its 319 × 696 preview column; the focused comparison normalizes the animation regions to two 800 × 600 panels.
+- State: the source and implementation are both mid-cycle `ÖSSZEÁLLÁS` states. Their independent loops were not frame-locked, so the combined image is used to verify geometry, palette, scale hierarchy and surface treatment rather than pixel-level position at one timestamp.
+
+### Full-view and focused comparison
+
+The implementation intentionally turns the source's demonstration card into a full-screen product splash. The mark remains centered on an obsidian surface with a restrained teal radial glow, followed by the existing Geist Mono Hybrid Athlete lockup. The focused comparison verifies the same two slanted white pillars, rising teal crossbar, four-direction assembly concept and source aspect ratio. The sync state uses the source's second `HELYBEN FUTÁS` SVG anatomy with five teal wind strokes, two white wind strokes, alternating legs, body bob and moving dashed ground.
+
+### Required fidelity surfaces
+
+- Fonts and typography: the lockup uses the product's existing Geist Mono family, uppercase weight hierarchy and tracked Hungarian descriptor. It is deliberately larger than the reference board label because the implementation is a desktop splash, not a documentation card.
+- Spacing and layout rhythm: the mark is centered and capped at 320 px, with 34 px logo-to-wordmark spacing and no collision at the 1920 px desktop target.
+- Colors and visual tokens: near-black `#0b0b0b`, white mark pillars and the active user accent map to the source's obsidian/teal/white system. Accent personalization therefore remains functional without changing the mark anatomy.
+- Image quality and asset fidelity: the exact source SVG path/rect geometry and CSS keyframe values are implemented as vector markup; no raster, emoji, placeholder or approximated logo asset is used.
+- Copy and content: `HYBRID ATHLETE` and `SZEMÉLYES EDZÉSDÖNTÉS` retain the established Hungarian product lockup. The splash introduces no instructional copy.
+- Accessibility and motion: the SVGs expose Hungarian accessible names. `prefers-reduced-motion` replaces assembly with a 200 ms fade, freezes running motion, and hides wind and ground movement.
+
+### Interaction and runtime evidence
+
+- Primary states checked: first-session splash; forced repeat via `?splash=1`; normal dashboard transition after 4.2 seconds; compact running mark wired into the disabled synchronization button.
+- Production build passed. All four Sites packaging tests passed. The complete navigation/regression test passed, including synchronization error handling, onboarding, avatar persistence, planning, trends, goal, insights, journal and settings flows.
+- The local optional Garmin API was unavailable during browser capture and correctly fell back to the existing Hungarian demo status; this does not affect the animation.
+
+### Comparison history
+
+- Initial implementation test exposed a P1 test-environment regression: direct `location` and `sessionStorage` globals were not available during server-side/jsdom rendering.
+- Fix: feature detection now reads `globalThis.window?.location` and optional `globalThis.sessionStorage`, preserving browser behavior while keeping navigation tests executable.
+- Post-fix evidence: the complete navigation suite passes and the 1920 px browser capture shows the assembled mark without clipping or layout shift.
+
+### Remaining P3 polish
+
+- The source preview and local splash cannot be frame-locked across separate browser documents; a future dedicated visual-regression harness could compare both at an identical animation timestamp.
+
+final result: passed
