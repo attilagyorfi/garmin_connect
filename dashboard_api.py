@@ -68,7 +68,7 @@ def build_dashboard_payload(cache_dir: str | Path = "data") -> dict[str, Any]:
         {"date": stamp.date().isoformat(), "ctl": round(_number(row["ctl"]), 1), "atl": round(_number(row["atl"]), 1), "tsb": round(_number(row["tsb"]), 1)}
         for stamp, row in weekly.iterrows()
     ]
-    recent_sessions = activities.sort_values("date", ascending=False).head(100)
+    all_sessions = activities.sort_values("date", ascending=False)
     sessions = [
         {
             "id": str(row["activity_id"]), "date": row["date"].date().isoformat(), "type": _sport_name(row["type"]),
@@ -77,7 +77,7 @@ def build_dashboard_payload(cache_dir: str | Path = "data") -> dict[str, Any]:
             "load": round(_number(row["cardio_load"]) + _number(row["strength_load"])),
             "distanceKm": round(_number(row["distance_km"]), 1),
         }
-        for _, row in recent_sessions.iterrows()
+        for _, row in all_sessions.iterrows()
     ]
     zone_totals = [0.0] * 5
     week_activities = activities[activities["date"] >= wellness.index[-1] - timedelta(days=6)]
