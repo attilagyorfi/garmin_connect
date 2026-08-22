@@ -49,6 +49,7 @@ try {
   await act(async () => new Promise(resolve => setTimeout(resolve, 25)));
   const bundledLogo=document.querySelector('.brand-logo img');
   if (!bundledLogo?.getAttribute("src")||bundledLogo.getAttribute("src")==="[object Object]") throw new Error("A bundle-ölt Hybrid Athlete logó hiányzik.");
+  if (!document.querySelector(".sidebar .lucide-target")) throw new Error("A Felkészültség menüpont egyedi célikonja hiányzik.");
   if (!document.querySelector(".content")?.textContent.includes("FEJLŐDÉSTÖRTÉNET")) throw new Error("Az Áttekintés nem a kezdőképernyő.");
   if (!document.querySelector(".content")?.textContent.toLowerCase().includes("terhelési pont")) throw new Error("Az Áttekintés grafikon Y tengelyének neve vagy mértékegysége hiányzik.");
   if (!document.querySelector(".content")?.textContent.includes("X tengely: dátum")) throw new Error("Az Áttekintés grafikon X tengelyének magyarázata hiányzik.");
@@ -133,6 +134,10 @@ try {
       console.log("OK fejlődéstörténet és időszakváltás");
     }
     if (label === "Cél") {
+      const goalScore=document.querySelector(".goal-score");
+      const goalValue=Number(goalScore?.querySelector("strong")?.textContent||0);
+      const goalAngle=parseFloat(goalScore?.style.getPropertyValue("--goal-progress")||"0");
+      if (!goalScore||Math.abs(goalAngle-goalValue*3.6)>0.01) throw new Error("A felkészültségi kör nem a 0–100-as pontszámmal arányosan telik.");
       if (document.querySelectorAll(".goal-component").length !== 5) throw new Error("A felkészültségi összetevők hiányoznak.");
       const fourWeeks=[...document.querySelectorAll('.periodization-actions .segmented button')].find(node=>node.textContent.trim()==="4 hét");
       await act(async()=>fourWeeks.click());

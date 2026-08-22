@@ -21,6 +21,7 @@ import {
   Search,
   Settings2,
   Sparkles,
+  Target,
   Trash2,
   TrendingUp,
   UserRound,
@@ -47,7 +48,7 @@ const nav = [
   ["Ma", Activity],
   ["Naptár", CalendarDays],
   ["Trendek", TrendingUp],
-  ["Cél", TrendingUp],
+  ["Cél", Target],
   ["Elemzések", Sparkles],
   ["Napló", ClipboardList],
   ["Profil", UserRound],
@@ -2772,7 +2773,13 @@ function GoalPage({ profile, onEdit, cloudState, onCloudPatch }) {
       </PageHeader>
       <main className="goal-layout">
         <section className="card goal-hero">
-          <div className="goal-score">
+          <div
+            className="goal-score"
+            style={{
+              "--goal-progress": `${Math.max(0, Math.min(100, readiness.score)) * 3.6}deg`,
+            }}
+            aria-label={`Felkészültség: ${readiness.score} pont a 100-ból`}
+          >
             <strong>{readiness.score}</strong>
             <span>/ 100</span>
           </div>
