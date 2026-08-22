@@ -24,3 +24,4 @@ frontend/dist/
 frontend-vite*.log
 .deploy-*/
 .deploy-*.zip
+.deploy-*.tar
