@@ -136,8 +136,7 @@ try {
     if (label === "Cél") {
       const goalScore=document.querySelector(".goal-score");
       const goalValue=Number(goalScore?.querySelector("strong")?.textContent||0);
-      const goalAngle=parseFloat(goalScore?.style.getPropertyValue("--goal-progress")||"0");
-      if (!goalScore||Math.abs(goalAngle-goalValue*3.6)>0.01) throw new Error("A felkészültségi kör nem a 0–100-as pontszámmal arányosan telik.");
+      if (!goalScore||Number(goalScore.dataset.score)!==goalValue||!goalScore.querySelector(".recharts-responsive-container")) throw new Error("A felkészültségi kör nem a Mai döntés 0–100-as kördiagram-komponensét használja.");
       if (document.querySelectorAll(".goal-component").length !== 5) throw new Error("A felkészültségi összetevők hiányoznak.");
       const fourWeeks=[...document.querySelectorAll('.periodization-actions .segmented button')].find(node=>node.textContent.trim()==="4 hét");
       await act(async()=>fourWeeks.click());

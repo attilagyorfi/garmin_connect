@@ -1318,40 +1318,52 @@ function CheckIn({ value, onSave, required = false }) {
   );
 }
 
+function ScoreRing({ score, className = "", showMaximum = false, ariaLabel }) {
+  const normalized = Math.max(0, Math.min(100, Number(score) || 0)),
+    radial = [
+      { name: "pontszám", value: normalized, fill: "var(--accent)" },
+    ];
+  return (
+    <div
+      className={`ring ${className}`.trim()}
+      data-score={normalized}
+      aria-label={ariaLabel || `${normalized} pont a 100-ból`}
+    >
+      <ResponsiveContainer width="100%" height="100%">
+        <RadialBarChart
+          innerRadius="82%"
+          outerRadius="100%"
+          data={radial}
+          startAngle={90}
+          endAngle={-270}
+        >
+          <PolarAngleAxis
+            type="number"
+            domain={[0, 100]}
+            angleAxisId={0}
+            tick={false}
+          />
+          <RadialBar
+            dataKey="value"
+            cornerRadius={8}
+            background={{ fill: "#292929" }}
+          />
+        </RadialBarChart>
+      </ResponsiveContainer>
+      <strong>{normalized}</strong>
+      {showMaximum && <span className="score-maximum">/ 100</span>}
+    </div>
+  );
+}
+
 function Decision({ onWhy, data, profile, checkin }) {
   const view = personalizeDashboard(data, profile, checkin),
     score = view.adjustedReadiness;
-  const radial = [
-      { name: "terhelhetőség", value: score, fill: "var(--accent)" },
-    ],
-    d = view.decision;
+  const d = view.decision;
   return (
     <section className="card decision-card">
       <div className="decision-main">
-        <div className="ring">
-          <ResponsiveContainer width="100%" height="100%">
-            <RadialBarChart
-              innerRadius="82%"
-              outerRadius="100%"
-              data={radial}
-              startAngle={90}
-              endAngle={-270}
-            >
-              <PolarAngleAxis
-                type="number"
-                domain={[0, 100]}
-                angleAxisId={0}
-                tick={false}
-              />
-              <RadialBar
-                dataKey="value"
-                cornerRadius={8}
-                background={{ fill: "#292929" }}
-              />
-            </RadialBarChart>
-          </ResponsiveContainer>
-          <strong>{score}</strong>
-        </div>
+        <ScoreRing score={score} ariaLabel={`Mai terhelhetőség: ${score} pont a 100-ból`} />
         <div className="decision-copy">
           <div className="recommend">
             <MetricHelp term="Readiness">
@@ -2773,16 +2785,12 @@ function GoalPage({ profile, onEdit, cloudState, onCloudPatch }) {
       </PageHeader>
       <main className="goal-layout">
         <section className="card goal-hero">
-          <div
+          <ScoreRing
+            score={readiness.score}
             className="goal-score"
-            style={{
-              "--goal-progress": `${Math.max(0, Math.min(100, readiness.score)) * 3.6}deg`,
-            }}
-            aria-label={`Felkészültség: ${readiness.score} pont a 100-ból`}
-          >
-            <strong>{readiness.score}</strong>
-            <span>/ 100</span>
-          </div>
+            showMaximum
+            ariaLabel={`Felkészültség: ${readiness.score} pont a 100-ból`}
+          />
           <div>
             <span className="eyebrow">{status.toUpperCase()}</span>
             <h2>{profile.eventName || profile.goal}</h2>
