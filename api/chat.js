@@ -16,7 +16,6 @@ function json(body, status = 200) {
 }
 
 function baseUrl(request) {
-  if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
   return new URL(request.url).origin;
 }
 
@@ -83,7 +82,8 @@ export default async function handler(req, res) {
     res.status(405).json({ error: "Nem támogatott művelet." });
     return;
   }
-  const origin = `https://${process.env.VERCEL_URL || req.headers.host}`;
+  const protocol = req.headers["x-forwarded-proto"] || "https";
+  const origin = `${protocol}://${req.headers.host}`;
   const request = new Request(`${origin}/api/chat`, {
     method: "POST",
     headers: { "content-type": "application/json", cookie: req.headers.cookie || "" },
