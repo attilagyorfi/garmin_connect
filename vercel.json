@@ -1,9 +1,13 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "installCommand": "cd frontend && npm install",
+  "installCommand": "npm install && npm install --prefix frontend",
   "buildCommand": "cd frontend && npm run build",
   "outputDirectory": "frontend/dist/client",
   "functions": {
+    "api/chat.js": {
+      "maxDuration": 60,
+      "excludeFiles": "{tests/**,frontend/**,data/**,output/**,.pytest-tmp-*/**}"
+    },
     "api/dashboard.py": {
       "maxDuration": 30,
       "excludeFiles": "{tests/**,frontend/**,data/**,output/**,.pytest-tmp-*/**}"

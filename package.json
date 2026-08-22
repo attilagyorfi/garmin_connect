@@ -1,0 +1,8 @@
+{
+  "name": "hybrid-athlete-server",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "ai": "^7.0.77"
+  }
+}

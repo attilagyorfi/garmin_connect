@@ -19,5 +19,8 @@ streamlit-*.log
 .pytest-tmp-*/
 test-tmp-*/
 frontend/node_modules/
+node_modules/
 frontend/dist/
 frontend-vite*.log
+.deploy-*/
+.deploy-*.zip

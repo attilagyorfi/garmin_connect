@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import {
   Activity,
   BarChart3,
@@ -42,6 +42,7 @@ import {
   YAxis,
 } from "recharts";
 import brandMarkUrl from "./assets/hybrid-athlete-mark-on-dark.svg";
+const AssistantPanel = lazy(() => import("./AssistantPanel").then((module) => ({ default: module.AssistantPanel })));
 
 const nav = [
   ["Áttekintés", BarChart3],
@@ -5227,6 +5228,7 @@ export function App() {
       </div>
       <ExplainabilityLayer page={active} />
       <MetricHeaderLayer page={active} />
+      {onboarded && <Suspense fallback={null}><AssistantPanel /></Suspense>}
       {showSplash && onboarded && <BrandSplash onDone={finishSplash} />}{" "}
       {!onboarded && (
         <PersonalOnboarding
