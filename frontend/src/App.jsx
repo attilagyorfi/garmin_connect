@@ -355,12 +355,15 @@ function useDashboardData() {
   const [data, setData] = useState(null);
   useEffect(() => {
     let active = true;
-    fetch("/api/dashboard")
+    const load = () => fetch("/api/dashboard")
       .then((r) => (r.ok ? r.json() : Promise.reject()))
       .then((value) => active && setData(value))
       .catch(() => {});
+    load();
+    globalThis.window?.addEventListener("hybrid-dashboard-refresh", load);
     return () => {
       active = false;
+      globalThis.window?.removeEventListener("hybrid-dashboard-refresh", load);
     };
   }, []);
   return data;
@@ -1611,8 +1614,6 @@ function TodayLive({
   profile,
   cloudState,
   onCloudPatch,
-  garminStatus,
-  onConnect,
 }) {
   const [data, setData] = useState(null),
     [syncing, setSyncing] = useState(false),
@@ -1750,11 +1751,6 @@ function TodayLive({
             <h1>Kezdjük a napi állapotfelméréssel</h1>
           </div>
           <div className="header-actions">
-            {garminStatus?.status !== "connected" && (
-              <button onClick={onConnect}>
-                <Activity size={14} /> ÖSSZEKÖTÉS GARMIN-FIÓKKAL
-              </button>
-            )}
             <button aria-label="Téma">
               <Moon size={15} />
             </button>
@@ -1781,49 +1777,11 @@ function TodayLive({
           <h1>A mai döntés</h1>
         </div>
         <div className="header-actions">
-          <span>
-            {error
-              ? error
-              : `${data?.source === "garmin" ? "GARMIN" : "DEMO"} · ${stamp}`}
-          </span>
-          {garminStatus?.status === "connected" ? (
-            <button onClick={() => syncNow()} disabled={syncing}>
-              {syncing ? (
-                <AnimatedBrandMark className="sync-brand-mark" />
-              ) : (
-                <RefreshCw size={14} />
-              )}{" "}
-              {syncing
-                ? `${Math.round(syncJob?.progress || 0)}%`
-                : "SZINKRONIZÁLÁS"}
-            </button>
-          ) : (
-            <button onClick={onConnect}>
-              <Activity size={14} /> ÖSSZEKÖTÉS GARMIN-FIÓKKAL
-            </button>
-          )}
           <button aria-label="Téma">
             <Moon size={15} />
           </button>
         </div>
       </header>
-      {syncing && syncJob && (
-        <section className="sync-progress" role="status" aria-live="polite">
-          <div>
-            <AnimatedBrandMark />
-            <span>
-              <b>Teljes Garmin-előzmény szinkronizálása</b>
-              <small>{syncJob.message}</small>
-            </span>
-            <strong>{Math.round(syncJob.progress || 0)}%</strong>
-          </div>
-          <progress max="100" value={syncJob.progress || 0} />
-          <p>
-            Az állapot a Neon adattárban megmarad. Ha bezárod vagy újratöltöd az
-            oldalt, a folyamat innen folytatható.
-          </p>
-        </section>
-      )}
       <main className="dashboard">
         <div className="left">
           <Decision
@@ -5039,7 +4997,35 @@ function PersistentCalendarPage({ profile, cloudState, onCloudPatch }) {
   );
 }
 
-function OverviewPage({ profile }) {
+function GarminSyncControl({ garminStatus, onConnect }) {
+  const [syncing, setSyncing] = useState(false), [job, setJob] = useState(null), [error, setError] = useState("");
+  const syncNow = async (initialRunId = null) => {
+    setSyncing(true); setError(""); let runId = initialRunId;
+    try {
+      for (let step = 0; step < 20000; step += 1) {
+        const response = await fetch("/api/sync", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(runId ? { run_id: runId } : {}) });
+        const text = await response.text(); let body;
+        try { body = JSON.parse(text); } catch { throw new Error("A szinkronizáló szolgáltatás érvénytelen választ adott."); }
+        if (!response.ok && response.status !== 202) throw new Error(body?.error || body?.message || `A szinkron nem sikerült (${response.status}).`);
+        setJob(body); runId = body.run_id;
+        if (body.status === "completed") { globalThis.window?.dispatchEvent(new Event("hybrid-dashboard-refresh")); break; }
+        if (body.status === "failed") throw new Error(body.message || "A szinkron megszakadt.");
+        await new Promise((resolve) => setTimeout(resolve, 350));
+      }
+    } catch (syncError) { setError(syncError.message || "A szinkron nem sikerült."); }
+    finally { setSyncing(false); }
+  };
+  useEffect(() => {
+    fetch("/api/sync").then((response) => response.ok ? response.json() : null).then((current) => {
+      if (current?.status === "running") { setJob(current); syncNow(current.run_id); }
+      else if (current) setJob(current);
+    }).catch(() => {});
+  }, []);
+  if (garminStatus?.status !== "connected") return <button onClick={onConnect}><Activity size={14} /> ÖSSZEKÖTÉS GARMIN-FIÓKKAL</button>;
+  return <div className="overview-sync-control">{error && <span role="alert">{error}</span>}<button onClick={() => syncNow()} disabled={syncing}>{syncing ? <AnimatedBrandMark className="sync-brand-mark" /> : <RefreshCw size={14} />}{syncing ? `${Math.round(job?.progress || 0)}%` : "SZINKRONIZÁLÁS"}</button></div>;
+}
+
+function OverviewPage({ profile, garminStatus, onConnect }) {
   const data = useDashboardData(),
     [range, setRange] = useState(90),
     sessions = data?.sessions || [],
@@ -5152,6 +5138,9 @@ export function App() {
       .then(setGarminStatus)
       .catch(() => setGarminStatus({ status: "disconnected" }));
   }, [user?.id]);
+  useEffect(() => {
+    if (user) setActive("Áttekintés");
+  }, [user?.id]);
   const logout = async () => {
     await fetch("/api/auth", { method: "DELETE" }).catch(() => {});
     setUser(null);
@@ -5226,6 +5215,7 @@ export function App() {
       <div className="content">
         {pages[active] || <Placeholder page={active} />}
       </div>
+      {active === "Áttekintés" && <div className="overview-sync-position"><GarminSyncControl garminStatus={garminStatus} onConnect={() => setActive("Beállítások")} /></div>}
       <ExplainabilityLayer page={active} />
       <MetricHeaderLayer page={active} />
       {onboarded && <Suspense fallback={null}><AssistantPanel /></Suspense>}

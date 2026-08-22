@@ -76,9 +76,11 @@ try {
   if (!document.querySelector('.metric-detail')?.textContent.includes("MIT JELENT MOST?")) throw new Error("A readiness részletes értelmezése nem nyitható meg.");
   if (!document.querySelector('.metric-detail')?.textContent.includes("ADATMINŐSÉG")) throw new Error("A readiness adatminőségi magyarázata hiányzik.");
   console.log("OK readiness részletek és adatminőség");
+  const overview = [...document.querySelectorAll("button")].find(node => node.textContent.trim() === "Áttekintés");
+  await act(async () => overview.click());
   const sync = [...document.querySelectorAll("button")].find(node => node.textContent.trim() === "SZINKRONIZÁLÁS");
   await act(async () => sync.click());
-  if (!document.querySelector(".header-actions")?.textContent.includes("Az online Garmin-szinkron még nincs bekötve")) throw new Error("A nem JSON szinkronhiba nem kapott érthető üzenetet.");
+  if (!document.querySelector(".overview-sync-position")?.textContent.includes("érvénytelen választ")) throw new Error("A nem JSON szinkronhiba nem kapott érthető üzenetet az Áttekintés oldalon.");
   console.log("OK online szinkronhiba kezelése");
   for (const label of ["Naptár", "Trendek", "Cél", "Elemzések", "Napló", "Profil", "Beállítások"]) {
     const button = [...document.querySelectorAll("button")].find(node => node.textContent.trim() === label);
