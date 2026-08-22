@@ -5212,7 +5212,7 @@ export function App() {
         profile={profile}
         garminStatus={garminStatus}
       />
-      <div className="content">
+      <div className={`content ${active === "Áttekintés" ? "overview-active" : ""}`}>
         {pages[active] || <Placeholder page={active} />}
       </div>
       {active === "Áttekintés" && <div className="overview-sync-position"><GarminSyncControl garminStatus={garminStatus} onConnect={() => setActive("Beállítások")} /></div>}
