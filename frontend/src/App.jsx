@@ -4999,6 +4999,17 @@ function PersistentCalendarPage({ profile, cloudState, onCloudPatch }) {
 
 function GarminSyncControl({ garminStatus, onConnect }) {
   const [syncing, setSyncing] = useState(false), [job, setJob] = useState(null), [error, setError] = useState("");
+  useEffect(() => {
+    const targets = [...document.querySelectorAll(".sidebar,.content,.assistant-launcher")];
+    targets.forEach((node) => { node.inert = syncing; });
+    document.body.classList.toggle("sync-locked", syncing);
+    const focusTimer = syncing ? setTimeout(() => document.querySelector(".sync-lock-overlay")?.focus(), 0) : null;
+    return () => {
+      if (focusTimer) clearTimeout(focusTimer);
+      targets.forEach((node) => { node.inert = false; });
+      document.body.classList.remove("sync-locked");
+    };
+  }, [syncing]);
   const syncNow = async (initialRunId = null) => {
     setSyncing(true); setError(""); let runId = initialRunId;
     try {
@@ -5022,7 +5033,8 @@ function GarminSyncControl({ garminStatus, onConnect }) {
     }).catch(() => {});
   }, []);
   if (garminStatus?.status !== "connected") return <button onClick={onConnect}><Activity size={14} /> ÖSSZEKÖTÉS GARMIN-FIÓKKAL</button>;
-  return <div className="overview-sync-control">{error && <span role="alert">{error}</span>}<button onClick={() => syncNow()} disabled={syncing}>{syncing ? <AnimatedBrandMark className="sync-brand-mark" /> : <RefreshCw size={14} />}{syncing ? `${Math.round(job?.progress || 0)}%` : "SZINKRONIZÁLÁS"}</button></div>;
+  const progress = Math.max(0, Math.min(100, Math.round(job?.progress || 0)));
+  return <div className="overview-sync-control">{error && <span role="alert">{error}</span>}<button onClick={() => syncNow()} disabled={syncing}>{syncing ? <AnimatedBrandMark className="sync-brand-mark" /> : <RefreshCw size={14} />}{syncing ? `${progress}%` : "SZINKRONIZÁLÁS"}</button>{syncing && <div className="sync-lock-overlay" role="dialog" aria-modal="true" aria-labelledby="sync-title" aria-describedby="sync-message" onKeyDown={(event) => { if (event.key === "Tab") event.preventDefault(); }} tabIndex={-1}><div className="sync-lock-content"><AnimatedBrandMark mode="assembling" /><strong id="sync-title">GARMIN SZINKRONIZÁLÁS</strong><span id="sync-message">{job?.message || "A szinkronizálás előkészítése…"}</span><div className="sync-lock-progress"><progress max="100" value={progress} aria-label={`Szinkronizálás: ${progress}%`} /><b>{progress}%</b></div><small>Az összes elérhető történeti adat feldolgozása folyamatban van. Kérjük, ne zárd be az oldalt.</small></div></div>}</div>;
 }
 
 function OverviewPage({ profile, garminStatus, onConnect }) {
