@@ -50,6 +50,8 @@ try {
   const bundledLogo=document.querySelector('.brand-logo img');
   if (!bundledLogo?.getAttribute("src")||bundledLogo.getAttribute("src")==="[object Object]") throw new Error("A bundle-ölt Hybrid Athlete logó hiányzik.");
   if (!document.querySelector(".content")?.textContent.includes("FEJLŐDÉSTÖRTÉNET")) throw new Error("Az Áttekintés nem a kezdőképernyő.");
+  if (!document.querySelector(".content")?.textContent.toLowerCase().includes("terhelési pont")) throw new Error("Az Áttekintés grafikon Y tengelyének neve vagy mértékegysége hiányzik.");
+  if (!document.querySelector(".content")?.textContent.includes("X tengely: dátum")) throw new Error("Az Áttekintés grafikon X tengelyének magyarázata hiányzik.");
   await act(async () => [...document.querySelectorAll("button")].find(node=>node.textContent.trim()==="Ma").click());
   if (!document.querySelector(".checkin-gate")) throw new Error("A Ma oldal nem az állapotfelméréssel kezdődik.");
   for (const row of document.querySelectorAll(".checkin-gate .scale-row")) await act(async()=>row.querySelector("button").click());

@@ -2141,11 +2141,36 @@ function TrendsPage() {
           <small>{range.toUpperCase()}</small>
         </div>
         <ResponsiveContainer width="100%" height={300}>
-          <LineChart data={trendData}>
+          <LineChart
+            data={trendData}
+            margin={{ top: 8, right: 18, bottom: 28, left: 34 }}
+          >
             <CartesianGrid stroke="#2a2b2b" vertical={false} />
-            <XAxis dataKey="week" stroke="#646766" fontSize={9} />
-            <YAxis stroke="#646766" fontSize={9} />
+            <XAxis
+              dataKey="week"
+              stroke="#8b8e8d"
+              fontSize={10}
+              label={{
+                value: "Időszak (hét)",
+                position: "insideBottom",
+                offset: -18,
+                fill: "#aeb2b0",
+              }}
+            />
+            <YAxis
+              stroke="#8b8e8d"
+              fontSize={10}
+              label={{
+                value: "Terhelési pont",
+                angle: -90,
+                position: "insideLeft",
+                offset: -22,
+                fill: "#aeb2b0",
+              }}
+            />
             <Tooltip
+              formatter={(value, name) => [`${value} pont`, name]}
+              labelFormatter={(label) => `Időszak: ${label}`}
               contentStyle={{
                 background: "#181a19",
                 border: "1px solid #343635",
@@ -2174,6 +2199,11 @@ function TrendsPage() {
             />
           </LineChart>
         </ResponsiveContainer>
+        <p className="chart-axis-note">
+          X tengely: időszak hetekben · Y tengely: súlyozott terhelési pont.
+          A CTL a hosszabb távú edzettséget, az ATL a rövid távú fáradtságot,
+          a TSB pedig a kettő különbségéből becsült formát mutatja.
+        </p>
       </section>
       <div className="trend-bottom">
         <section className="card zone-card">
@@ -2316,11 +2346,36 @@ function LiveTrendsPage({ profile }) {
           </small>
         </div>
         <ResponsiveContainer width="100%" height={320}>
-          <LineChart data={points}>
+          <LineChart
+            data={points}
+            margin={{ top: 8, right: 18, bottom: 28, left: 34 }}
+          >
             <CartesianGrid stroke="#2a2b2b" vertical={false} />
-            <XAxis dataKey="week" stroke="#646766" fontSize={10} />
-            <YAxis stroke="#646766" fontSize={10} />
+            <XAxis
+              dataKey="week"
+              stroke="#8b8e8d"
+              fontSize={10}
+              label={{
+                value: "Időszak (hét)",
+                position: "insideBottom",
+                offset: -18,
+                fill: "#aeb2b0",
+              }}
+            />
+            <YAxis
+              stroke="#8b8e8d"
+              fontSize={10}
+              label={{
+                value: "Terhelési pont",
+                angle: -90,
+                position: "insideLeft",
+                offset: -22,
+                fill: "#aeb2b0",
+              }}
+            />
             <Tooltip
+              formatter={(value, name) => [`${value} pont`, name]}
+              labelFormatter={(label) => `Időszak: ${label}`}
               contentStyle={{
                 background: "#181a19",
                 border: "1px solid #343635",
@@ -2352,6 +2407,11 @@ function LiveTrendsPage({ profile }) {
             />
           </LineChart>
         </ResponsiveContainer>
+        <p className="chart-axis-note">
+          X tengely: időszak hetekben · Y tengely: súlyozott terhelési pont.
+          A terhelési pont nem perc vagy pulzusérték: az edzések időtartamából
+          és intenzitásából számított, összehasonlító mérőszám.
+        </p>
       </section>
       <div className="trend-bottom">
         <section className="card zone-card">
@@ -4982,7 +5042,7 @@ function OverviewPage({ profile }) {
         ? new Date(item.date).toLocaleDateString("hu-HU", { month: "short", day: "numeric" })
         : item.week || `${index + 1}. hét`,
     }));
-  return <><PageHeader eyebrow="TELJESÍTMÉNYKÉP" title="Áttekintés"><div className="segmented">{[[30,"30 nap"],[90,"90 nap"],[365,"1 év"]].map(([value,label])=><button key={value} className={range===value?"active":""} onClick={()=>setRange(value)}>{label}</button>)}</div></PageHeader><section className="overview-kpis">{[[visible.length,"EDZÉS"],[`${Math.floor(minutes/60)} ó ${minutes%60} p`,"EDZÉSIDŐ"],[load.toLocaleString("hu-HU"),"ÖSSZTERHELÉS"],[data?.readiness??"—","MAI TERHELHETŐSÉG"]].map(([value,label])=><div className="card" key={label}><strong>{value}</strong><span>{label}</span></div>)}</section><section className="card overview-chart"><div className="section-head"><div><span className="eyebrow">FEJLŐDÉSTÖRTÉNET</span><h2>Edzettség, fáradtság és forma</h2></div><small>{range===365?"1 ÉV":`${range} NAP`}</small></div><ResponsiveContainer width="100%" height={330}><LineChart data={points}><CartesianGrid stroke="#2a2b2b" vertical={false}/><XAxis dataKey="label" stroke="#747776"/><YAxis stroke="#747776"/><Tooltip contentStyle={{background:"#181a19",border:"1px solid #343635"}}/><Line type="monotone" dataKey="ctl" name="Hosszú távú edzettség" stroke="var(--accent)" strokeWidth={3} dot={false}/><Line type="monotone" dataKey="atl" name="Rövid távú fáradtság" stroke="#f59e0b" strokeWidth={2} dot={false}/><Line type="monotone" dataKey="tsb" name="Forma" stroke="#3b82f6" strokeWidth={2} dot={false}/></LineChart></ResponsiveContainer></section><section className="overview-bottom"><div className="card"><span className="eyebrow">EDZÉSMEGOSZLÁS</span><h2>{strength} erőedzés · {cardio} egyéb edzés</h2><p>A kiválasztott időszak minden Garmin-edzése szerepel az összesítésben, az azonos napon végzett több edzést is külön számoljuk.</p></div><div className="card"><span className="eyebrow">SZEMÉLYES CÉL</span><h2>{profile.goal}</h2><p>Heti {profile.weeklyHours} órás keret · {profile.strengthRatio}% erőedzés-cél.</p></div></section></>;
+  return <><PageHeader eyebrow="TELJESÍTMÉNYKÉP" title="Áttekintés"><div className="segmented">{[[30,"30 nap"],[90,"90 nap"],[365,"1 év"]].map(([value,label])=><button key={value} className={range===value?"active":""} onClick={()=>setRange(value)}>{label}</button>)}</div></PageHeader><section className="overview-kpis">{[[visible.length,"EDZÉS"],[`${Math.floor(minutes/60)} ó ${minutes%60} p`,"EDZÉSIDŐ"],[load.toLocaleString("hu-HU"),"ÖSSZTERHELÉS"],[data?.readiness??"—","MAI TERHELHETŐSÉG"]].map(([value,label])=><div className="card" key={label}><strong>{value}</strong><span>{label}</span></div>)}</section><section className="card overview-chart"><div className="section-head"><div><span className="eyebrow">FEJLŐDÉSTÖRTÉNET</span><h2>Edzettség, fáradtság és forma</h2></div><small>{range===365?"1 ÉV":`${range} NAP`}</small></div><ResponsiveContainer width="100%" height={350}><LineChart data={points} margin={{top:8,right:18,bottom:28,left:34}}><CartesianGrid stroke="#2a2b2b" vertical={false}/><XAxis dataKey="label" stroke="#8b8e8d" fontSize={10} label={{value:"Dátum",position:"insideBottom",offset:-18,fill:"#aeb2b0"}}/><YAxis stroke="#8b8e8d" fontSize={10} label={{value:"Terhelési pont",angle:-90,position:"insideLeft",offset:-22,fill:"#aeb2b0"}}/><Tooltip formatter={(value,name)=>[`${value} pont`,name]} labelFormatter={(label)=>`Dátum: ${label}`} contentStyle={{background:"#181a19",border:"1px solid #343635"}}/><Line type="monotone" dataKey="ctl" name="Hosszú távú edzettség" stroke="var(--accent)" strokeWidth={3} dot={false}/><Line type="monotone" dataKey="atl" name="Rövid távú fáradtság" stroke="#f59e0b" strokeWidth={2} dot={false}/><Line type="monotone" dataKey="tsb" name="Forma" stroke="#3b82f6" strokeWidth={2} dot={false}/></LineChart></ResponsiveContainer><p className="chart-axis-note">X tengely: dátum · Y tengely: súlyozott terhelési pont. A pontszám az edzések időtartamát és intenzitását egyesíti; nem percet vagy pulzust jelöl.</p></section><section className="overview-bottom"><div className="card"><span className="eyebrow">EDZÉSMEGOSZLÁS</span><h2>{strength} erőedzés · {cardio} egyéb edzés</h2><p>A kiválasztott időszak minden Garmin-edzése szerepel az összesítésben, az azonos napon végzett több edzést is külön számoljuk.</p></div><div className="card"><span className="eyebrow">SZEMÉLYES CÉL</span><h2>{profile.goal}</h2><p>Heti {profile.weeklyHours} órás keret · {profile.strengthRatio}% erőedzés-cél.</p></div></section></>;
 }
 
 export function App() {
