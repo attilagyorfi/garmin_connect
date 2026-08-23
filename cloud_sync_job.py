@@ -12,7 +12,7 @@ from cloud_cache import load_user_json, save_user_json, sync_lock
 from cloud_dashboard import DASHBOARD_KEY, RAW_CACHE_KEY
 from dashboard_api import build_dashboard_payload
 from garmin_sync import GarminSync, GarminSyncError, _first_number, _sleep_score
-from garmin_connection import load_credentials
+from garmin_connection import load_tokenstore, mark_reauth_required, refresh_tokenstore
 
 
 SYNC_JOB_KEY = "garmin_sync_job_v2"
@@ -179,9 +179,19 @@ def advance_sync(user_id: str, run_id: str | None = None) -> tuple[dict[str, Any
             if job["phase"] == "finalize":
                 _finalize(job, db, user_id)
             else:
-                email, password = load_credentials(user_id)
-                sync = GarminSync(Path(tempfile.gettempdir()) / f"hybrid-sync-{job['run_id']}", email=email, password=password)
-                sync.authenticate()
+                tokenstore = load_tokenstore(user_id)
+                sync = GarminSync(
+                    Path(tempfile.gettempdir()) / f"hybrid-sync-{job['run_id']}",
+                    tokenstore=tokenstore,
+                )
+                try:
+                    sync.authenticate()
+                    refresh_tokenstore(user_id, sync.dump_tokenstore())
+                except Exception as exc:
+                    message = str(exc).lower()
+                    if any(marker in message for marker in ("hitelesítési", "munkamenet", "újra kell")):
+                        mark_reauth_required(user_id)
+                    raise
                 if job["phase"] == "activities":
                     _advance_activities(job, sync)
                 elif job["phase"] == "hr_zones":

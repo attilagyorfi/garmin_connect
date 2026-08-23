@@ -1,4 +1,4 @@
-garminconnect>=0.2.38,<1
+garminconnect>=0.3.11,<1
 curl-cffi>=0.7,<1
 pandas>=2.2,<3
 numpy>=2.0,<3

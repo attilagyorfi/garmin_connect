@@ -3451,6 +3451,7 @@ function GarminConnectionCard({ onStatus }) {
   const [status, setStatus] = useState(null),
     [email, setEmail] = useState(""),
     [password, setPassword] = useState(""),
+    [mfaCode, setMfaCode] = useState(""),
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
   useEffect(() => {
@@ -3479,7 +3480,32 @@ function GarminConnectionCard({ onStatus }) {
         if (!response.ok) throw new Error(body.error);
         setStatus(body);
         onStatus?.(body);
+        if (body.status === "connected") {
+          setPassword("");
+          setMfaCode("");
+        }
+      } catch (reason) {
+        setError(reason.message);
+      } finally {
+        setBusy(false);
+      }
+    },
+    verifyMfa = async (event) => {
+      event.preventDefault();
+      setBusy(true);
+      setError("");
+      try {
+        const response = await fetch("/api/garmin", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ action: "verify_mfa", code: mfaCode }),
+          }),
+          body = await response.json();
+        if (!response.ok) throw new Error(body.error);
+        setStatus(body);
+        onStatus?.(body);
         setPassword("");
+        setMfaCode("");
       } catch (reason) {
         setError(reason.message);
       } finally {
@@ -3518,7 +3544,11 @@ function GarminConnectionCard({ onStatus }) {
         >
           {status?.status === "connected"
             ? "CSATLAKOZTATVA"
-            : "NINCS KAPCSOLAT"}
+            : status?.status === "mfa_required"
+              ? "ELLENŐRZÉS SZÜKSÉGES"
+              : status?.status === "reauth_required"
+                ? "ÚJRACSATLAKOZTATÁS"
+                : "NINCS KAPCSOLAT"}
         </span>
       </div>
       {status?.status === "connected" ? (
@@ -3527,7 +3557,7 @@ function GarminConnectionCard({ onStatus }) {
             <Activity size={22} />
             <div>
               <b>{status.email_hint}</b>
-              <small>A hitelesítő adatok titkosítva vannak tárolva.</small>
+              <small>A Garmin-munkamenet titkosítva van tárolva.</small>
             </div>
           </div>
           <div className="connection-actions">
@@ -3540,8 +3570,36 @@ function GarminConnectionCard({ onStatus }) {
             </button>
           </div>
         </>
+      ) : status?.status === "mfa_required" ? (
+        <form onSubmit={verifyMfa}>
+          <label>
+            Egyszer használatos Garmin-kód
+            <input
+              type="text"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              value={mfaCode}
+              onChange={(event) => setMfaCode(event.target.value)}
+              required
+              autoFocus
+            />
+          </label>
+          <p className="connection-note">
+            <LockKeyhole size={15} /> A Garmin által e-mailben vagy SMS-ben
+            küldött kódot add meg. A munkamenet 10 percig folytatható.
+          </p>
+          <button className="primary" disabled={busy}>
+            {busy ? "Ellenőrzés…" : "Kód ellenőrzése"}
+          </button>
+        </form>
       ) : (
         <form onSubmit={connect}>
+          {status?.status === "reauth_required" && (
+            <p className="connection-note">
+              A korábbi kapcsolat nem tartalmaz tartós munkamenetet, ezért
+              egyszer újra be kell jelentkezned.
+            </p>
+          )}
           <label>
             Garmin e-mail-cím
             <input
@@ -3563,9 +3621,9 @@ function GarminConnectionCard({ onStatus }) {
             />
           </label>
           <p className="connection-note">
-            <LockKeyhole size={15} /> A jelszót a szerver titkosítja, és soha
-            nem küldi vissza a böngészőnek. Az MFA-val védett fiókokhoz külön
-            hitelesítési lépést építünk.
+            <LockKeyhole size={15} /> A jelszót csak a Garmin-hitelesítéshez
+            használjuk, nem tároljuk. Sikeres belépés után kizárólag a
+            titkosított munkamenettoken marad meg.
           </p>
           <button className="primary" disabled={busy}>
             {busy ? "Mentés…" : "Garmin csatlakoztatása"}

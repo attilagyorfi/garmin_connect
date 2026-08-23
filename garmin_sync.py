@@ -53,6 +53,7 @@ class GarminSync:
     ttl_hours: float | None = None
     email: str | None = None
     password: str | None = None
+    tokenstore: str | None = None
 
     def __post_init__(self) -> None:
         self.cache_dir = Path(self.cache_dir or os.getenv("CACHE_DIR", "data"))
@@ -68,22 +69,28 @@ class GarminSync:
 
     def authenticate(self) -> Garmin:
         email, password = self.email or os.getenv("GARMIN_EMAIL"), self.password or os.getenv("GARMIN_PASSWORD")
-        if not email or not password:
-            raise GarminSyncError("Hiányzik a GARMIN_EMAIL vagy GARMIN_PASSWORD. Használd a demo módot, vagy állítsd be mindkettőt.")
+        tokenstore = self.tokenstore or os.getenv("GARMINTOKENS")
+        if not tokenstore and (not email or not password):
+            raise GarminSyncError("Nincs érvényes Garmin-munkamenet. Csatlakoztasd újra a fiókot a Beállításokban.")
         try:
             client = Garmin(email, password)
-            client.login(str(self.token_dir))
+            client.login(tokenstore or str(self.token_dir))
         except Exception as exc:
             message = str(exc).lower()
             if "429" in message or "rate" in message:
                 reason = "Garmin rate limit. Várj, majd próbáld újra; az utolsó cache használható."
             elif "mfa" in message or "challenge" in message:
-                reason = "Garmin MFA szükséges. Az első belépést interaktív környezetben végezd el."
+                reason = "Garmin MFA szükséges. Csatlakoztasd újra a fiókot a Beállításokban."
             else:
                 reason = "Garmin hitelesítési hiba. Ellenőrizd a környezeti változókat és a cache-elt tokent."
             raise GarminSyncError(reason) from exc
         self.client = client
         return client
+
+    def dump_tokenstore(self) -> str:
+        if not self.client:
+            raise GarminSyncError("Nincs aktív Garmin-munkamenet.")
+        return self.client.client.dumps()
 
     def load_cache(self) -> dict[str, Any] | None:
         try:

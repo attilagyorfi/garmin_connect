@@ -23,3 +23,20 @@ def test_email_hint_does_not_expose_full_address():
     hint = _hint("sportolo@example.com")
     assert hint.endswith("@example.com")
     assert "sportolo" not in hint
+
+
+def test_mfa_payload_can_be_encrypted_without_password(monkeypatch):
+    monkeypatch.setenv("GARMIN_CREDENTIALS_KEY", Fernet.generate_key().decode())
+    payload = {
+        "email": "sportolo@example.com",
+        "state": {
+            "flow": "ios",
+            "cookies": {"SESSION": "secret-cookie"},
+            "login_params": {"clientId": "mobile"},
+        },
+    }
+    encrypted = _cipher().encrypt(json.dumps(payload).encode())
+    assert b"secret-cookie" not in encrypted
+    restored = json.loads(_cipher().decrypt(encrypted))
+    assert restored["state"]["flow"] == "ios"
+    assert "password" not in restored
