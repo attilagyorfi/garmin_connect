@@ -6,7 +6,9 @@
 - elkészült: véletlen, lejáró munkamenet HttpOnly + SameSite cookie-ban
 - elkészült: profil, terv, check-in, Garmin-cache, dashboard és szinkronállapot elkülönítése `user_id` szerint
 - elkészült: felhasználónkénti szinkronzár
-- következő: e-mail-megerősítés, jelszó-visszaállítás és belépési próbálkozások korlátozása
+- elkészült: egyszer használható, 30 perces tokennel működő e-mail-megerősítés és jelszó-visszaállítás
+- elkészült: öt sikertelen belépés után 15 perces, e-mail- és klienskulcshoz kötött próbálkozáskorlátozás
+- következő: aktív munkamenetek megtekintése és távoli visszavonása
 - elkészült: felhasználónkénti, Fernet-titkosított Garmin-kapcsolat; a jelszó nem kerül vissza a klienshez
 - következő: tartós Garmin-tokenkezelés és MFA bootstrap; addig az MFA-s többfelhasználós Garmin-szinkron nem tekinthető késznek
 
@@ -31,7 +33,11 @@
 - olvasási műveletek alapból engedélyezettek; terv- vagy profilváltoztatás csak előnézet és kifejezett jóváhagyás után
 - orvosi diagnózis, sérüléskezelés és indokolatlan kauzális állítás tiltása; piros zászlóknál szakemberhez irányítás
 - adatminimalizálás: nyers Garmin payload helyett célzott, összesített kontextus; hitelesítő és token soha nem kerül modellpromptba
-- következő: asszisztens API-szerződés, kontextusépítő és jobb oldali desktop chat shell
+- elkészült: felhasználónként elkülönített, opcionális és törölhető beszélgetési memória
+- elkészült: válaszonkénti adat-időszak és felhasznált mérőszám összefoglaló
+- elkészült: módosítási kéréseknél csak előnézet, végrehajtás nélkül és külön jóváhagyási elvvel
+- elkészült: környezeti változóval választható AI Gateway modell, válaszonkénti tokenplafon és szerveroldali használati napló
+- következő: jóváhagyott tervmódosítások tényleges, auditált végrehajtása és szolgáltatói költségriasztás beállítása a Vercelben
 - következő: modell/provider és költségkorlát kiválasztása, naplózási és adatmegőrzési beállításokkal
 
 ## Elkészült üzemi megerősítés

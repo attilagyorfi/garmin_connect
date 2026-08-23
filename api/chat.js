@@ -7,6 +7,9 @@ import {
 } from "ai";
 
 const MAX_MESSAGES = 10;
+const MAX_INPUT_CHARACTERS = 24000;
+const MAX_OUTPUT_TOKENS = Math.max(256, Math.min(1200, Number(process.env.HYBRID_AI_MAX_OUTPUT_TOKENS || 700)));
+const MODEL_ID = process.env.HYBRID_AI_MODEL || "anthropic/claude-sonnet-5";
 
 function json(body, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -42,6 +45,23 @@ function compactContext(dashboard, state) {
   };
 }
 
+function sourceSummary(context) {
+  const workouts = context.recentWorkouts || [];
+  const dates = workouts.map((item) => item.date || item.startTimeLocal || item.startTimeGMT).filter(Boolean).map(String).sort();
+  const period = dates.length ? `${dates[0].slice(0, 10)} – ${dates.at(-1).slice(0, 10)}` : "a legutóbbi elérhető szinkron";
+  const used = [
+    context.readiness != null && `terhelhetőség: ${context.readiness}/100`,
+    context.week?.load != null && `heti terhelés: ${context.week.load} pont`,
+    workouts.length && `${workouts.length} legutóbbi edzés`,
+    context.todayCheckIn && "mai állapotfelmérés",
+  ].filter(Boolean).join("; ");
+  return `\n\n---\n**Felhasznált adatok** · Időszak: ${period}. ${used || "Nem állt rendelkezésre számszerű személyes mérőszám."}`;
+}
+
+function requestsMutation(question) {
+  return /(módosíts|változtass|írd át|töröld|add hozzá|hozz létre).*(terv|profil|cél|edzés)/iu.test(question);
+}
+
 function fallbackAnswer(context, question) {
   const readiness = Number(context.readiness);
   const week = context.week || {};
@@ -75,6 +95,10 @@ async function handle(request) {
     if (!Array.isArray(body?.messages) || body.messages.length === 0) {
       return json({ error: "A kérdés nem lehet üres." }, 400);
     }
+    const inputSize = JSON.stringify(body.messages).length;
+    if (body.messages.length > 40 || inputSize > MAX_INPUT_CHARACTERS) {
+      return json({ error: "A beszélgetés túl hosszú. Töröld az előzményeket, majd próbáld újra." }, 413);
+    }
     const [dashboardResponse, stateResponse] = await Promise.all([
       ownData(request, "/api/dashboard"),
       ownData(request, "/api/state"),
@@ -87,22 +111,28 @@ async function handle(request) {
     }
     const context = compactContext(await dashboardResponse.json(), await stateResponse.json());
     const messages = await convertToModelMessages(body.messages.slice(-MAX_MESSAGES));
+    const lastQuestion = body.messages.at(-1)?.parts?.find((part) => part.type === "text")?.text || "";
     const stream = createUIMessageStream({
       execute: async ({ writer }) => {
         const id = crypto.randomUUID();
         let answer;
         try {
           const result = await generateText({
-            model: gateway("anthropic/claude-sonnet-5"),
-            system: `Te a Hybrid Athlete magyar nyelvű, közérthető sportadat-asszisztense vagy. Kizárólag az alábbi, bejelentkezett felhasználóhoz tartozó kontextust használd személyes állításokhoz. Ne találj ki hiányzó adatot. Röviden nevezd meg, mely adatok támasztják alá a választ. A mérőszámokat laikus nyelven magyarázd. Ne diagnosztizálj és ne ígérj biztos eredményt; egészségügyi panasz vagy veszélyjel esetén javasolj megfelelő szakembert. A válasz legyen tömör, gyakorlatias és magyar nyelvű.\n\nSZEMÉLYES KONTEXTUS:\n${JSON.stringify(context)}`,
+            model: gateway(MODEL_ID),
+            maxOutputTokens: MAX_OUTPUT_TOKENS,
+            system: `Te a Hybrid Athlete magyar nyelvű, közérthető sportadat-asszisztense vagy. Kizárólag az alábbi, bejelentkezett felhasználóhoz tartozó kontextust használd személyes állításokhoz. Ne találj ki hiányzó adatot. A mérőszámokat laikus nyelven magyarázd. Ne diagnosztizálj és ne ígérj biztos eredményt; egészségügyi panasz vagy veszélyjel esetén javasolj megfelelő szakembert. A válasz legyen tömör, gyakorlatias és magyar nyelvű. Profil-, cél- vagy edzésterv-módosítást soha ne hajts végre közvetlenül: csak jól elkülönített előnézetet adj, mondd ki, hogy még semmit nem módosítottál, és kérj kifejezett felhasználói jóváhagyást.\n\nSZEMÉLYES KONTEXTUS:\n${JSON.stringify(context)}`,
             messages,
           });
           answer = result.text;
+          console.info("chat_generation", JSON.stringify({ model: MODEL_ID, inputTokens: result.usage?.inputTokens, outputTokens: result.usage?.outputTokens }));
         } catch (error) {
           console.warn("chat_gateway_fallback", error?.message || error);
-          const lastQuestion = body.messages.at(-1)?.parts?.find((part) => part.type === "text")?.text || "";
           answer = fallbackAnswer(context, lastQuestion);
         }
+        if (requestsMutation(lastQuestion)) {
+          answer = `**Módosítási előnézet**\n\n${answer}\n\n_Még semmit nem módosítottam. A végrehajtáshoz külön, egyértelmű jóváhagyás szükséges._`;
+        }
+        answer += sourceSummary(context);
         writer.write({ type: "text-start", id });
         writer.write({ type: "text-delta", id, delta: answer });
         writer.write({ type: "text-end", id });

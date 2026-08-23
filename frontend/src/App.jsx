@@ -4156,29 +4156,60 @@ async function authRequest(payload) {
     }),
     body = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(body.error || "A fiókművelet sikertelen.");
-  return body.user;
+  return body;
 }
 function AuthScreen({ onAuthenticated }) {
-  const [mode, setMode] = useState("login"),
+  const query = new URLSearchParams(window.location.search),
+    initialAuthMode = query.get("auth") === "reset" ? "reset" : "login",
+    authToken = query.get("token") || "",
+    [mode, setMode] = useState(initialAuthMode),
     [name, setName] = useState(""),
     [email, setEmail] = useState(""),
     [password, setPassword] = useState(""),
     [error, setError] = useState(""),
+    [message, setMessage] = useState(""),
     [busy, setBusy] = useState(false),
     submit = async (event) => {
       event.preventDefault();
       setBusy(true);
       setError("");
+      setMessage("");
       try {
-        onAuthenticated(
-          await authRequest({ action: mode, email, password, name }),
-        );
+        const action = mode === "forgot" ? "request_password_reset" : mode === "reset" ? "reset_password" : mode;
+        const result = await authRequest({ action, email, password, name, token: authToken });
+        if (result.user) onAuthenticated(result.user);
+        else {
+          setMessage(result.message || "A kérés sikeresen megtörtént.");
+          if (mode === "register" || mode === "reset") setMode("login");
+        }
       } catch (reason) {
         setError(reason.message);
       } finally {
         setBusy(false);
       }
     };
+  useEffect(() => {
+    if (query.get("auth") !== "verify" || !authToken) return;
+    setBusy(true);
+    authRequest({ action: "verify_email", token: authToken })
+      .then((result) => {
+        window.history.replaceState({}, "", window.location.pathname);
+        onAuthenticated(result.user);
+      })
+      .catch((reason) => setError(reason.message))
+      .finally(() => setBusy(false));
+  }, [authToken, onAuthenticated]);
+  const switchMode = (next) => {
+    setMode(next); setError(""); setMessage("");
+  };
+  const resend = async () => {
+    setBusy(true); setError("");
+    try {
+      const result = await authRequest({ action: "resend_verification", email });
+      setMessage(result.message);
+    } catch (reason) { setError(reason.message); }
+    finally { setBusy(false); }
+  };
   return (
     <main className="auth-shell">
       <section className="auth-brand">
@@ -4195,12 +4226,11 @@ function AuthScreen({ onAuthenticated }) {
         </p>
       </section>
       <section className="auth-card card">
-        <div className="auth-tabs">
+        {(mode === "login" || mode === "register") && <div className="auth-tabs">
           <button
             className={mode === "login" ? "active" : ""}
             onClick={() => {
-              setMode("login");
-              setError("");
+              switchMode("login");
             }}
           >
             Bejelentkezés
@@ -4208,20 +4238,19 @@ function AuthScreen({ onAuthenticated }) {
           <button
             className={mode === "register" ? "active" : ""}
             onClick={() => {
-              setMode("register");
-              setError("");
+              switchMode("register");
             }}
           >
             Regisztráció
           </button>
-        </div>
+        </div>}
         <span className="eyebrow">
-          {mode === "login" ? "ÜDV ÚJRA" : "ÚJ SPORTOLÓI FIÓK"}
+          {mode === "login" ? "ÜDV ÚJRA" : mode === "register" ? "ÚJ SPORTOLÓI FIÓK" : mode === "forgot" ? "FIÓKHELYREÁLLÍTÁS" : "ÚJ JELSZÓ"}
         </span>
         <h2>
           {mode === "login"
             ? "Lépj be a dashboardodba"
-            : "Hozd létre a saját tered"}
+            : mode === "register" ? "Hozd létre a saját tered" : mode === "forgot" ? "Kérj visszaállító hivatkozást" : "Állíts be új jelszót"}
         </h2>
         <form onSubmit={submit}>
           {mode === "register" && (
@@ -4236,7 +4265,7 @@ function AuthScreen({ onAuthenticated }) {
               />
             </label>
           )}
-          <label>
+          {mode !== "reset" && <label>
             E-mail-cím
             <input
               type="email"
@@ -4245,8 +4274,8 @@ function AuthScreen({ onAuthenticated }) {
               onChange={(event) => setEmail(event.target.value)}
               required
             />
-          </label>
-          <label>
+          </label>}
+          {mode !== "forgot" && <label>
             Jelszó
             <input
               type="password"
@@ -4259,7 +4288,8 @@ function AuthScreen({ onAuthenticated }) {
               required
             />
             <small>Legalább 10 karakter</small>
-          </label>
+          </label>}
+          {message && <p className="auth-success" role="status">{message}</p>}
           {error && (
             <p className="auth-error" role="alert">
               {error}
@@ -4268,10 +4298,11 @@ function AuthScreen({ onAuthenticated }) {
           <button className="primary" disabled={busy}>
             {busy
               ? "Feldolgozás…"
-              : mode === "login"
-                ? "Bejelentkezés"
-                : "Fiók létrehozása"}
+              : mode === "login" ? "Bejelentkezés" : mode === "register" ? "Fiók létrehozása" : mode === "forgot" ? "Hivatkozás kérése" : "Jelszó mentése"}
           </button>
+          {mode === "login" && <button type="button" className="auth-link" onClick={() => switchMode("forgot")}>Elfelejtettem a jelszavam</button>}
+          {(mode === "forgot" || mode === "reset") && <button type="button" className="auth-link" onClick={() => switchMode("login")}>Vissza a bejelentkezéshez</button>}
+          {mode === "login" && email && error.includes("erősítsd meg") && <button type="button" className="auth-link" onClick={resend} disabled={busy}>Megerősítő e-mail újraküldése</button>}
         </form>
         <p className="auth-privacy">
           <LockKeyhole size={15} /> A munkamenetet biztonságos, HttpOnly cookie

@@ -15,6 +15,7 @@ import "./logo-animation.css";
 import "./readability.css";
 import "./explainability.css";
 import "./auth.css";
+import "./auth-security.css";
 import "./garmin-connection.css";
 import "./ux-enhancements.css";
 

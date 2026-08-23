@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
-import { Bot, Send, Sparkles, X } from "lucide-react";
+import { Bot, Database, Send, Sparkles, Trash2, X } from "lucide-react";
 import {
   Conversation,
   ConversationContent,
@@ -19,10 +19,53 @@ const suggestions = [
 export function AssistantPanel() {
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState("");
-  const { messages, sendMessage, status, error } = useChat({
+  const [memoryEnabled, setMemoryEnabled] = useState(true);
+  const [historyLoaded, setHistoryLoaded] = useState(false);
+  const saveTimer = useRef(null);
+  const { messages, setMessages, sendMessage, status, error } = useChat({
     transport: new DefaultChatTransport({ api: "/api/chat" }),
   });
   const busy = status === "submitted" || status === "streaming";
+  useEffect(() => {
+    let active = true;
+    fetch("/api/state", { credentials: "same-origin", cache: "no-store" })
+      .then((response) => response.ok ? response.json() : Promise.reject(new Error("history")))
+      .then((state) => {
+        if (!active) return;
+        const saved = state.assistant || {};
+        setMemoryEnabled(saved.memoryEnabled !== false);
+        setMessages((saved.messages || []).map((item) => ({
+          id: item.id, role: item.role, parts: [{ type: "text", text: item.text }],
+        })));
+      })
+      .catch(() => {})
+      .finally(() => { if (active) setHistoryLoaded(true); });
+    return () => { active = false; };
+  }, [setMessages]);
+  useEffect(() => {
+    if (!historyLoaded || status !== "ready") return undefined;
+    clearTimeout(saveTimer.current);
+    const storedMessages = memoryEnabled ? messages.slice(-40).flatMap((message) => {
+      const text = message.parts.filter((part) => part.type === "text").map((part) => part.text).join("\n").trim();
+      return text ? [{ id: message.id, role: message.role, text }] : [];
+    }) : [];
+    saveTimer.current = setTimeout(() => {
+      fetch("/api/state", {
+        method: "PATCH", credentials: "same-origin",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ assistant: { memoryEnabled, messages: storedMessages } }),
+      }).catch(() => {});
+    }, 450);
+    return () => clearTimeout(saveTimer.current);
+  }, [historyLoaded, memoryEnabled, messages, status]);
+  const clearHistory = () => {
+    setMessages([]);
+    fetch("/api/state", {
+      method: "PATCH", credentials: "same-origin",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ assistant: { memoryEnabled, messages: [] } }),
+    }).catch(() => {});
+  };
   const submit = (text) => {
     const value = text.trim();
     if (!value || busy) return;
@@ -35,12 +78,16 @@ export function AssistantPanel() {
       <button className="assistant-launcher" onClick={() => setOpen(true)} aria-label="AI-asszisztens megnyitása">
         <Sparkles size={20} /><span>Asszisztens</span>
       </button>
-      {open && <aside className="assistant-panel" aria-label="Hybrid Athlete AI-asszisztens">
+      {open && <><div className="assistant-layer-shield" aria-hidden="true" /><aside className="assistant-panel" aria-label="Hybrid Athlete AI-asszisztens">
         <div className="assistant-head">
           <div><span><Bot size={18} /></span><div><strong>Hybrid AI</strong><small>Saját adataid alapján</small></div></div>
-          <button onClick={() => setOpen(false)} aria-label="Asszisztens bezárása"><X size={19} /></button>
+          <div className="assistant-head-actions">
+            <button onClick={clearHistory} aria-label="Beszélgetés törlése" title="Beszélgetés törlése"><Trash2 size={17} /></button>
+            <button onClick={() => setOpen(false)} aria-label="Asszisztens bezárása"><X size={19} /></button>
+          </div>
         </div>
         <p className="assistant-privacy">A válaszok a bejelentkezett fiókod szinkronizált adatait használják kontextusként. Ez nem orvosi tanács.</p>
+        <label className="assistant-memory"><Database size={14} /><span>Beszélgetési memória</span><input type="checkbox" checked={memoryEnabled} onChange={(event) => setMemoryEnabled(event.target.checked)} /><i aria-hidden="true" /></label>
         <Conversation className="assistant-conversation">
           <ConversationContent className="assistant-messages">
             {messages.length === 0 ? <ConversationEmptyState
@@ -67,7 +114,7 @@ export function AssistantPanel() {
           }} />
           <button type="submit" disabled={!input.trim() || busy} aria-label="Kérdés elküldése"><Send size={17} /></button>
         </form>
-      </aside>}
+      </aside></>}
     </>
   );
 }

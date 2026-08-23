@@ -1,9 +1,15 @@
 from __future__ import annotations
 
 import json
+import os
 from http.server import BaseHTTPRequestHandler
 
-from auth_store import clear_cookie_header, cookie_header, current_user, login, logout, register
+from auth_store import (
+    RateLimitError, clear_cookie_header, cookie_header, create_password_reset,
+    current_user, login, logout, register, resend_verification, reset_password,
+    verify_email,
+)
+from email_service import send_password_reset, send_verification
 
 
 class handler(BaseHTTPRequestHandler):
@@ -32,16 +38,55 @@ class handler(BaseHTTPRequestHandler):
                 raise ValueError("Érvénytelen kérésméret.")
             payload = json.loads(self.rfile.read(size))
             action = payload.get("action")
+            protocol = self.headers.get("X-Forwarded-Proto", "https")
+            host = self.headers.get("X-Forwarded-Host") or self.headers.get("Host", "localhost")
+            base_url = os.getenv("AUTH_PUBLIC_URL", "").rstrip("/") or f"{protocol}://{host}"
+            if not base_url.startswith(("https://", "http://")):
+                raise ValueError("Érvénytelen nyilvános alkalmazáscím.")
+            secure = protocol != "http"
             if action == "register":
-                user, token = register(payload.get("email", ""), payload.get("password", ""), payload.get("name", ""))
+                if not os.getenv("RESEND_API_KEY", "").strip():
+                    self._send({"error": "A regisztrációs e-mail-küldés még nincs beállítva."}, 503)
+                    return
+                user, verification_token = register(payload.get("email", ""), payload.get("password", ""), payload.get("name", ""))
+                send_verification(user["email"], verification_token, base_url)
                 status = 201
+                self._send({"user": None, "requiresVerification": True, "message": "Elküldtük a megerősítő e-mailt."}, status)
+                return
             elif action == "login":
-                user, token = login(payload.get("email", ""), payload.get("password", ""))
+                client_id = self.headers.get("X-Forwarded-For", "").split(",")[0].strip() or self.client_address[0]
+                user, token = login(payload.get("email", ""), payload.get("password", ""), client_id)
                 status = 200
+            elif action == "verify_email":
+                user, token = verify_email(payload.get("token", ""))
+                status = 200
+            elif action == "resend_verification":
+                result = resend_verification(payload.get("email", ""))
+                if result:
+                    try:
+                        send_verification(result[0], result[1], base_url)
+                    except RuntimeError:
+                        pass
+                self._send({"ok": True, "message": "Ha a címhez ellenőrizetlen fiók tartozik, elküldtük az üzenetet."})
+                return
+            elif action == "request_password_reset":
+                result = create_password_reset(payload.get("email", ""))
+                if result:
+                    try:
+                        send_password_reset(result[0], result[1], base_url)
+                    except RuntimeError:
+                        pass
+                self._send({"ok": True, "message": "Ha a címhez fiók tartozik, elküldtük a visszaállító hivatkozást."})
+                return
+            elif action == "reset_password":
+                reset_password(payload.get("token", ""), payload.get("password", ""))
+                self._send({"ok": True, "message": "A jelszó megváltozott. Most már bejelentkezhetsz."})
+                return
             else:
                 raise ValueError("Ismeretlen fiókművelet.")
-            secure = self.headers.get("X-Forwarded-Proto", "https") != "http"
             self._send({"user": user}, status, cookie_header(token, secure))
+        except RateLimitError as exc:
+            self._send({"error": str(exc)}, 429)
         except (ValueError, TypeError, json.JSONDecodeError) as exc:
             self._send({"error": str(exc) or "Érvénytelen fiókadat."}, 400)
         except Exception:

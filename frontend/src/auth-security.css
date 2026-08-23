@@ -1,0 +1,22 @@
+.auth-success {
+  margin: 0;
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, #31423f);
+  border-radius: 7px;
+  background: var(--accent-soft);
+  color: #dffffa;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.auth-link {
+  min-height: 38px;
+  border: 0;
+  background: transparent;
+  color: var(--accent-text);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.auth-link:disabled { opacity: .5; }
