@@ -16,6 +16,14 @@
       "maxDuration": 30,
       "excludeFiles": "{tests/**,frontend/**,data/**,output/**,.pytest-tmp-*/**}"
     },
+    "api/sessions.py": {
+      "maxDuration": 30,
+      "excludeFiles": "{tests/**,frontend/**,data/**,output/**,.pytest-tmp-*/**}"
+    },
+    "api/assistant-actions.py": {
+      "maxDuration": 30,
+      "excludeFiles": "{tests/**,frontend/**,data/**,output/**,.pytest-tmp-*/**}"
+    },
     "api/garmin.py": {
       "maxDuration": 30,
       "excludeFiles": "{tests/**,frontend/**,data/**,output/**,.pytest-tmp-*/**}"

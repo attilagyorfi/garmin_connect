@@ -46,6 +46,11 @@ def initialize_auth(db: Any) -> None:
         )
     """)
     db.execute("CREATE INDEX IF NOT EXISTS hybrid_sessions_user_idx ON hybrid_sessions(user_id)")
+    db.execute("ALTER TABLE hybrid_sessions ADD COLUMN IF NOT EXISTS session_id TEXT")
+    db.execute("ALTER TABLE hybrid_sessions ADD COLUMN IF NOT EXISTS user_agent TEXT")
+    db.execute("ALTER TABLE hybrid_sessions ADD COLUMN IF NOT EXISTS ip_hint TEXT")
+    db.execute("ALTER TABLE hybrid_sessions ADD COLUMN IF NOT EXISTS last_seen_at TIMESTAMPTZ")
+    db.execute("CREATE UNIQUE INDEX IF NOT EXISTS hybrid_sessions_public_id_idx ON hybrid_sessions(session_id) WHERE session_id IS NOT NULL")
     db.execute("""
         DO $$
         BEGIN
@@ -107,11 +112,26 @@ def _clean_credentials(email: str, password: str, name: str = "") -> tuple[str, 
     return clean_email, password, clean_name
 
 
-def _new_session(db: Any, user_id: str) -> str:
+def _ip_hint(value: str) -> str:
+    value = str(value or "").strip()[:80]
+    if ":" in value:
+        parts = value.split(":")
+        return ":".join(parts[:3]) + ":…"
+    parts = value.split(".")
+    return ".".join(parts[:3]) + ".…" if len(parts) == 4 else "ismeretlen"
+
+
+def _new_session(db: Any, user_id: str, user_agent: str = "", client_ip: str = "") -> str:
     token = secrets.token_urlsafe(32)
     db.execute(
-        "INSERT INTO hybrid_sessions (token_hash, user_id, expires_at) VALUES (%s, %s, %s)",
-        (hashlib.sha256(token.encode()).hexdigest(), user_id, datetime.now(timezone.utc) + timedelta(days=SESSION_DAYS)),
+        """INSERT INTO hybrid_sessions
+           (token_hash, user_id, session_id, user_agent, ip_hint, expires_at, last_seen_at)
+           VALUES (%s, %s, %s, %s, %s, %s, NOW())""",
+        (
+            hashlib.sha256(token.encode()).hexdigest(), user_id, str(uuid.uuid4()),
+            str(user_agent or "")[:500], _ip_hint(client_ip),
+            datetime.now(timezone.utc) + timedelta(days=SESSION_DAYS),
+        ),
     )
     db.commit()
     return token
@@ -182,7 +202,10 @@ def register(email: str, password: str, name: str) -> tuple[dict[str, Any], str]
         db.close()
 
 
-def login(email: str, password: str, client_id: str = "unknown") -> tuple[dict[str, Any], str]:
+def login(
+    email: str, password: str, client_id: str = "unknown",
+    user_agent: str = "", client_ip: str = "",
+) -> tuple[dict[str, Any], str]:
     email, password, _ = _clean_credentials(email, password)
     db = connect()
     try:
@@ -198,7 +221,7 @@ def login(email: str, password: str, client_id: str = "unknown") -> tuple[dict[s
         user = _public_user(row)
         if not user["emailVerified"]:
             raise ValueError("A belépés előtt erősítsd meg az e-mail-címedet.")
-        return user, _new_session(db, user["id"])
+        return user, _new_session(db, user["id"], user_agent, client_ip)
     finally:
         db.close()
 
@@ -218,7 +241,9 @@ def resend_verification(email: str) -> tuple[str, str] | None:
         db.close()
 
 
-def verify_email(token: str) -> tuple[dict[str, Any], str]:
+def verify_email(
+    token: str, user_agent: str = "", client_ip: str = "",
+) -> tuple[dict[str, Any], str]:
     db = connect()
     try:
         initialize_auth(db)
@@ -235,7 +260,7 @@ def verify_email(token: str) -> tuple[dict[str, Any], str]:
         db.execute("UPDATE hybrid_auth_tokens SET used_at = NOW() WHERE token_hash = %s", (token_hash,))
         db.commit()
         user = {"id": str(row[0]), "email": row[1], "name": row[2], "emailVerified": True}
-        return user, _new_session(db, user["id"])
+        return user, _new_session(db, user["id"], user_agent, client_ip)
     finally:
         db.close()
 
@@ -289,11 +314,20 @@ def current_user(headers: Any) -> dict[str, Any] | None:
     db = connect()
     try:
         initialize_auth(db)
+        token_hash = hashlib.sha256(token.encode()).hexdigest()
         row = db.execute("""
             SELECT u.id, u.email, u.display_name, u.email_verified_at
             FROM hybrid_sessions s JOIN hybrid_users u ON u.id = s.user_id
             WHERE s.token_hash = %s AND s.expires_at > NOW()
-        """, (hashlib.sha256(token.encode()).hexdigest(),)).fetchone()
+        """, (token_hash,)).fetchone()
+        if row:
+            db.execute(
+                """UPDATE hybrid_sessions SET last_seen_at = NOW()
+                   WHERE token_hash = %s
+                     AND COALESCE(last_seen_at, created_at) < NOW() - INTERVAL '5 minutes'""",
+                (token_hash,),
+            )
+            db.commit()
         return _public_user(row) if row else None
     finally:
         db.close()
@@ -307,6 +341,91 @@ def logout(headers: Any) -> None:
     try:
         initialize_auth(db)
         db.execute("DELETE FROM hybrid_sessions WHERE token_hash = %s", (hashlib.sha256(token.encode()).hexdigest(),))
+        db.commit()
+    finally:
+        db.close()
+
+
+def _device_name(user_agent: str) -> str:
+    agent = str(user_agent or "").lower()
+    browser = (
+        "Edge" if "edg/" in agent else "Chrome" if "chrome/" in agent
+        else "Firefox" if "firefox/" in agent else "Safari" if "safari/" in agent
+        else "Ismeretlen böngésző"
+    )
+    system = (
+        "Windows" if "windows" in agent else "iPhone" if "iphone" in agent
+        else "iPad" if "ipad" in agent else "Android" if "android" in agent
+        else "macOS" if "mac os" in agent else "Linux" if "linux" in agent
+        else "ismeretlen eszköz"
+    )
+    return f"{browser} · {system}"
+
+
+def list_sessions(headers: Any) -> list[dict[str, Any]]:
+    token = token_from_headers(headers)
+    if not token:
+        raise ValueError("A művelethez bejelentkezés szükséges.")
+    current_hash = hashlib.sha256(token.encode()).hexdigest()
+    db = connect()
+    try:
+        initialize_auth(db)
+        owner = db.execute(
+            "SELECT user_id FROM hybrid_sessions WHERE token_hash = %s AND expires_at > NOW()",
+            (current_hash,),
+        ).fetchone()
+        if not owner:
+            raise ValueError("A munkamenet lejárt.")
+        rows = db.execute("""
+            SELECT token_hash, session_id, user_agent, ip_hint, created_at,
+                   COALESCE(last_seen_at, created_at), expires_at
+            FROM hybrid_sessions
+            WHERE user_id = %s AND expires_at > NOW()
+            ORDER BY COALESCE(last_seen_at, created_at) DESC
+        """, (owner[0],)).fetchall()
+        result = []
+        for row in rows:
+            session_id = row[1] or str(uuid.uuid4())
+            if not row[1]:
+                db.execute(
+                    "UPDATE hybrid_sessions SET session_id = %s WHERE token_hash = %s",
+                    (session_id, row[0]),
+                )
+            result.append({
+                "id": session_id,
+                "device": _device_name(row[2]),
+                "ipHint": row[3] or "ismeretlen",
+                "createdAt": row[4].isoformat(),
+                "lastSeenAt": row[5].isoformat(),
+                "expiresAt": row[6].isoformat(),
+                "current": hmac.compare_digest(row[0], current_hash),
+            })
+        db.commit()
+        return result
+    finally:
+        db.close()
+
+
+def revoke_session(headers: Any, session_id: str) -> None:
+    token = token_from_headers(headers)
+    if not token:
+        raise ValueError("A művelethez bejelentkezés szükséges.")
+    current_hash = hashlib.sha256(token.encode()).hexdigest()
+    db = connect()
+    try:
+        initialize_auth(db)
+        current = db.execute(
+            "SELECT user_id, session_id FROM hybrid_sessions WHERE token_hash = %s AND expires_at > NOW()",
+            (current_hash,),
+        ).fetchone()
+        if not current:
+            raise ValueError("A munkamenet lejárt.")
+        if str(current[1]) == str(session_id):
+            raise ValueError("A jelenlegi munkamenetet a Kijelentkezés gombbal zárhatod le.")
+        db.execute(
+            "DELETE FROM hybrid_sessions WHERE user_id = %s AND session_id = %s",
+            (current[0], str(session_id)),
+        )
         db.commit()
     finally:
         db.close()

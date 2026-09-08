@@ -14,6 +14,7 @@ import {
   LockKeyhole,
   LogOut,
   Menu,
+  Monitor,
   Moon,
   Pencil,
   Plus,
@@ -1167,6 +1168,7 @@ function Sidebar({ collapsed, onToggle, active, onActive, profile, garminStatus 
         {nav.map(([label, Icon]) => (
           <button
             className={active === label ? "active" : ""}
+            aria-current={active === label ? "page" : undefined}
             onClick={() => onActive(label)}
             key={label}
           >
@@ -1192,7 +1194,12 @@ function Sidebar({ collapsed, onToggle, active, onActive, profile, garminStatus 
           </div>
         </div>
       </div>
-      <button className="collapse" onClick={onToggle}>
+      <button
+        className="collapse"
+        onClick={onToggle}
+        aria-label={collapsed ? "Oldalsáv kibontása" : "Oldalsáv összecsukása"}
+        aria-expanded={!collapsed}
+      >
         {collapsed ? <Menu size={17} /> : <ChevronLeft size={17} />}
       </button>
     </aside>
@@ -1331,10 +1338,13 @@ function ScoreRing({ score, className = "", showMaximum = false, ariaLabel }) {
     <div
       className={`ring ${className}`.trim()}
       data-score={normalized}
+      role="img"
       aria-label={ariaLabel || `${normalized} pont a 100-ból`}
     >
       <ResponsiveContainer width="100%" height="100%">
         <RadialBarChart
+          accessibilityLayer
+          aria-label={ariaLabel || `${normalized} pont a 100-ból`}
           innerRadius="82%"
           outerRadius="100%"
           data={radial}
@@ -1584,8 +1594,8 @@ function Today() {
       </main>
       {whyOpen && (
         <div className="modal-backdrop" onClick={() => setWhyOpen(false)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <button className="close" onClick={() => setWhyOpen(false)}>
+          <div className="modal" role="dialog" aria-modal="true" aria-label="Az ajánlás háttere" onClick={(e) => e.stopPropagation()}>
+            <button className="close" aria-label="Ablak bezárása" onClick={() => setWhyOpen(false)}>
               <X size={18} />
             </button>
             <span className="eyebrow">AZ AJÁNLÁS HÁTTERE</span>
@@ -1861,8 +1871,8 @@ function TodayLive({
       </main>
       {whyOpen && (
         <div className="modal-backdrop" onClick={() => setWhyOpen(false)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <button className="close" onClick={() => setWhyOpen(false)}>
+          <div className="modal" role="dialog" aria-modal="true" aria-label="Személyes ajánlás részletei" onClick={(e) => e.stopPropagation()}>
+            <button className="close" aria-label="Ablak bezárása" onClick={() => setWhyOpen(false)}>
               <X size={18} />
             </button>
             <span className="eyebrow">SZEMÉLYES AJÁNLÁS</span>
@@ -2038,8 +2048,8 @@ function CalendarPage({ profile }) {
       </div>
       {details && selectedItem && (
         <div className="modal-backdrop" onClick={() => setDetails(false)}>
-          <div className="modal" onClick={(event) => event.stopPropagation()}>
-            <button className="close" onClick={() => setDetails(false)}>
+          <div className="modal" role="dialog" aria-modal="true" aria-label="Edzés részletei" onClick={(event) => event.stopPropagation()}>
+            <button className="close" aria-label="Ablak bezárása" onClick={() => setDetails(false)}>
               <X size={18} />
             </button>
             <span className="eyebrow">
@@ -2114,6 +2124,8 @@ function TrendsPage() {
         </div>
         <ResponsiveContainer width="100%" height={300}>
           <LineChart
+            accessibilityLayer
+            aria-label="Terhelés és forma alakulása hetenként"
             data={trendData}
             margin={{ top: 8, right: 18, bottom: 28, left: 34 }}
           >
@@ -2319,6 +2331,8 @@ function LiveTrendsPage({ profile }) {
         </div>
         <ResponsiveContainer width="100%" height={320}>
           <LineChart
+            accessibilityLayer
+            aria-label="A személyes terhelés és forma alakulása hetenként"
             data={points}
             margin={{ top: 8, right: 18, bottom: 28, left: 34 }}
           >
@@ -2508,9 +2522,12 @@ function AdaptiveWeekPlanner({ profile, data, cloudState, onSave }) {
         <div className="modal-backdrop" onClick={() => setOpen(false)}>
           <div
             className="modal adaptive-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Adaptív heti terv előnézete"
             onClick={(event) => event.stopPropagation()}
           >
-            <button className="close" onClick={() => setOpen(false)}>
+            <button className="close" aria-label="Ablak bezárása" onClick={() => setOpen(false)}>
               <X size={18} />
             </button>
             <span className="eyebrow">
@@ -2635,9 +2652,12 @@ function PeriodizationPlanner({ profile, data, plans, onSave }) {
         <div className="modal-backdrop" onClick={() => setOpen(false)}>
           <div
             className="modal periodization-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Felkészülési ciklus előnézete"
             onClick={(event) => event.stopPropagation()}
           >
-            <button className="close" onClick={() => setOpen(false)}>
+            <button className="close" aria-label="Ablak bezárása" onClick={() => setOpen(false)}>
               <X size={18} />
             </button>
             <span className="eyebrow">{weeks} HETES FELKÉSZÜLÉSI CIKLUS</span>
@@ -3037,9 +3057,12 @@ function ActivityDetail({ activity, feedback, onSave, onClose }) {
     <div className="modal-backdrop" onClick={onClose}>
       <div
         className="modal activity-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Garmin edzésrészlet"
         onClick={(event) => event.stopPropagation()}
       >
-        <button className="close" onClick={onClose}>
+        <button className="close" aria-label="Ablak bezárása" onClick={onClose}>
           <X size={18} />
         </button>
         <span className="eyebrow">GARMIN EDZÉSRÉSZLET</span>
@@ -3638,6 +3661,111 @@ function GarminConnectionCard({ onStatus }) {
     </section>
   );
 }
+function ActiveSessionsCard() {
+  const [sessions, setSessions] = useState([]),
+    [busyId, setBusyId] = useState(""),
+    [error, setError] = useState("");
+  const load = () =>
+    fetch("/api/sessions")
+      .then(async (response) => {
+        const body = await response.json();
+        if (!response.ok) throw new Error(body.error);
+        setSessions(
+          Array.isArray(body.sessions)
+            ? body.sessions.filter(
+                (item) =>
+                  item?.id &&
+                  item?.device &&
+                  !Number.isNaN(new Date(item.lastSeenAt).getTime()) &&
+                  !Number.isNaN(new Date(item.expiresAt).getTime()),
+              )
+            : [],
+        );
+      })
+      .catch((reason) =>
+        setError(reason.message || "A munkamenetek nem tölthetők be."),
+      );
+  useEffect(() => {
+    load();
+  }, []);
+  const revoke = async (session) => {
+    if (
+      !globalThis.confirm?.(
+        `Biztosan kijelentkezteted ezt az eszközt?\n\n${session.device}`,
+      )
+    )
+      return;
+    setBusyId(session.id);
+    setError("");
+    try {
+      const response = await fetch("/api/sessions", {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ sessionId: session.id }),
+        }),
+        body = await response.json();
+      if (!response.ok) throw new Error(body.error);
+      setSessions((items) => items.filter((item) => item.id !== session.id));
+    } catch (reason) {
+      setError(reason.message || "A munkamenet visszavonása sikertelen.");
+    } finally {
+      setBusyId("");
+    }
+  };
+  const dateTime = (value) => {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return "nem ismert";
+    return new Intl.DateTimeFormat("hu-HU", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    }).format(date);
+  };
+  return (
+    <section className="card active-sessions-card">
+      <span className="eyebrow">BIZTONSÁG</span>
+      <h2>Aktív munkamenetek</h2>
+      <p>
+        Itt láthatod, mely böngészőkben vagy bejelentkezve. Az ismeretlen
+        eszközöket azonnal kijelentkeztetheted.
+      </p>
+      <div className="active-session-list">
+        {sessions.map((session) => (
+          <article className="active-session-row" key={session.id}>
+            <Monitor size={22} aria-hidden="true" />
+            <div>
+              <div className="active-session-title">
+                <b>{session.device}</b>
+                {session.current && <span>EZ AZ ESZKÖZ</span>}
+              </div>
+              <small>
+                Utolsó aktivitás: {dateTime(session.lastSeenAt)} · IP:{" "}
+                {session.ipHint}
+              </small>
+              <small>Lejárat: {dateTime(session.expiresAt)}</small>
+            </div>
+            {!session.current && (
+              <button
+                className="danger-outline"
+                disabled={busyId === session.id}
+                onClick={() => revoke(session)}
+              >
+                {busyId === session.id ? "Visszavonás…" : "Kijelentkeztetés"}
+              </button>
+            )}
+          </article>
+        ))}
+      </div>
+      {error && (
+        <p className="auth-error" role="alert">
+          {error}
+        </p>
+      )}
+    </section>
+  );
+}
 function SettingsPage({
   accent,
   onAccent,
@@ -3719,6 +3847,7 @@ function SettingsPage({
             <LogOut size={17} /> Kijelentkezés
           </button>
         </section>
+        <ActiveSessionsCard />
       </main>
     </>
   );
@@ -4431,9 +4560,12 @@ function PlanEditor({ value, activities, onSave, onDelete, onClose }) {
     <div className="modal-backdrop" onClick={onClose}>
       <div
         className="modal plan-editor"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Edzésterv szerkesztése"
         onClick={(event) => event.stopPropagation()}
       >
-        <button className="close" onClick={onClose}>
+        <button className="close" aria-label="Ablak bezárása" onClick={onClose}>
           <X size={18} />
         </button>
         <span className="eyebrow">
@@ -4614,9 +4746,12 @@ function WeeklyTemplateEditor({ items, onSave, onClose }) {
     <div className="modal-backdrop" onClick={onClose}>
       <div
         className="modal template-editor"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Heti sablon előnézete"
         onClick={(event) => event.stopPropagation()}
       >
-        <button className="close" onClick={onClose}>
+        <button className="close" aria-label="Ablak bezárása" onClick={onClose}>
           <X size={18} />
         </button>
         <span className="eyebrow">HETI SABLON ELŐNÉZETE</span>
@@ -4754,9 +4889,12 @@ function BatchMoveEditor({ plans, onSave, onClose }) {
     <div className="modal-backdrop" onClick={onClose}>
       <div
         className="modal batch-move-editor"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Edzések csoportos mozgatása"
         onClick={(event) => event.stopPropagation()}
       >
-        <button className="close" onClick={onClose}>
+        <button className="close" aria-label="Ablak bezárása" onClick={onClose}>
           <X size={18} />
         </button>
         <span className="eyebrow">CSOPORTOS TERVMÓDOSÍTÁS</span>
@@ -5233,6 +5371,11 @@ export function App() {
     };
   }, [user?.id]);
   useEffect(() => {
+    const updateFromAssistant = (event) => event.detail && setCloudState(event.detail);
+    window.addEventListener("hybrid-cloud-state", updateFromAssistant);
+    return () => window.removeEventListener("hybrid-cloud-state", updateFromAssistant);
+  }, []);
+  useEffect(() => {
     if (!user) return;
     fetch("/api/garmin")
       .then((response) => response.json())
@@ -5305,6 +5448,9 @@ export function App() {
   if (!user) return <AuthScreen onAuthenticated={setUser} />;
   return (
     <div className="app">
+      <a className="skip-link" href="#main-content">
+        Ugrás a fő tartalomra
+      </a>
       <Sidebar
         collapsed={collapsed}
         onToggle={() => setCollapsed(!collapsed)}
@@ -5313,7 +5459,11 @@ export function App() {
         profile={profile}
         garminStatus={garminStatus}
       />
-      <div className={`content ${active === "Áttekintés" ? "overview-active" : ""}`}>
+      <div
+        id="main-content"
+        tabIndex={-1}
+        className={`content ${active === "Áttekintés" ? "overview-active" : ""}`}
+      >
         {pages[active] || <Placeholder page={active} />}
       </div>
       {active === "Áttekintés" && <div className="overview-sync-position"><GarminSyncControl garminStatus={garminStatus} onConnect={() => setActive("Beállítások")} /></div>}

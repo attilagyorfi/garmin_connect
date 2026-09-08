@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
-import { Bot, Database, Send, Sparkles, Trash2, X } from "lucide-react";
+import { Bot, CalendarCheck, Check, Database, Send, Sparkles, Trash2, X } from "lucide-react";
 import {
   Conversation,
   ConversationContent,
@@ -21,6 +21,7 @@ export function AssistantPanel() {
   const [input, setInput] = useState("");
   const [memoryEnabled, setMemoryEnabled] = useState(true);
   const [historyLoaded, setHistoryLoaded] = useState(false);
+  const [actionStates, setActionStates] = useState({});
   const saveTimer = useRef(null);
   const { messages, setMessages, sendMessage, status, error } = useChat({
     transport: new DefaultChatTransport({ api: "/api/chat" }),
@@ -72,6 +73,22 @@ export function AssistantPanel() {
     sendMessage({ text: value });
     setInput("");
   };
+  const decideProposal = async (proposal, decision) => {
+    setActionStates((current) => ({ ...current, [proposal.id]: { status: "working" } }));
+    try {
+      const response = await fetch("/api/assistant-actions", {
+        method: "PATCH", credentials: "same-origin",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ id: proposal.id, decision }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || "A döntés mentése sikertelen.");
+      setActionStates((current) => ({ ...current, [proposal.id]: { status: result.status } }));
+      if (result.state) window.dispatchEvent(new CustomEvent("hybrid-cloud-state", { detail: result.state }));
+    } catch (actionError) {
+      setActionStates((current) => ({ ...current, [proposal.id]: { status: "error", error: actionError.message } }));
+    }
+  };
 
   return (
     <>
@@ -98,6 +115,18 @@ export function AssistantPanel() {
               <MessageContent>
                 {message.parts.filter((part) => part.type === "text").map((part, index) =>
                   <MessageResponse key={index}>{part.text}</MessageResponse>)}
+                {message.parts.filter((part) => part.type === "data-plan-proposal").map((part) => {
+                  const proposal = part.data;
+                  const proposalState = actionStates[proposal.id]?.status || proposal.status;
+                  return <section className="assistant-proposal" key={proposal.id} aria-label="Edzésterv-módosítási előnézet">
+                    <div><CalendarCheck size={17} /><strong>Jóváhagyásra vár</strong></div>
+                    <p>{proposal.summary}</p><small>{proposal.reason}</small>
+                    {proposalState === "pending" ? <div className="assistant-proposal-actions">
+                      <button onClick={() => decideProposal(proposal, "reject")}><X size={15} /> Elutasítás</button>
+                      <button className="approve" onClick={() => decideProposal(proposal, "approve")}><Check size={15} /> Jóváhagyás</button>
+                    </div> : proposalState === "working" ? <em>Mentés…</em> : proposalState === "applied" ? <em className="success">Jóváhagyva és alkalmazva.</em> : proposalState === "rejected" ? <em>Elutasítva, nem történt módosítás.</em> : <em className="error">{actionStates[proposal.id]?.error || "A művelet sikertelen."}</em>}
+                  </section>;
+                })}
               </MessageContent>
             </Message>)}
             {busy && status === "submitted" && <div className="assistant-thinking">Az adataid értelmezése…</div>}

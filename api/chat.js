@@ -62,6 +62,70 @@ function requestsMutation(question) {
   return /(módosíts|változtass|írd át|töröld|add hozzá|hozz létre).*(terv|profil|cél|edzés)/iu.test(question);
 }
 
+function localDate(offsetDays = 0) {
+  const date = new Date(Date.now() + offsetDays * 86400000);
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/Budapest", year: "numeric", month: "2-digit", day: "2-digit",
+  }).formatToParts(date).reduce((result, part) => ({ ...result, [part.type]: part.value }), {});
+  return `${parts.year}-${parts.month}-${parts.day}`;
+}
+
+function planDateFromQuestion(question) {
+  const iso = question.match(/\b(20\d{2}-\d{2}-\d{2})\b/)?.[1];
+  if (iso) return iso;
+  if (/holnap/iu.test(question)) return localDate(1);
+  if (/\bma(i|ra)?\b/iu.test(question)) return localDate();
+  return null;
+}
+
+function planTypeFromQuestion(question) {
+  const types = [
+    [/fut/iu, "Futás"], [/erő|súlyz|kond/iu, "Erő"], [/túrá/iu, "Túrázás"],
+    [/kerék|bring/iu, "Kerékpár"], [/mobil/iu, "Mobilitás"], [/pihen/iu, "Pihenő"],
+    [/kardió/iu, "Kardió"],
+  ];
+  return types.find(([pattern]) => pattern.test(question))?.[1] || null;
+}
+
+function buildPlanProposal(question, plans) {
+  if (!requestsMutation(question) || /profil|cél/iu.test(question)) return null;
+  const date = planDateFromQuestion(question);
+  const type = planTypeFromQuestion(question);
+  const candidates = (plans || []).filter((item) => (!date || item.date === date) && (!type || item.type === type));
+  const deleting = /töröld|vedd ki|távolítsd/iu.test(question);
+  const creating = /add hozzá|hozz létre|új edzés/iu.test(question);
+  const existing = candidates.length === 1 ? candidates[0] : null;
+  if (deleting) {
+    if (!existing) return null;
+    return { action: "delete_plan", targetPlanId: existing.id, plan: null, summary: `${existing.title} törlése (${existing.date})`, reason: "A felhasználó kifejezetten az edzés törlését kérte." };
+  }
+  if (!creating && !existing) return null;
+  if (creating && (!date || !type)) return null;
+  const duration = Number(question.match(/\b(\d{1,3})\s*perc/iu)?.[1] || existing?.duration || (type === "Pihenő" ? 0 : 60));
+  const intensity = ["regeneráló", "könnyű–közepes", "közepes–magas", "könnyű", "közepes", "magas"].find((value) => question.toLocaleLowerCase("hu-HU").includes(value)) || existing?.intensity || "közepes";
+  const rpe = Number(question.match(/\bRPE\s*([1-9]|10)\b/iu)?.[1] || existing?.rpe || 5);
+  const plan = {
+    ...(existing || {}), id: existing?.id || "", date: date || existing.date, type: type || existing.type,
+    title: existing?.title || `${type} edzés`, duration, intensity, rpe,
+    purpose: existing?.purpose || "", note: existing?.note || "",
+  };
+  return {
+    action: "upsert_plan", targetPlanId: null, plan,
+    summary: `${plan.title}: ${plan.date}, ${plan.duration} perc, ${plan.intensity}`,
+    reason: existing ? "A felhasználó a meglévő edzésterv módosítását kérte." : "A felhasználó új edzést kért a tervbe.",
+  };
+}
+
+async function registerProposal(request, proposal) {
+  const response = await fetch(`${baseUrl(request)}/api/assistant-actions`, {
+    method: "POST",
+    headers: { "content-type": "application/json", cookie: request.headers.get("cookie") || "" },
+    body: JSON.stringify({ proposal }), cache: "no-store",
+  });
+  if (!response.ok) throw new Error((await response.json().catch(() => ({}))).error || "A javaslat nem menthető.");
+  return response.json();
+}
+
 function fallbackAnswer(context, question) {
   const readiness = Number(context.readiness);
   const week = context.week || {};
@@ -109,13 +173,15 @@ async function handle(request) {
     if (!dashboardResponse.ok || !stateResponse.ok) {
       return json({ error: "A személyes sportadatok most nem érhetők el." }, 503);
     }
-    const context = compactContext(await dashboardResponse.json(), await stateResponse.json());
+    const [dashboard, state] = await Promise.all([dashboardResponse.json(), stateResponse.json()]);
+    const context = compactContext(dashboard, state);
     const messages = await convertToModelMessages(body.messages.slice(-MAX_MESSAGES));
     const lastQuestion = body.messages.at(-1)?.parts?.find((part) => part.type === "text")?.text || "";
     const stream = createUIMessageStream({
       execute: async ({ writer }) => {
         const id = crypto.randomUUID();
         let answer;
+        let savedProposal = null;
         try {
           const result = await generateText({
             model: gateway(MODEL_ID),
@@ -130,12 +196,24 @@ async function handle(request) {
           answer = fallbackAnswer(context, lastQuestion);
         }
         if (requestsMutation(lastQuestion)) {
-          answer = `**Módosítási előnézet**\n\n${answer}\n\n_Még semmit nem módosítottam. A végrehajtáshoz külön, egyértelmű jóváhagyás szükséges._`;
+          const proposal = buildPlanProposal(lastQuestion, state.plans || []);
+          if (proposal) {
+            try {
+              savedProposal = await registerProposal(request, proposal);
+              answer = `**Módosítási előnézet**\n\n${answer}\n\n_Még semmit nem módosítottam._`;
+            } catch (error) {
+              console.warn("chat_proposal_rejected", error?.message || error);
+              answer += "\n\n_A javaslatot nem tudtam biztonságosan előkészíteni, ezért semmi nem változott._";
+            }
+          } else {
+            answer += "\n\n_A végrehajtható előnézethez írd meg egyértelműen az edzés dátumát, típusát és a kívánt változtatást. Semmit nem módosítottam._";
+          }
         }
         answer += sourceSummary(context);
         writer.write({ type: "text-start", id });
         writer.write({ type: "text-delta", id, delta: answer });
         writer.write({ type: "text-end", id });
+        if (savedProposal) writer.write({ type: "data-plan-proposal", id: savedProposal.id, data: savedProposal });
       },
     });
     return createUIMessageStreamResponse({ stream });

@@ -8,7 +8,7 @@
 - elkészült: felhasználónkénti szinkronzár
 - elkészült: egyszer használható, 30 perces tokennel működő e-mail-megerősítés és jelszó-visszaállítás
 - elkészült: öt sikertelen belépés után 15 perces, e-mail- és klienskulcshoz kötött próbálkozáskorlátozás
-- következő: aktív munkamenetek megtekintése és távoli visszavonása
+- elkészült: aktív munkamenetek megtekintése, jelenlegi eszköz jelölése és távoli visszavonása
 - elkészült: felhasználónkénti, Fernet-titkosított Garmin-kapcsolat; sikeres hitelesítés után a jelszó nem kerül tárolásra
 - elkészült: tartós, titkosított Garmin-tokenkezelés és SQL-ben folytatható, 10 perces MFA bootstrap próbálkozáskorlátozással
 
@@ -35,9 +35,9 @@
 - adatminimalizálás: nyers Garmin payload helyett célzott, összesített kontextus; hitelesítő és token soha nem kerül modellpromptba
 - elkészült: felhasználónként elkülönített, opcionális és törölhető beszélgetési memória
 - elkészült: válaszonkénti adat-időszak és felhasznált mérőszám összefoglaló
-- elkészült: módosítási kéréseknél csak előnézet, végrehajtás nélkül és külön jóváhagyási elvvel
+- elkészült: módosítási kéréseknél szerveroldalon tárolt előnézet, 24 órás lejárat, külön elutasítás/jóváhagyás és auditált tervmódosítás
 - elkészült: környezeti változóval választható AI Gateway modell, válaszonkénti tokenplafon és szerveroldali használati napló
-- következő: jóváhagyott tervmódosítások tényleges, auditált végrehajtása és szolgáltatói költségriasztás beállítása a Vercelben
+- következő: szolgáltatói költségriasztás beállítása a Vercelben
 - következő: modell/provider és költségkorlát kiválasztása, naplózási és adatmegőrzési beállításokkal
 
 ## Elkészült üzemi megerősítés
@@ -65,7 +65,7 @@
 ## Következő P1 finomítások
 
 - pulzuszóna-payloadok anonim, valós eszközfixture-ökkel történő további schema-drift validációja
-- billentyűzetes és képernyőolvasós accessibility audit valódi böngészőben
+- elkészült: valódi böngészős billentyűzet- és képernyőolvasó-audit; skip link, egységes fókuszjelzés, csökkentett mozgás, elnevezett grafikonok és modális vezérlők
 - elkészült: a generált napi ajánlások és heti összefoglalók külön historikus UI-ja, grafikonokkal és JSON-exporttal
 
 ## Elkészült P2 – Célok és tervezés

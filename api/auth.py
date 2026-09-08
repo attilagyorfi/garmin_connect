@@ -55,10 +55,16 @@ class handler(BaseHTTPRequestHandler):
                 return
             elif action == "login":
                 client_id = self.headers.get("X-Forwarded-For", "").split(",")[0].strip() or self.client_address[0]
-                user, token = login(payload.get("email", ""), payload.get("password", ""), client_id)
+                user, token = login(
+                    payload.get("email", ""), payload.get("password", ""), client_id,
+                    self.headers.get("User-Agent", ""), client_id,
+                )
                 status = 200
             elif action == "verify_email":
-                user, token = verify_email(payload.get("token", ""))
+                client_ip = self.headers.get("X-Forwarded-For", "").split(",")[0].strip() or self.client_address[0]
+                user, token = verify_email(
+                    payload.get("token", ""), self.headers.get("User-Agent", ""), client_ip,
+                )
                 status = 200
             elif action == "resend_verification":
                 result = resend_verification(payload.get("email", ""))
