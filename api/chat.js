@@ -5,10 +5,12 @@ import {
   gateway,
   generateText,
 } from "ai";
+import { completeGeneration, reserveGeneration } from "../server/ai-usage.js";
 
 const MAX_MESSAGES = 10;
 const MAX_INPUT_CHARACTERS = 24000;
-const MAX_OUTPUT_TOKENS = Math.max(256, Math.min(1200, Number(process.env.HYBRID_AI_MAX_OUTPUT_TOKENS || 700)));
+const outputLimit = Number(process.env.HYBRID_AI_MAX_OUTPUT_TOKENS || 700);
+const MAX_OUTPUT_TOKENS = Number.isFinite(outputLimit) ? Math.max(256, Math.min(1200, Math.floor(outputLimit))) : 700;
 const MODEL_ID = process.env.HYBRID_AI_MODEL || "anthropic/claude-sonnet-5";
 
 function json(body, status = 200) {
@@ -126,7 +128,7 @@ async function registerProposal(request, proposal) {
   return response.json();
 }
 
-function fallbackAnswer(context, question) {
+function fallbackAnswer(context, question, reason = "provider") {
   const readiness = Number(context.readiness);
   const week = context.week || {};
   const recent = context.recentWorkouts || [];
@@ -150,10 +152,19 @@ function fallbackAnswer(context, question) {
     ? "A pontszám önmagában nem indokol teljes pihenőt, de az alvás, izomláz és fáradtság jelzéseit vedd elsődlegesnek."
     : "A jelenlegi terhelhetőség alapján indokolt lehet a terhelés csökkentése és több regeneráció.";
   if (/terhel|fejlő|változ|trend/.test(lower)) advice = `${weekText} A fejlődést több hét trendje alapján érdemes megítélni, nem egyetlen napi értékből.`;
-  return `${readinessText} ${lastText}\n\n**Gyakorlati értelmezés:** ${advice}\n\n_Ezt a választ az alkalmazás helyi magyarázó motorja készítette a saját adataidból, mert a külső AI-szolgáltatás jelenleg nem érhető el._`;
+  const explanation = {
+    daily_limit: "A következő válaszhoz már nem maradt elég a mai AI-keretből. A keret budapesti idő szerint éjfélkor újraindul.",
+    request_too_large: "Ez a beszélgetés túl hosszú a beállított napi AI-kerethez. Rövidebb kérdéssel vagy új beszélgetéssel próbálkozhatsz.",
+    accounting: "Az AI-használati keret most nem ellenőrizhető. Próbáld újra később.",
+    provider: "A külső AI-szolgáltatás jelenleg nem érhető el.",
+  }[reason] || "A külső AI-szolgáltatás jelenleg nem érhető el.";
+  return `${readinessText} ${lastText}\n\n**Gyakorlati értelmezés:** ${advice}\n\n_Ezt a választ az alkalmazás helyi magyarázó motorja készítette a saját adataidból. ${explanation}_`;
 }
 
-async function handle(request) {
+export async function handle(request, {
+  readOwnData = ownData, generate = generateText,
+  reserve = reserveGeneration, complete = completeGeneration,
+} = {}) {
   try {
     const body = await request.json();
     if (!Array.isArray(body?.messages) || body.messages.length === 0) {
@@ -163,37 +174,55 @@ async function handle(request) {
     if (body.messages.length > 40 || inputSize > MAX_INPUT_CHARACTERS) {
       return json({ error: "A beszélgetés túl hosszú. Töröld az előzményeket, majd próbáld újra." }, 413);
     }
-    const [dashboardResponse, stateResponse] = await Promise.all([
-      ownData(request, "/api/dashboard"),
-      ownData(request, "/api/state"),
+    const [authResponse, dashboardResponse, stateResponse] = await Promise.all([
+      readOwnData(request, "/api/auth"),
+      readOwnData(request, "/api/dashboard"),
+      readOwnData(request, "/api/state"),
     ]);
-    if (dashboardResponse.status === 401 || stateResponse.status === 401) {
+    if (authResponse.status === 401 || dashboardResponse.status === 401 || stateResponse.status === 401) {
       return json({ error: "A beszélgetéshez bejelentkezés szükséges." }, 401);
     }
-    if (!dashboardResponse.ok || !stateResponse.ok) {
+    if (!authResponse.ok || !dashboardResponse.ok || !stateResponse.ok) {
       return json({ error: "A személyes sportadatok most nem érhetők el." }, 503);
     }
-    const [dashboard, state] = await Promise.all([dashboardResponse.json(), stateResponse.json()]);
+    const [auth, dashboard, state] = await Promise.all([authResponse.json(), dashboardResponse.json(), stateResponse.json()]);
+    if (!auth.user?.id) return json({ error: "A beszélgetéshez bejelentkezés szükséges." }, 401);
     const context = compactContext(dashboard, state);
     const messages = await convertToModelMessages(body.messages.slice(-MAX_MESSAGES));
+    const system = `Te a Hybrid Athlete magyar nyelvű, közérthető sportadat-asszisztense vagy. Kizárólag az alábbi, bejelentkezett felhasználóhoz tartozó kontextust használd személyes állításokhoz. Ne találj ki hiányzó adatot. A mérőszámokat laikus nyelven magyarázd. Ne diagnosztizálj és ne ígérj biztos eredményt; egészségügyi panasz vagy veszélyjel esetén javasolj megfelelő szakembert. A válasz legyen tömör, gyakorlatias és magyar nyelvű. Profil-, cél- vagy edzésterv-módosítást soha ne hajts végre közvetlenül: csak jól elkülönített előnézetet adj, mondd ki, hogy még semmit nem módosítottál, és kérj kifejezett felhasználói jóváhagyást.\n\nSZEMÉLYES KONTEXTUS:\n${JSON.stringify(context)}`;
     const lastQuestion = body.messages.at(-1)?.parts?.find((part) => part.type === "text")?.text || "";
     const stream = createUIMessageStream({
       execute: async ({ writer }) => {
         const id = crypto.randomUUID();
+        const generationId = crypto.randomUUID();
         let answer;
         let savedProposal = null;
+        let reserved = false;
         try {
-          const result = await generateText({
-            model: gateway(MODEL_ID),
-            maxOutputTokens: MAX_OUTPUT_TOKENS,
-            system: `Te a Hybrid Athlete magyar nyelvű, közérthető sportadat-asszisztense vagy. Kizárólag az alábbi, bejelentkezett felhasználóhoz tartozó kontextust használd személyes állításokhoz. Ne találj ki hiányzó adatot. A mérőszámokat laikus nyelven magyarázd. Ne diagnosztizálj és ne ígérj biztos eredményt; egészségügyi panasz vagy veszélyjel esetén javasolj megfelelő szakembert. A válasz legyen tömör, gyakorlatias és magyar nyelvű. Profil-, cél- vagy edzésterv-módosítást soha ne hajts végre közvetlenül: csak jól elkülönített előnézetet adj, mondd ki, hogy még semmit nem módosítottál, és kérj kifejezett felhasználói jóváhagyást.\n\nSZEMÉLYES KONTEXTUS:\n${JSON.stringify(context)}`,
-            messages,
+          const admission = await reserve({
+            userId: auth.user.id, id: generationId, model: MODEL_ID,
+            system, messages, maxOutputTokens: MAX_OUTPUT_TOKENS,
           });
-          answer = result.text;
-          console.info("chat_generation", JSON.stringify({ model: MODEL_ID, inputTokens: result.usage?.inputTokens, outputTokens: result.usage?.outputTokens }));
+          if (!admission.allowed) {
+            answer = fallbackAnswer(context, lastQuestion, admission.reason);
+          } else {
+            reserved = true;
+            const result = await generate({
+              model: gateway(MODEL_ID),
+              maxOutputTokens: MAX_OUTPUT_TOKENS,
+              maxRetries: 0,
+              system, messages,
+            });
+            answer = result.text;
+            await complete({ userId: auth.user.id, id: generationId, usage: result.usage })
+              .catch(() => console.warn("chat_usage_complete_failed"));
+            console.info("chat_generation", JSON.stringify({ id: generationId, model: MODEL_ID, inputTokens: result.usage?.inputTokens, outputTokens: result.usage?.outputTokens }));
+          }
         } catch (error) {
-          console.warn("chat_gateway_fallback", error?.message || error);
-          answer = fallbackAnswer(context, lastQuestion);
+          console.warn(reserved ? "chat_gateway_fallback" : "chat_accounting_unavailable");
+          answer = fallbackAnswer(context, lastQuestion, reserved ? "provider" : "accounting");
+          if (reserved) await complete({ userId: auth.user.id, id: generationId, status: "error" })
+            .catch(() => console.warn("chat_usage_complete_failed"));
         }
         if (requestsMutation(lastQuestion)) {
           const proposal = buildPlanProposal(lastQuestion, state.plans || []);

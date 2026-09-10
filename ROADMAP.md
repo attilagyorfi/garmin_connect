@@ -37,7 +37,8 @@
 - elkészült: válaszonkénti adat-időszak és felhasznált mérőszám összefoglaló
 - elkészült: módosítási kéréseknél szerveroldalon tárolt előnézet, 24 órás lejárat, külön elutasítás/jóváhagyás és auditált tervmódosítás
 - elkészült: környezeti változóval választható AI Gateway modell, válaszonkénti tokenplafon és szerveroldali használati napló
-- következő: szolgáltatói költségriasztás beállítása a Vercelben
+- elkészült: generálásonkénti tartós tokenelszámolás és opcionális díjbecslés, prompttartalom helyett ujjlenyomattal; felhasználónkénti napi tokenkeret, kizárólag szerveroldali írás, párhuzamos kérések zárolása, hiányzó fogyasztásnál megőrzött foglalás és Budapest szerinti napi összesítő
+- következő: Vercel-fiókszintű szolgáltatói költségriasztás beállítása a production projektben
 - következő: modell/provider és költségkorlát kiválasztása, naplózási és adatmegőrzési beállításokkal
 
 ## Elkészült üzemi megerősítés

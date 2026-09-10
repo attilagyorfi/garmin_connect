@@ -22,6 +22,7 @@ export function AssistantPanel() {
   const [memoryEnabled, setMemoryEnabled] = useState(true);
   const [historyLoaded, setHistoryLoaded] = useState(false);
   const [actionStates, setActionStates] = useState({});
+  const [usage, setUsage] = useState(null);
   const saveTimer = useRef(null);
   const { messages, setMessages, sendMessage, status, error } = useChat({
     transport: new DefaultChatTransport({ api: "/api/chat" }),
@@ -59,6 +60,12 @@ export function AssistantPanel() {
     }, 450);
     return () => clearTimeout(saveTimer.current);
   }, [historyLoaded, memoryEnabled, messages, status]);
+  useEffect(() => {
+    if (!open || status !== "ready") return;
+    fetch("/api/ai-usage", { credentials: "same-origin", cache: "no-store" })
+      .then((response) => response.ok ? response.json() : Promise.reject(new Error("usage")))
+      .then(setUsage).catch(() => {});
+  }, [open, status, messages.length]);
   const clearHistory = () => {
     setMessages([]);
     fetch("/api/state", {
@@ -104,6 +111,10 @@ export function AssistantPanel() {
           </div>
         </div>
         <p className="assistant-privacy">A válaszok a bejelentkezett fiókod szinkronizált adatait használják kontextusként. Ez nem orvosi tanács.</p>
+        {usage && <div className="assistant-usage" title="A napi keret budapesti idő szerint éjfélkor indul újra.">
+          <span>Mai AI-keret</span><strong>{usage.usedTokens.toLocaleString("hu-HU")} / {usage.limitTokens.toLocaleString("hu-HU")} token</strong>
+          <i><b style={{ width: `${Math.min(100, usage.usedTokens / usage.limitTokens * 100)}%` }} /></i>
+        </div>}
         <label className="assistant-memory"><Database size={14} /><span>Beszélgetési memória</span><input type="checkbox" checked={memoryEnabled} onChange={(event) => setMemoryEnabled(event.target.checked)} /><i aria-hidden="true" /></label>
         <Conversation className="assistant-conversation">
           <ConversationContent className="assistant-messages">

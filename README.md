@@ -65,6 +65,31 @@ Másold a `.env.example` tartalmát saját, Gitből kizárt `.env` fájlba vagy 
 
 A `.env`, tokenkönyvtár, cache, SQLite, export és egészségadat Gitből kizárt. A repóba soha ne commitolj valódi hitelesítőt vagy személyes egészségadatot.
 
+## Vercel: az AI-asszisztens opcionális használati beállításai
+
+Az asztali webfelület AI-használati kerete további változó nélkül **50 000 token/felhasználó/nap**.
+A token a feldolgozott szöveg kis egysége; a keret a kérdések, az adatkontextus és a válaszok összesített használatát számolja.
+
+| Változó | Szükséges? | Hatása |
+|---|---|---|
+| `HYBRID_AI_DAILY_TOKEN_LIMIT` | Nem | Az alapértelmezett `50000` napi tokenkeret felülírása pozitív egész számmal. |
+| `HYBRID_AI_INPUT_USD_PER_MILLION` | Csak dolláros becsléshez | A kiválasztott modell bemeneti díja USD / 1 millió token egységben. |
+| `HYBRID_AI_OUTPUT_USD_PER_MILLION` | Csak dolláros becsléshez | A kiválasztott modell kimeneti díja ugyanebben az egységben. |
+
+A két díjat együtt kell megadni; üres vagy hibás értéknél a költségbecslés ismeretlen, nem nulla.
+Pontos szolgáltatói számlázást, gyorsítótár-kedvezményt vagy dolláros leállítási küszöböt ezek az értékek nem állítanak be.
+A Vercel projekt **Settings → Environment Variables** felületén a megfelelő környezetet (Production, illetve teszteléshez Preview) válaszd; a változók új telepítéstől érvényesek.
+Helyi `.env.local` változtatás nem módosítja a Vercelen tárolt értékeket. A `<…>` helyőrző szövegeket ne vidd fel értékként.
+
+A szerver a meglévő `DATABASE_URL` (vagy `POSTGRES_URL`) kapcsolaton írja az elszámolást; a böngésző csak a saját összesítőjét olvashatja.
+Generálás előtt a teljes kérés alapján keretet foglal, majd a szolgáltató által közölt használattal elszámol.
+Párhuzamos kéréseket felhasználónként adatbáziszár sorosít. Hiányzó elszámolás vagy bizonytalan kimenetel esetén a foglalás aznapra megmarad.
+A napi ablak budapesti idő szerint éjfélkor vált; elégtelen keretnél helyi, szabályalapú magyarázat érkezik.
+A használati napló azonosítót, időpontot, modellt, tokeneket, opcionális becsült költséget és SHA-256 ujjlenyomatot tárol; teljes kérdést/választ nem.
+Ez az ujjlenyomat nem titkosítás, ezért a napló továbbra is felhasználóhoz kötött adatként kezelendő.
+
+Ellenőrzés (éles modellhívás nélkül): `npm run test:ai` és `py -m pytest tests/test_ai_usage.py`.
+
 ## Garmin-szinkron és MFA
 
 Az app kizárólag lekérő metódusokat használ: `get_activities`, `get_activities_by_date`, `get_activity_hr_in_timezones`, `get_hrv_data`, `get_sleep_data`, `get_heart_rates`. A szinkron csak a felhasználó gombnyomására fut; rerenderkor nem. Az **Összes rendelkezésre álló adat** mód lapozva lekéri a teljes aktivitástörténetet, a legkorábbi aktivitásig tölti vissza a napi wellness adatokat, 30 naponként részleges cache-t ment, és újrafuttatáskor kihagyja a már cache-elt napokat. Részleges végponthiba nem állítja le a teljes folyamatot, teljes sikertelenségnél pedig az utolsó érvényes cache marad látható.

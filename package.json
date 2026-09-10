@@ -2,7 +2,11 @@
   "name": "hybrid-athlete-server",
   "private": true,
   "type": "module",
+  "scripts": {
+    "test:ai": "node --test tests/ai-usage.test.mjs tests/chat-usage.test.mjs"
+  },
   "dependencies": {
-    "ai": "^7.0.77"
+    "ai": "^7.0.77",
+    "pg": "^8.16.3"
   }
 }
