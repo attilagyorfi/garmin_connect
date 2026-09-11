@@ -4,7 +4,7 @@ import pytest
 
 from auth_store import (
     _clean_credentials, _device_name, _ip_hint, _limit_key, _password_hash,
-    _verify_password, cookie_header, token_from_headers,
+    _verify_password, cookie_header, initialize_auth, token_from_headers,
 )
 
 
@@ -51,3 +51,47 @@ def test_session_metadata_is_human_readable_and_ip_is_masked():
     ) == "Chrome · Windows"
     assert _ip_hint("192.0.2.123") == "192.0.2.…"
     assert _ip_hint("2001:db8:abcd:12::1") == "2001:db8:abcd:…"
+
+
+class SchemaConnection:
+    def __init__(self, readiness):
+        self.readiness = iter(readiness)
+        self.statements = []
+        self.commits = 0
+
+    def execute(self, sql):
+        self.statements.append(sql.strip())
+        return self
+
+    def fetchone(self):
+        return (next(self.readiness),)
+
+    def commit(self):
+        self.commits += 1
+
+
+def test_ready_auth_schema_does_not_run_ddl_or_acquire_migration_lock():
+    db = SchemaConnection([True])
+    initialize_auth(db)
+    assert len(db.statements) == 1
+    assert "FROM pg_attribute" in db.statements[0]
+    assert db.commits == 1
+
+
+def test_auth_schema_rechecks_after_lock_when_another_request_migrated():
+    db = SchemaConnection([False, True])
+    initialize_auth(db)
+    assert len(db.statements) == 3
+    assert "pg_advisory_xact_lock" in db.statements[1]
+    assert "FROM pg_attribute" in db.statements[2]
+    assert db.commits == 1
+
+
+def test_auth_schema_initialization_locks_before_any_ddl_and_commits():
+    db = SchemaConnection([False, False])
+    initialize_auth(db)
+    assert "pg_advisory_xact_lock" in db.statements[1]
+    assert "FROM pg_attribute" in db.statements[2]
+    assert db.statements[3].startswith("CREATE TABLE IF NOT EXISTS hybrid_users")
+    assert any("ALTER TABLE hybrid_sessions" in sql for sql in db.statements[3:])
+    assert db.commits == 1

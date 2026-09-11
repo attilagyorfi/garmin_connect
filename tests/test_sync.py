@@ -12,10 +12,11 @@ def test_demo_is_deterministic_for_metrics():
     assert first["demo_feedback"] == second["demo_feedback"]
 
 
-def test_missing_environment_is_clear(monkeypatch, tmp_path):
+def test_missing_garmin_session_is_clear(monkeypatch, tmp_path):
     monkeypatch.delenv("GARMIN_EMAIL", raising=False)
     monkeypatch.delenv("GARMIN_PASSWORD", raising=False)
-    with pytest.raises(GarminSyncError, match="GARMIN_EMAIL"):
+    monkeypatch.delenv("GARMINTOKENS", raising=False)
+    with pytest.raises(GarminSyncError, match="Nincs érvényes Garmin-munkamenet.*Beállításokban"):
         GarminSync(tmp_path).authenticate()
 
 

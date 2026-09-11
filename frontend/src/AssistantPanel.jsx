@@ -141,7 +141,7 @@ export function AssistantPanel() {
               </MessageContent>
             </Message>)}
             {busy && status === "submitted" && <div className="assistant-thinking">Az adataid értelmezése…</div>}
-            {error && <div className="assistant-error">Nem sikerült választ kapni. Ellenőrizd az AI Gateway beállítását, majd próbáld újra.</div>}
+            {error && <div className="assistant-error" role="alert">Nem sikerült választ kapni. A szükséges adatok vagy az asszisztens szolgáltatása átmenetileg nem érhetők el. Próbáld újra.</div>}
           </ConversationContent>
           <ConversationScrollButton />
         </Conversation>

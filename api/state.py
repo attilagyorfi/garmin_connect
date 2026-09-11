@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from http.server import BaseHTTPRequestHandler
 
 from auth_store import current_user
@@ -24,7 +25,11 @@ class handler(BaseHTTPRequestHandler):
                 self._send({"error": "A művelethez bejelentkezés szükséges."}, 401)
                 return
             self._send(load_state(user["id"]))
-        except Exception:
+        except Exception as exc:
+            logging.getLogger(__name__).error(
+                "state_load_failed type=%s sqlstate=%s",
+                type(exc).__name__, getattr(exc, "sqlstate", None),
+            )
             self._send({"error": "A személyes beállítások jelenleg nem tölthetők be."}, 503)
 
     def do_PATCH(self) -> None:  # noqa: N802

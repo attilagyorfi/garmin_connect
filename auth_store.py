@@ -4,6 +4,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import hmac
+import logging
 import os
 import re
 import secrets
@@ -27,7 +28,38 @@ class RateLimitError(ValueError):
     """Raised when repeated login failures temporarily lock a client key."""
 
 
+def _auth_schema_ready(db: Any) -> bool:
+    # Catalog reads do not acquire locks on the session tables used by requests.
+    return bool(db.execute("""
+        SELECT
+            to_regclass('hybrid_users') IS NOT NULL
+            AND to_regclass('hybrid_sessions') IS NOT NULL
+            AND to_regclass('hybrid_auth_tokens') IS NOT NULL
+            AND to_regclass('hybrid_login_limits') IS NOT NULL
+            AND to_regclass('hybrid_sessions_user_idx') IS NOT NULL
+            AND to_regclass('hybrid_sessions_public_id_idx') IS NOT NULL
+            AND to_regclass('hybrid_auth_tokens_user_idx') IS NOT NULL
+            AND (
+                SELECT COUNT(*) = 5 FROM pg_attribute
+                WHERE NOT attisdropped AND (
+                    (attrelid = to_regclass('hybrid_sessions')
+                     AND attname IN ('session_id', 'user_agent', 'ip_hint', 'last_seen_at'))
+                    OR (attrelid = to_regclass('hybrid_users') AND attname = 'email_verified_at')
+                )
+            )
+    """).fetchone()[0])
+
+
 def initialize_auth(db: Any) -> None:
+    # Running CREATE INDEX / ALTER TABLE on every request can deadlock with
+    # concurrent authentication reads and last-seen updates. Migrate only once.
+    if _auth_schema_ready(db):
+        db.commit()
+        return
+    db.execute("SELECT pg_advisory_xact_lock(1213809234, 1)")
+    if _auth_schema_ready(db):
+        db.commit()
+        return
     db.execute("""
         CREATE TABLE IF NOT EXISTS hybrid_users (
             id UUID PRIMARY KEY,
@@ -329,6 +361,12 @@ def current_user(headers: Any) -> dict[str, Any] | None:
             )
             db.commit()
         return _public_user(row) if row else None
+    except Exception as exc:
+        logging.getLogger(__name__).error(
+            "current_user_failed type=%s sqlstate=%s",
+            type(exc).__name__, getattr(exc, "sqlstate", None),
+        )
+        raise
     finally:
         db.close()
 
