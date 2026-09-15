@@ -1,4 +1,6 @@
-import { lazy, Suspense, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
+import { OverviewPage } from "./OverviewPage.jsx";
+import { budapestToday, overviewData } from "./overviewData.js";
 import {
   Activity,
   BarChart3,
@@ -43,7 +45,6 @@ import {
   YAxis,
 } from "recharts";
 import brandMarkUrl from "./assets/hybrid-athlete-mark-on-dark.svg";
-const AssistantPanel = lazy(() => import("./AssistantPanel").then((module) => ({ default: module.AssistantPanel })));
 
 const nav = [
   ["Áttekintés", BarChart3],
@@ -352,14 +353,22 @@ function MetricHeaderLayer({ page }) {
   return null;
 }
 
-function useDashboardData() {
+function useDashboardData(withStatus = false) {
   const [data, setData] = useState(null);
+  const [status, setStatus] = useState("loading");
   useEffect(() => {
     let active = true;
-    const load = () => fetch("/api/dashboard")
-      .then((r) => (r.ok ? r.json() : Promise.reject()))
-      .then((value) => active && setData(value))
-      .catch(() => {});
+    const load = async () => {
+      if (active) { setData(null); setStatus("loading"); }
+      try {
+        const response = await fetch("/api/dashboard", { cache: "no-store" });
+        const value = await response.json();
+        if (!active) return;
+        if (response.status === 404 && value?.code === "no_dashboard_data") { setStatus("empty"); return; }
+        if (!response.ok || !value || typeof value !== "object" || Array.isArray(value)) throw new Error();
+        setData(value); setStatus("ready");
+      } catch { if (active) setStatus("error"); }
+    };
     load();
     globalThis.window?.addEventListener("hybrid-dashboard-refresh", load);
     return () => {
@@ -367,7 +376,7 @@ function useDashboardData() {
       globalThis.window?.removeEventListener("hybrid-dashboard-refresh", load);
     };
   }, []);
-  return data;
+  return withStatus ? { data, status } : data;
 }
 async function fetchCloudState() {
   const response = await fetch("/api/state");
@@ -1486,7 +1495,7 @@ function MetricList({ data }) {
         x.score,
         x.name.startsWith("HRV") ? "warn" : "good",
       ])
-    : metrics;
+    : data ? [] : metrics;
   return (
     <section className="card metric-card">
       <div className="section-head">
@@ -1499,6 +1508,7 @@ function MetricList({ data }) {
             : `${rows.length} DEMO MÉRŐSZÁM`}
         </small>
       </div>
+      {rows.length === 0 && <p>Az összetevőkről még nincs megjeleníthető mérés. Nem helyettesítjük őket mintaértékekkel.</p>}
       {rows.map((row) => (
         <ReadinessMetric key={row[0]} row={row} data={data} />
       ))}
@@ -1626,12 +1636,16 @@ function TodayLive({
   onCloudPatch,
 }) {
   const [data, setData] = useState(null),
+    [loading, setLoading] = useState(true),
     [syncing, setSyncing] = useState(false),
     [syncJob, setSyncJob] = useState(null),
     [error, setError] = useState(""),
     [whyOpen, setWhyOpen] = useState(false),
     [checkin, setCheckin] = useState(null);
-  const load = () =>
+  const load = () => {
+    setLoading(true);
+    setData(null);
+    return (
     fetch("/api/dashboard")
       .then(async (r) => {
         const text = await r.text();
@@ -1640,7 +1654,7 @@ function TodayLive({
           body = JSON.parse(text);
         } catch {
           throw new Error(
-            "A helyi Garmin API nem érhető el; a beépített mintaadatok láthatók.",
+            "A Garmin-adatok nem tölthetők be. Nem jelenítünk meg mintaadatokból készült ajánlást.",
           );
         }
         if (!r.ok)
@@ -1651,7 +1665,10 @@ function TodayLive({
         setData(value);
         setError("");
       })
-      .catch((e) => setError(e.message || "Az adatok nem tölthetők be."));
+      .catch((e) => setError(e.message || "Az adatok nem tölthetők be."))
+      .finally(() => setLoading(false))
+    );
+  };
   useEffect(() => {
     load();
   }, []);
@@ -1713,7 +1730,7 @@ function TodayLive({
       })
       .catch(() => {});
   }, []);
-  const checkinKey = data?.today || isoDate(new Date());
+  const checkinKey = budapestToday();
   useEffect(() => {
     const cloud = cloudState?.checkins?.[checkinKey];
     if (cloud) {
@@ -1757,7 +1774,7 @@ function TodayLive({
       <>
         <header>
           <div>
-            <span className="eyebrow">{data?.today || "MA"}</span>
+            <span className="eyebrow">{checkinKey}</span>
             <h1>Kezdjük a napi állapotfelméréssel</h1>
           </div>
           <div className="header-actions">
@@ -1779,6 +1796,16 @@ function TodayLive({
         </main>
       </>
     );
+  if (loading || !data || data.today !== checkinKey || typeof data.readiness !== "number" || !Number.isFinite(data.readiness) || data.readiness < 0 || data.readiness > 100)
+    return <>
+      <header><div><span className="eyebrow">{checkinKey}</span><h1>A mai döntés</h1></div></header>
+      <section className="card" role={error ? "alert" : "status"}>
+        <h2>{loading ? "A Garmin-adatok betöltése…" : "A mai ajánláshoz még nincs megfelelő adat"}</h2>
+        <p>{loading ? "Az állapotfelmérésed már rendelkezésre áll. Várjuk a hozzá tartozó Garmin-adatokat." : error || (data?.today !== checkinKey ? "Nincs mai Garmin-összesítés. Az Áttekintés oldalon indíts szinkronizálást; a korábbi pontszámot nem tekintjük mai terhelhetőségnek." : "A mai terhelhetőségi pontszám hiányzik vagy érvénytelen. Nem helyettesítjük becsült mintaértékkel.")}</p>
+        {!loading && <button onClick={load}>Adatok újratöltése</button>}
+      </section>
+      <CheckIn value={checkin} onSave={saveCheckin} />
+    </>;
   return (
     <>
       <header>
@@ -1879,7 +1906,7 @@ function TodayLive({
             <h2>Miért {view.decision.title.toLowerCase()}?</h2>
             <p>{view.decision.rationale}</p>
             <ul>
-              <li>Garmin alapján: {data?.readiness ?? 78}/100</li>
+              <li>Garmin-adatokból számított alapérték: {data.readiness}/100</li>
               <li>Az állapotfelmérés után: {view.adjustedReadiness}/100</li>
               <li>Fő cél: {profile.goal}</li>
               <li>
@@ -2233,11 +2260,11 @@ function TrendsPage() {
 }
 
 function LiveTrendsPage({ profile }) {
-  const data = useDashboardData(),
+  const { data, status } = useDashboardData(true),
     [range, setRange] = useState("90 nap"),
     days = range === "30 nap" ? 30 : range === "90 nap" ? 90 : 365,
-    limit = range === "30 nap" ? 5 : range === "90 nap" ? 13 : 52,
-    rawPoints = (data?.trends || trendData).slice(-limit),
+    model = overviewData(data, days),
+    rawPoints = model.points,
     points = rawPoints.map((x, i) => ({
       ...x,
       week: x.date
@@ -2248,18 +2275,12 @@ function LiveTrendsPage({ profile }) {
         : x.week || `${i + 1}. hét`,
     })),
     current = rawPoints.at(-1) || {},
-    previous = rawPoints.at(-2) || current,
+    previous = rawPoints.at(-2) || {},
     delta = (key) =>
-      Math.round(
-        (Number(current[key] || 0) - Number(previous[key] || 0)) * 10,
-      ) / 10;
-  const sessions = data?.sessions || [],
-    latest = sessions[0]?.date ? new Date(sessions[0].date) : new Date(),
-    from = new Date(latest);
-  from.setDate(latest.getDate() - days + 1);
-  const periodSessions = sessions.filter((item) => new Date(item.date) >= from),
+      current[key] == null || previous[key] == null ? null : Math.round((current[key] - previous[key]) * 10) / 10;
+  const periodSessions = model.sessions,
     weeklyFrequency =
-      Math.round((periodSessions.length / (days / 7)) * 10) / 10;
+      model.known ? Math.round((periodSessions.length / (days / 7)) * 10) / 10 : "—";
   let feedback = {};
   try {
     feedback = JSON.parse(
@@ -2274,16 +2295,16 @@ function LiveTrendsPage({ profile }) {
           (rpes.reduce((sum, value) => sum + value, 0) / rpes.length) * 10,
         ) / 10
       : null,
-    zoneValues = data?.zones || [34, 78, 16, 20, 9],
+    zoneValues = data?.today === model.today && Array.isArray(data?.zones) && data.zones.length === 5 && data.zones.every(value => typeof value === "number" && Number.isFinite(value) && value >= 0) ? data.zones : [],
     total = zoneValues.reduce((a, b) => a + b, 0),
     colors = ["#23766b", "var(--accent)", "#3b82f6", "#f59e0b", "#ef4444"],
     eventDays = profile.eventDate
       ? Math.ceil((new Date(profile.eventDate) - new Date()) / 86400000)
       : null;
   const summaries = [
-    [Math.round(current.ctl || 0), "CTL", delta("ctl")],
-    [Math.round(current.atl || 0), "ATL", delta("atl")],
-    [Number(current.tsb || 0).toFixed(1), "TSB", delta("tsb")],
+    [current.ctl == null ? "—" : Math.round(current.ctl), "CTL", delta("ctl")],
+    [current.atl == null ? "—" : Math.round(current.atl), "ATL", delta("atl")],
+    [current.tsb == null ? "—" : current.tsb.toFixed(1), "TSB", delta("tsb")],
     [weeklyFrequency, "EDZÉS / HÉT", null],
     [averageRpe ?? "—", "ÁTLAG RPE", null],
   ];
@@ -2305,6 +2326,10 @@ function LiveTrendsPage({ profile }) {
           ))}
         </div>
       </PageHeader>
+      <section className="card" role={status === "error" ? "alert" : "status"}>
+        <p>{status === "loading" ? "A trendadatok betöltése…" : status === "error" ? "Az adatok betöltése nem sikerült. Nem jelenítünk meg helyettük mintagrafikont." : status === "empty" ? "Még nincs szinkronizált Garmin-adat. A szinkronizálást az Áttekintés oldalon indíthatod." : `Vizsgált időszak: ${model.from} – ${model.today}. Az utolsó elérhető trendpont: ${current.date || "nincs adat"}.`}</p>
+        <p>A CTL, ATL és TSB terhelési pontban szerepel. A heti edzésszám a kiválasztott teljes időszakra vetített átlag; a hiányosan szinkronizált időszak torzíthatja. Az RPE az edzés érzékelt nehézsége 1–10 között, csak a kitöltött visszajelzések alapján.</p>
+      </section>
       <section className="trend-summary">
         {summaries.map(([value, label, change]) => (
           <div className="card" key={label}>
@@ -2313,7 +2338,7 @@ function LiveTrendsPage({ profile }) {
             {change !== null && (
               <small className={change >= 0 ? "up" : "down"}>
                 {change >= 0 ? "+" : ""}
-                {change} az előző héthez képest
+                {change} pont az előző elérhető trendponthoz képest
               </small>
             )}
           </div>
@@ -2325,7 +2350,7 @@ function LiveTrendsPage({ profile }) {
             HOSSZÚ TÁVÚ TERHELÉS · ATL · CTL · TSB
           </span>
           <small>
-            {data?.source === "garmin" ? "GARMIN" : "DEMO"} ·{" "}
+            {data ? "SZINKRONIZÁLT ADATOK" : "NINCS ADAT"} ·{" "}
             {range.toUpperCase()}
           </small>
         </div>
@@ -2402,9 +2427,11 @@ function LiveTrendsPage({ profile }) {
       <div className="trend-bottom">
         <section className="card zone-card">
           <div className="section-head">
-            <span className="eyebrow">ZÓNAIDŐ ELOSZLÁS · AKTUÁLIS HÉT</span>
-            <small>{total} PERC</small>
+            <span className="eyebrow">ZÓNAIDŐ ELOSZLÁS · UTOLSÓ 7 NAP</span>
+            <small>{zoneValues.length ? total : "—"} PERC</small>
           </div>
+          <p>A zónákban töltött idő az összesítés napjával záruló 7 napot mutatja, nem a fenti időszakszűrő időtartamát. Csak a rendelkezésre álló pulzuszónás mérések számítanak bele: a nulla nem bizonyítja, hogy nem edzettél. A magasabb zóna nagyobb intenzitást jelent, nem jobb edzést.</p>
+          {!zoneValues.length && <p>Nincs friss, teljes zónaidő-adat.</p>}
           {zoneValues.map((minutes, index) => (
             <div className="zone-row" key={index}>
               <MetricHelp term={`Z${index + 1}`}>
@@ -5264,27 +5291,6 @@ function GarminSyncControl({ garminStatus, onConnect }) {
   return <div className="overview-sync-control">{error && <span role="alert">{error}</span>}<button onClick={() => syncNow()} disabled={syncing}>{syncing ? <AnimatedBrandMark className="sync-brand-mark" /> : <RefreshCw size={14} />}{syncing ? `${progress}%` : "SZINKRONIZÁLÁS"}</button>{syncing && <div className="sync-lock-overlay" role="dialog" aria-modal="true" aria-labelledby="sync-title" aria-describedby="sync-message" onKeyDown={(event) => { if (event.key === "Tab") event.preventDefault(); }} tabIndex={-1}><div className="sync-lock-content"><AnimatedBrandMark mode="assembling" /><strong id="sync-title">GARMIN SZINKRONIZÁLÁS</strong><span id="sync-message">{job?.message || "A szinkronizálás előkészítése…"}</span><div className="sync-lock-progress"><progress max="100" value={progress} aria-label={`Szinkronizálás: ${progress}%`} /><b>{progress}%</b></div><small>Az összes elérhető történeti adat feldolgozása folyamatban van. Kérjük, ne zárd be az oldalt.</small></div></div>}</div>;
 }
 
-function OverviewPage({ profile, garminStatus, onConnect }) {
-  const data = useDashboardData(),
-    [range, setRange] = useState(90),
-    sessions = data?.sessions || [],
-    anchor = data?.today ? new Date(`${data.today}T23:59:59`) : new Date(),
-    from = new Date(anchor);
-  from.setDate(from.getDate() - range + 1);
-  const visible = sessions.filter((item) => new Date(item.date) >= from),
-    minutes = visible.reduce((sum, item) => sum + Number(item.durationMin || 0), 0),
-    load = visible.reduce((sum, item) => sum + Number(item.load || 0), 0),
-    strength = visible.filter((item) => item.type === "Erő").length,
-    cardio = visible.filter((item) => item.type !== "Erő").length,
-    trendLimit = range === 30 ? 5 : range === 90 ? 13 : 52,
-    points = (data?.trends || trendData).slice(-trendLimit).map((item, index) => ({
-      ...item,
-      label: item.date
-        ? new Date(item.date).toLocaleDateString("hu-HU", { month: "short", day: "numeric" })
-        : item.week || `${index + 1}. hét`,
-    }));
-  return <><PageHeader eyebrow="TELJESÍTMÉNYKÉP" title="Áttekintés"><div className="segmented">{[[30,"30 nap"],[90,"90 nap"],[365,"1 év"]].map(([value,label])=><button key={value} className={range===value?"active":""} onClick={()=>setRange(value)}>{label}</button>)}</div></PageHeader><section className="overview-kpis">{[[visible.length,"EDZÉS"],[`${Math.floor(minutes/60)} ó ${minutes%60} p`,"EDZÉSIDŐ"],[load.toLocaleString("hu-HU"),"ÖSSZTERHELÉS"],[data?.readiness??"—","MAI TERHELHETŐSÉG"]].map(([value,label])=><div className="card" key={label}><strong>{value}</strong><span>{label}</span></div>)}</section><section className="card overview-chart"><div className="section-head"><div><span className="eyebrow">FEJLŐDÉSTÖRTÉNET</span><h2>Edzettség, fáradtság és forma</h2></div><small>{range===365?"1 ÉV":`${range} NAP`}</small></div><ResponsiveContainer width="100%" height={350}><LineChart data={points} margin={{top:8,right:18,bottom:28,left:34}}><CartesianGrid stroke="#2a2b2b" vertical={false}/><XAxis dataKey="label" stroke="#8b8e8d" fontSize={10} label={{value:"Dátum",position:"insideBottom",offset:-18,fill:"#aeb2b0"}}/><YAxis stroke="#8b8e8d" fontSize={10} label={{value:"Terhelési pont",angle:-90,position:"insideLeft",offset:-22,fill:"#aeb2b0"}}/><Tooltip formatter={(value,name)=>[`${value} pont`,name]} labelFormatter={(label)=>`Dátum: ${label}`} contentStyle={{background:"#181a19",border:"1px solid #343635"}}/><Line type="monotone" dataKey="ctl" name="Hosszú távú edzettség" stroke="var(--accent)" strokeWidth={3} dot={false}/><Line type="monotone" dataKey="atl" name="Rövid távú fáradtság" stroke="#f59e0b" strokeWidth={2} dot={false}/><Line type="monotone" dataKey="tsb" name="Forma" stroke="#3b82f6" strokeWidth={2} dot={false}/></LineChart></ResponsiveContainer><p className="chart-axis-note">X tengely: dátum · Y tengely: súlyozott terhelési pont. A pontszám az edzések időtartamát és intenzitását egyesíti; nem percet vagy pulzust jelöl.</p></section><section className="overview-bottom"><div className="card"><span className="eyebrow">EDZÉSMEGOSZLÁS</span><h2>{strength} erőedzés · {cardio} egyéb edzés</h2><p>A kiválasztott időszak minden Garmin-edzése szerepel az összesítésben, az azonos napon végzett több edzést is külön számoljuk.</p></div><div className="card"><span className="eyebrow">SZEMÉLYES CÉL</span><h2>{profile.goal}</h2><p>Heti {profile.weeklyHours} órás keret · {profile.strengthRatio}% erőedzés-cél.</p></div></section></>;
-}
 
 export function App() {
   const [collapsed, setCollapsed] = useState(false),
@@ -5469,7 +5475,6 @@ export function App() {
       {active === "Áttekintés" && <div className="overview-sync-position"><GarminSyncControl garminStatus={garminStatus} onConnect={() => setActive("Beállítások")} /></div>}
       <ExplainabilityLayer page={active} />
       <MetricHeaderLayer page={active} />
-      {onboarded && <Suspense fallback={null}><AssistantPanel /></Suspense>}
       {showSplash && onboarded && <BrandSplash onDone={finishSplash} />}{" "}
       {!onboarded && (
         <PersonalOnboarding

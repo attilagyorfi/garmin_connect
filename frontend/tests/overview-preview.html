@@ -1,0 +1,18 @@
+<!doctype html><html lang="hu"><head><meta charset="utf-8"><title>Áttekintés – izolált UI-teszt</title></head><body style="background:#101211;color:white;margin:24px;font-family:Arial"><h2>Izolált UI-teszt – kizárólag tesztadatok</h2><label>Adatállapot <select id="scenario"><option value="ready">Betöltött adatok</option><option value="empty">Még nincs adat</option><option value="error">Adatbetöltési hiba</option></select></label><div id="root" class="app" style="display:block;--accent:#14b8a6"></div><script type="module">
+import React from 'react';
+import {createRoot} from 'react-dom/client';
+import {OverviewPage} from '../src/OverviewPage.jsx';
+import {budapestToday} from '../src/overviewData.js';
+import '../src/styles.css';
+import '../src/readability.css';
+import '../src/ux-enhancements.css';
+const today=budapestToday();
+window.fetch=async()=>{
+  const scenario=document.querySelector('#scenario').value;
+  return {ok:scenario==='ready',status:scenario==='empty'?404:scenario==='error'?503:200,json:async()=>scenario==='ready'?{
+    today,readiness:75,sessions:[{date:today,type:'Erő',load:40,durationMin:30},{date:today,type:'Futás',load:60,durationMin:45}],trends:[{date:today,ctl:40,atl:50,tsb:-10}]
+  }:{code:scenario==='empty'?'no_dashboard_data':null}};
+};
+document.querySelector('#scenario').addEventListener('change',()=>window.dispatchEvent(new Event('hybrid-dashboard-refresh')));
+createRoot(document.querySelector('#root')).render(React.createElement(OverviewPage,{profile:{goal:'Tesztcél',weeklyHours:8,strengthRatio:30}}));
+</script></body></html>

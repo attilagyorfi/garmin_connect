@@ -1,0 +1,14 @@
+.overview-page .overview-heading {display:block;padding:0 260px 12px 0}
+.overview-heading h1 {font-size:32px;margin:8px 0}
+.overview-page p {font-size:15px;line-height:1.65;color:#c6ccc9}
+.overview-period {display:flex;gap:24px;align-items:center;flex-wrap:wrap;margin:24px 0 16px}
+.overview-period .segmented {transform:none!important}
+.overview-period p {margin:0}
+.overview-data-state {padding:18px 20px;margin-bottom:20px;border:1px solid #424945;border-radius:12px;color:#e2e7e4;font-size:15px;line-height:1.6}
+.overview-data-state button {margin-left:12px;padding:10px 16px}
+.overview-page .overview-kpis span {font-size:15px;letter-spacing:0;margin:0 0 12px;color:#dce2df}
+.overview-page .overview-kpis strong {font-size:32px;color:#fff}
+.overview-page .overview-kpis small {display:block;font-size:13px;color:#bac2be;margin-top:10px}
+.overview-explanations {display:grid;grid-template-columns:repeat(3,1fr);gap:24px}
+.overview-empty {padding:48px 16px;text-align:center;border:1px dashed #49534c;border-radius:12px}
+@media(max-width:900px){.overview-page .overview-heading{padding-right:0;padding-top:64px}.overview-explanations{grid-template-columns:1fr;gap:0}.overview-page .overview-kpis{grid-template-columns:1fr}}

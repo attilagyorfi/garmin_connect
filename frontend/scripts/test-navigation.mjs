@@ -2,6 +2,7 @@ import { JSDOM } from "jsdom";
 import React, { act } from "react";
 import { createRoot } from "react-dom/client";
 import { createServer } from "vite";
+import { budapestToday } from "../src/overviewData.js";
 
 const dom = new JSDOM('<!doctype html><div id="root"></div>', { url: "http://localhost/" });
 globalThis.window = dom.window;
@@ -13,10 +14,11 @@ globalThis.SVGElement = dom.window.SVGElement;
 dom.window.HTMLElement.prototype.attachEvent = () => {};
 globalThis.ResizeObserver = class { observe() {} unobserve() {} disconnect() {} };
 const dashboardFixture={
-  today:"2026-08-19",readiness:78,confidence:"magas",decision:{title:"Zone 2 alapozás",duration:"45–70 perc",intensity:"közepes",rationale:"Teszt regenerációs indoklás."},week:{total_load:420,change_pct:4,recommendations:["Tartsd a kiegyensúlyozott struktúrát."]},
+  today:budapestToday(),readiness:78,confidence:"magas",decision:{title:"Zone 2 alapozás",duration:"45–70 perc",intensity:"közepes",rationale:"Teszt regenerációs indoklás."},week:{total_load:420,change_pct:4,recommendations:["Tartsd a kiegyensúlyozott struktúrát."]},
   sessions:[{id:"test-activity",date:"2026-08-18",type:"Futás",name:"Teszt Zone 2 futás",durationMin:48,avgHr:137,distanceKm:8.2,load:64}],heat:[],metrics:[],trends:[],zones:[0,48,0,0,0]
 };
 const cloudPatches=[];
+dashboardFixture.metrics = [{name:"HRV (éjszakai)",value:"62 ms",score:75}];
 let mockedCloudState={version:2,profile:{name:"Attila",goal:"Általános fittség",weeklyHours:7,strengthRatio:25},accent:"teal",checkins:{},feedback:{},plans:[]};
 globalThis.fetch = async (input,options={}) => {
   const url=String(input);
@@ -61,7 +63,7 @@ try {
   const saveCheckin = [...document.querySelectorAll("button")].find(node => node.textContent.trim() === "Mentés és a javaslat kiszámítása");
   await act(async () => saveCheckin.click());
   if (!document.querySelector(".decision-copy")?.textContent.includes("Teljes pihenő")) throw new Error("A betegségérzet nem írta felül biztonságosan az ajánlást.");
-  if (!cloudPatches.some(patch=>patch.checkin?.date==="2026-08-19")) throw new Error("A napi check-in nem indított Neon-mentést.");
+  if (!cloudPatches.some(patch=>patch.checkin?.date===budapestToday())) throw new Error("A napi check-in nem a mai napra indított Neon-mentést.");
   console.log("OK kötelező napi check-in és biztonsági felülírás");
   await act(async () => new Promise(resolve=>setTimeout(resolve,5)));
   const explainedKpi=document.querySelector('.week-stats>div.explained-value');
@@ -206,6 +208,16 @@ try {
     }
     console.log(`OK ${label}`);
   }
+  dashboardFixture.today = "2020-01-01";
+  const todayButton = [...document.querySelectorAll(".sidebar button")].find(node => node.textContent.trim() === "Ma");
+  await act(async () => todayButton.click());
+  if (!document.querySelector(".content")?.textContent.includes("Nincs mai Garmin-összesítés")) throw new Error("Régi Garmin-adatokból mai ajánlás jelent meg.");
+  if (document.querySelector(".decision")) throw new Error("Elavult adatok mellett látható az ajánlás.");
+  dashboardFixture.today = budapestToday();
+  const retry = [...document.querySelectorAll("button")].find(node => node.textContent.trim() === "Adatok újratöltése");
+  await act(async () => retry.click());
+  if (document.querySelector(".content")?.textContent.includes("Nincs mai Garmin-összesítés")) throw new Error("A friss adatok újratöltése nem oldotta fel az adatkaput.");
+  console.log("OK elavult napi adatok kizárása és újratöltés");
   await act(async () => root.unmount());
 
   localStorage.clear();
