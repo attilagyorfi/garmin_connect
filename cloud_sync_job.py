@@ -11,7 +11,7 @@ from typing import Any
 from cloud_cache import load_user_json, save_user_json, sync_lock
 from cloud_dashboard import DASHBOARD_KEY, RAW_CACHE_KEY
 from dashboard_api import build_dashboard_payload
-from garmin_sync import GarminSync, GarminSyncError, _first_number, _sleep_score
+from garmin_sync import GarminSync, GarminSyncError, _wellness_record
 from garmin_connection import load_tokenstore, mark_reauth_required, refresh_tokenstore
 
 
@@ -132,14 +132,12 @@ def _advance_wellness(job: dict[str, Any], sync: GarminSync) -> None:
     processed = 0
     while cursor <= end and processed < WELLNESS_CHUNK:
         iso = cursor.isoformat()
-        if iso not in cached:
+        if iso not in cached or cached[iso].get("metric_schema_version") != 2 or cursor == end:
             hrv = sync._safe_call(lambda d=iso: client.get_hrv_data(d), {}, errors, f"hrv:{iso}")
             sleep = sync._safe_call(lambda d=iso: client.get_sleep_data(d), {}, errors, f"sleep:{iso}")
             heart = sync._safe_call(lambda d=iso: client.get_heart_rates(d), {}, errors, f"heart:{iso}")
-            hrv_summary = hrv.get("hrvSummary", hrv) if isinstance(hrv, dict) else {}
-            sleep_daily = sleep.get("dailySleepDTO", sleep) if isinstance(sleep, dict) else {}
-            sleep_seconds = _first_number(sleep_daily, "sleepTimeSeconds", "sleepTime")
-            cached[iso] = {"date": iso, "hrv": _first_number(hrv_summary, "lastNightAvg", "weeklyAvg", "lastNight5MinHigh"), "sleep_score": _sleep_score(sleep_daily) or _sleep_score(sleep), "sleep_hours": sleep_seconds / 3600 if sleep_seconds else None, "resting_hr": _first_number(heart, "restingHeartRate", "restingHeartRateValue"), "spo2": _first_number(sleep_daily, "averageSpO2Value", "averageSpo2", "avgSpO2")}
+            readiness = sync._safe_call(lambda d=iso: client.get_morning_training_readiness(d), {}, errors, f"training-readiness:{iso}") if cursor == end else None
+            cached[iso] = _wellness_record(iso, hrv, sleep, heart, readiness)
         cursor += timedelta(days=1)
         processed += 1
     raw["wellness"] = sorted(cached.values(), key=lambda item: item["date"])

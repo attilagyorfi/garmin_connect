@@ -90,7 +90,8 @@ def test_full_history_sync_resumes_cached_wellness(tmp_path):
     assert first["backfill_in_progress"] is False
     expected_days = (date.today() - date(2026, 8, 12)).days + 1
     assert len(first["wellness"]) == expected_days
-    assert client.wellness_calls == initial_calls
+    # A mai napot minden szinkron frissíti; a történeti napokat a cache-ből használja.
+    assert client.wellness_calls == initial_calls + 1
     assert second["activities"][0]["activityId"] == 1
 
 

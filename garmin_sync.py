@@ -47,6 +47,51 @@ def _sleep_score(payload: Any) -> float | None:
     return None
 
 
+def _training_readiness(payload: Any) -> dict[str, Any] | None:
+    """Keep Garmin's score and factors without attempting to reproduce them."""
+    if not isinstance(payload, dict):
+        return None
+    score = _number(payload.get("score"))
+    if score is None or not 0 <= score <= 100:
+        return None
+    keys = (
+        "score", "level", "feedbackLong", "feedbackShort", "sleepScore",
+        "sleepScoreFactorPercent", "recoveryTime", "recoveryTimeFactorPercent",
+        "recoveryTimeChangePhrase", "acwrFactorPercent", "hrvFactorPercent",
+        "stressHistoryFactorPercent", "inputContext", "timestampLocal",
+    )
+    return {key: payload.get(key) for key in keys if payload.get(key) is not None}
+
+
+def _wellness_record(
+    iso: str, hrv: Any, sleep: Any, heart: Any, readiness: Any = None,
+) -> dict[str, Any]:
+    hrv_summary = hrv.get("hrvSummary", hrv) if isinstance(hrv, dict) else {}
+    baseline = hrv_summary.get("baseline", {}) if isinstance(hrv_summary, dict) else {}
+    sleep_daily = sleep.get("dailySleepDTO", sleep) if isinstance(sleep, dict) else {}
+    sleep_seconds = _first_number(sleep_daily, "sleepTimeSeconds", "sleepTime")
+    sleep_score = _sleep_score(sleep_daily)
+    if sleep_score is None:
+        sleep_score = _sleep_score(sleep)
+    return {
+        "date": iso,
+        "hrv": _first_number(hrv_summary, "lastNightAvg"),
+        "hrv_source": "lastNightAvg" if _first_number(hrv_summary, "lastNightAvg") is not None else "missing",
+        "hrv_weekly_avg": _first_number(hrv_summary, "weeklyAvg"),
+        "hrv_last_night_5_min_high": _first_number(hrv_summary, "lastNight5MinHigh"),
+        "hrv_status": hrv_summary.get("status") if isinstance(hrv_summary, dict) else None,
+        "hrv_feedback": hrv_summary.get("feedbackPhrase") if isinstance(hrv_summary, dict) else None,
+        "hrv_baseline_low": _first_number(baseline, "balancedLow"),
+        "hrv_baseline_high": _first_number(baseline, "balancedUpper"),
+        "sleep_score": sleep_score,
+        "sleep_hours": sleep_seconds / 3600 if sleep_seconds else None,
+        "resting_hr": _first_number(heart, "restingHeartRate", "restingHeartRateValue"),
+        "spo2": _first_number(sleep_daily, "averageSpO2Value", "averageSpo2", "avgSpO2"),
+        "training_readiness": _training_readiness(readiness),
+        "metric_schema_version": 2,
+    }
+
+
 @dataclass
 class GarminSync:
     cache_dir: Path | str | None = None
@@ -191,22 +236,15 @@ class GarminSync:
         total_days = (end - start).days + 1
         for offset in range(total_days):
             day, iso = start + timedelta(days=offset), (start + timedelta(days=offset)).isoformat()
-            if iso in cached_wellness:
+            if iso in cached_wellness and cached_wellness[iso].get("metric_schema_version") == 2 and day != end:
                 continue
             hrv = self._safe_call(lambda d=iso: client.get_hrv_data(d), {}, errors, f"hrv:{iso}")
             sleep = self._safe_call(lambda d=iso: client.get_sleep_data(d), {}, errors, f"sleep:{iso}")
             heart = self._safe_call(lambda d=iso: client.get_heart_rates(d), {}, errors, f"heart:{iso}")
-            hrv_summary = hrv.get("hrvSummary", hrv) if isinstance(hrv, dict) else {}
-            sleep_daily = sleep.get("dailySleepDTO", sleep) if isinstance(sleep, dict) else {}
-            sleep_seconds = _first_number(sleep_daily, "sleepTimeSeconds", "sleepTime")
-            wellness.append({
-                "date": iso,
-                "hrv": _first_number(hrv_summary, "lastNightAvg", "weeklyAvg", "lastNight5MinHigh"),
-                "sleep_score": _sleep_score(sleep_daily) or _sleep_score(sleep),
-                "sleep_hours": sleep_seconds / 3600 if sleep_seconds else None,
-                "resting_hr": _first_number(heart, "restingHeartRate", "restingHeartRateValue"),
-                "spo2": _first_number(sleep_daily, "averageSpO2Value", "averageSpo2", "avgSpO2"),
-            })
+            readiness = self._safe_call(lambda d=iso: client.get_morning_training_readiness(d), {}, errors, f"training-readiness:{iso}") if day == end else None
+            record = _wellness_record(iso, hrv, sleep, heart, readiness)
+            cached_wellness[iso] = record
+            wellness = list(cached_wellness.values())
             if days is None and len(wellness) % 30 == 0:
                 self.save_cache({"synced_at": datetime.now().astimezone().isoformat(), "days": "all", "activities": activities, "wellness": sorted(wellness, key=lambda item: item["date"]), "partial_errors": errors[:20], "backfill_in_progress": True})
         if not activities and all(not any(v for k, v in day.items() if k != "date") for day in wellness):

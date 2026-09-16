@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import math
 import os
 from datetime import datetime, timedelta
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -18,10 +19,10 @@ load_dotenv(Path(__file__).with_name(".env.local"), override=False)
 load_dotenv(Path(__file__).with_name(".env.garmin.local"), override=True)
 
 
-def _number(value: Any, default: float = 0.0) -> float:
+def _number(value: Any, default: float | None = 0.0) -> float | None:
     try:
         result = float(value)
-        return result if result == result else default
+        return result if math.isfinite(result) else default
     except (TypeError, ValueError):
         return default
 
@@ -41,11 +42,13 @@ def _sport_name(kind: Any) -> str:
     return "Egyéb"
 
 
-def build_dashboard_payload(cache_dir: str | Path = "data") -> dict[str, Any]:
+def build_dashboard_payload(cache_dir: str | Path = "data", *, allow_demo: bool = False) -> dict[str, Any]:
     cache_dir = Path(cache_dir)
     payload = GarminSync(cache_dir).load_cache()
     source = "garmin"
     if not payload:
+        if not allow_demo:
+            raise ValueError("Nincs szinkronizált Garmin-adat. Nem készül demóösszesítés.")
         payload, source = demo_data(365), "demo"
     db = Database(cache_dir / "training.sqlite3")
     feedback = {**payload.get("demo_feedback", {}), **db.list_feedback()}
@@ -55,10 +58,35 @@ def build_dashboard_payload(cache_dir: str | Path = "data") -> dict[str, Any]:
         raise ValueError("Nincs megjeleníthető wellness-adat.")
     today = str(wellness.index[-1].date())
     result = explainable_readiness(wellness, checkins.get(today))
-    flags = red_flags(wellness, checkins.get(today), 0)
-    decision = training_decision(result, wellness, checkins.get(today), flags)
-    summary = weekly_summary(wellness, activities, flags)
     latest = wellness.iloc[-1]
+    official_readiness = latest.get("training_readiness") if isinstance(latest.get("training_readiness"), dict) else None
+    official_score = _number(official_readiness.get("score"), None) if official_readiness else None
+    if official_score is not None and not 0 <= official_score <= 100:
+        official_score = None
+    readiness_score = official_score if official_score is not None else result.score
+    readiness_source = "garmin_training_readiness" if official_score is not None else "hybrid_estimate"
+    flags = red_flags(wellness, checkins.get(today), 0)
+    decision = training_decision(result, wellness, checkins.get(today), flags, score_override=readiness_score)
+    summary = weekly_summary(wellness, activities, flags)
+    decision_source = "hybrid_rules_using_garmin_readiness" if readiness_source == "garmin_training_readiness" else "hybrid_rules"
+    decision_rationale = decision.get("rationale", "A regenerációs jelek alapján.")
+    if readiness_source == "garmin_training_readiness":
+        decision_rationale = f"A Garmin Training Readiness pontszámát saját, óvatossági edzésválasztási szabályainkkal értelmeztük. {decision_rationale}"
+    metric_definitions = [
+        ("HRV (éjszakai átlag)", "hrv", ".0f", " ms", None),
+        ("Garmin alváspontszám", "sleep_score", ".0f", " / 100", "value"),
+        ("Alvásidő", "sleep_hours", ".1f", " ó", None),
+        ("Nyugalmi pulzus", "resting_hr", ".0f", " bpm", None),
+        ("Hybrid TSB", "hybrid_tsb", "+.1f", "", None),
+    ]
+    metrics = []
+    missing_metrics = []
+    for name, column, format_spec, unit, score_mode in metric_definitions:
+        value = _number(latest.get(column), None)
+        if value is None:
+            missing_metrics.append(name)
+            continue
+        metrics.append({"name": name, "value": f"{value:{format_spec}}{unit}", "score": round(value) if score_mode == "value" else None, "source": "garmin" if not name.startswith("Hybrid") else "hybrid"})
     recent_load = wellness["hybrid_load"].tail(84).fillna(0)
     peak = max(1.0, _number(recent_load.max(), 1.0))
     heat = [min(3, round(_number(value) / peak * 3)) for value in recent_load]
@@ -74,7 +102,12 @@ def build_dashboard_payload(cache_dir: str | Path = "data") -> dict[str, Any]:
             "id": str(row["activity_id"]), "date": row["date"].date().isoformat(), "type": _sport_name(row["type"]),
             "name": str(row["name"]), "durationMin": round(_number(row["duration_min"])),
             "avgHr": round(_number(row["avg_hr"])) or None,
-            "load": round(_number(row["cardio_load"]) + _number(row["strength_load"])),
+            "load": round(_number(row.get("official_activity_load"), None) if _number(row.get("official_activity_load"), None) is not None else _number(row["cardio_load"]) + _number(row["strength_load"])),
+            "loadSource": "garmin_activity_training_load" if _number(row.get("official_activity_load"), None) is not None else "hybrid_estimate",
+            "aerobicTrainingEffect": _number(row.get("aerobic_training_effect"), None),
+            "anaerobicTrainingEffect": _number(row.get("anaerobic_training_effect"), None),
+            "trainingEffectLabel": row.get("training_effect_label"),
+            "vo2Max": _number(row.get("vo2_max"), None),
             "distanceKm": round(_number(row["distance_km"]), 1),
         }
         for _, row in all_sessions.iterrows()
@@ -89,24 +122,39 @@ def build_dashboard_payload(cache_dir: str | Path = "data") -> dict[str, Any]:
         "source": source,
         "generatedAt": datetime.now().astimezone().isoformat(),
         "today": today,
-        "readiness": round(_number(result.score)),
-        "band": "terhelhető" if _number(result.score) >= 70 else "óvatosan" if _number(result.score) >= 45 else "regeneráció",
-        "confidence": result.confidence,
+        "readiness": None if readiness_score is None else round(readiness_score),
+        "readinessSource": readiness_source,
+        "garminTrainingReadiness": official_readiness,
+        "hybridReadiness": result.score,
+        "band": "terhelhető" if (readiness_score or 0) >= 70 else "óvatosan" if (readiness_score or 0) >= 45 else "regeneráció",
+        "confidence": "Garmin által számított" if readiness_source == "garmin_training_readiness" else result.confidence,
         "decision": {
             "title": decision.get("title") or decision.get("recommendation") or "Regeneráló edzés",
             "duration": decision.get("duration") or decision.get("duration_min") or "30–45 perc",
             "intensity": decision.get("intensity") or decision.get("max_intensity") or "könnyű",
-            "rationale": decision.get("rationale", "A regenerációs jelek alapján."),
+            "rationale": decision_rationale,
+            "source": decision_source,
         },
-        "metrics": [
-            {"name": "HRV (éjszakai)", "value": f"{_number(latest.get('hrv')):.0f} ms", "score": 68},
-            {"name": "Alvás", "value": f"{_number(latest.get('sleep_hours')):.1f} ó", "score": round(_number(latest.get('sleep_score')))},
-            {"name": "Nyugalmi pulzus", "value": f"{_number(latest.get('resting_hr')):.0f} bpm", "score": 82},
-            {"name": "Hibrid TSB", "value": f"{_number(latest.get('tsb')):+.1f}", "score": round(max(5, min(100, 50 + _number(latest.get('tsb')) * 3)))},
-        ],
+        "metrics": metrics,
+        "dataQuality": {
+            "referenceDate": today,
+            "missingMetrics": missing_metrics,
+            "unscoredMetrics": [item["name"] for item in metrics if item["score"] is None],
+            "activityCount": len(sessions),
+            "activityDateFrom": sessions[-1]["date"] if sessions else None,
+            "activityDateTo": sessions[0]["date"] if sessions else None,
+            "hrvSource": latest.get("hrv_source"),
+            "hrvStatus": latest.get("hrv_status"),
+            "hrvWeeklyAverage": _number(latest.get("hrv_weekly_avg"), None),
+            "hrvBaselineLow": _number(latest.get("hrv_baseline_low"), None),
+            "hrvBaselineHigh": _number(latest.get("hrv_baseline_high"), None),
+            "loadSource": summary.get("load_source"),
+            "officialLoadCoveragePct": summary.get("official_load_coverage_pct"),
+        },
         "heat": heat,
         "week": summary,
         "trends": trends,
+        "trendSource": "hybrid_pmc_from_garmin_activity_load" if not activities.empty and activities["official_activity_load"].notna().all() else "hybrid_pmc_mixed_load_inputs",
         "sessions": sessions,
         "zones": [round(value) for value in zone_totals],
     }

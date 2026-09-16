@@ -63,10 +63,10 @@ const heat = [
   3, 2, 2, 3, 1, 2,
 ];
 const metrics = [
-  ["HRV (éjszakai)", "62 ms", "+5%", 68, "warn"],
-  ["Alvás", "7ó 12p", "+6%", 76, "good"],
+  ["HRV (éjszakai átlag)", "62 ms", "+5%", 68, "warn"],
+  ["Garmin alváspontszám", "76 / 100", "+6%", 76, "good"],
   ["Nyugalmi pulzus", "48 bpm", "−3", 82, "good"],
-  ["Hibrid TSB", "+4,2", "+2,1", 61, "good"],
+  ["Hybrid TSB", "+4,2", "+2,1", 61, "good"],
 ];
 const trendData = Array.from({ length: 12 }, (_, i) => ({
   week: `${i + 1}. hét`,
@@ -159,22 +159,32 @@ const sessions = [
 
 const metricGlossary = {
   Readiness:
-    "A 0–100-as terhelhetőségi pontszám azt becsüli, mennyire áll készen a szervezeted a mai edzésre. A magasabb érték általában több terhelést enged, az alacsonyabb érték regenerációt vagy könnyítést indokol.",
+    "A pontszám forrása mindig külön látható. A Garmin Training Readiness a Garmin saját 0–100-as értéke; a Hybrid Athlete állapotbecslés külön, saját modell, és nem Garmin-metrika.",
+  "Garmin Training Readiness":
+    "A Garmin saját 0–100-as mutatója. Többek között az alvást, a regenerációs időt, a HRV-státuszt, az akut terhelést, valamint az alvási és stresszelőzményeket használja. Az alkalmazás ezt az értéket nem számolja újra és nem módosítja.",
+  "Hybrid Athlete állapotbecslés":
+    "Saját, magyarázható tartalékbecslés arra az esetre, amikor a Garmin Training Readiness nem érhető el. Nem azonos a Garmin mutatójával, és nem orvosi minősítés.",
   Bizonyosság:
     "Azt mutatja, mennyire teljesek és következetesek az értékeléshez használt adatok. Alacsony bizonyosságnál az ajánlást óvatosabban érdemes kezelni.",
   "HRV (éjszakai)":
     "A szívverések közötti idő apró változékonysága alvás közben. A saját megszokott értékedhez képest tartós csökkenés fáradtságot vagy stresszt jelezhet; egyetlen nap önmagában nem döntő.",
+  "HRV (éjszakai átlag)":
+    "A Garmin által mért legutóbbi éjszakai átlag HRV ezredmásodpercben. Nem a hétnapos átlag és nem az éjszakai ötperces csúcs. A személyes Garmin-alaptartományhoz érdemes viszonyítani; a magasabb érték sem automatikusan jobb.",
+  "Garmin alváspontszám":
+    "A Garmin saját 0–100-as alváspontszáma. Az alvás időtartamát és minőségi tényezőit összegzi; a magasabb érték kedvezőbb éjszakai alvást jelez.",
+  Alvásidő:
+    "A Garmin által rögzített alvás teljes időtartama. Nem azonos az alváspontszámmal, és önmagában nem írja le az alvás minőségét.",
   Alvás:
     "Az alvás hossza és minősége a regeneráció egyik fő jele. Kevés vagy rossz alvás ronthatja a teljesítményt, a koordinációt és a terheléstűrést.",
   "Nyugalmi pulzus":
     "A nyugalomban mért szívverésszám. A saját alapértékedhez képest szokatlan emelkedés fáradtságot, stresszt vagy kezdődő betegséget jelezhet.",
-  TSB: "A rövid és hosszú távú terhelés különbségéből becsült frissesség. Pozitív érték inkább friss állapotot, erősen negatív érték felhalmozott fáradtságot jelez.",
-  CTL: "A nagyjából hathetes terhelésből számolt hosszú távú edzettségi szint. Lassan változik; emelkedése tartós munkát, túl gyors növekedése fokozott kockázatot jelenthet.",
-  ATL: "Az utóbbi körülbelül egy hét terhelését összegző akut fáradtság. Gyorsan emelkedik egy nehéz blokk után, és pihenéssel gyorsabban csökken, mint a CTL.",
+  TSB: "Hybrid TSB: az alkalmazás saját, rövid és hosszú távú terheléskülönbségéből becsült frissesség. Nem Garmin-metrika.",
+  CTL: "Hybrid CTL: az alkalmazás saját, nagyjából hathetes terhelési modellje. Nem azonos a Garmin Training Load vagy Training Status értékével.",
+  ATL: "Hybrid ATL: az alkalmazás saját, körülbelül egyhetes akut terhelési modellje. Nem azonos a Garmin Acute Load értékével.",
   "CTL · ATL · TSB":
     "CTL: hosszú távú edzettség. ATL: rövid távú fáradtság. TSB: a kettő különbségéből becsült frissesség. Együtt azt mutatják, hogy fejlődik-e a formád, és közben mennyi fáradtságot halmoztál fel.",
   Terhelés:
-    "Az edzés időtartamát és intenzitását egy közös pontszámba sűríti. Magasabb szám nagyobb regenerációs igényt jelent; elsősorban a saját korábbi értékeidhez hasonlítsd.",
+    "A forrását mindig külön jelöljük. A Garmin edzésterhelés az eszköz által átadott Exercise Load; a Hybrid terhelésbecslés saját pótlás, amikor a Garmin-érték hiányzik. Egyik sem jelenti automatikusan a Garmin súlyozott Acute Load értékét.",
   Edzésidő:
     "Az adott időszakban edzéssel töltött percek összege. A célhoz viszonyítva megmutatja, hogy a heti terv mennyire reális és teljesíthető.",
   "Erő arány":
@@ -222,7 +232,7 @@ function explanationTerm(text) {
   if (value.includes("CTL")) return "CTL";
   if (value.includes("ATL")) return "ATL";
   if (value.includes("TSB")) return "TSB";
-  if (value.includes("HRV")) return "HRV (éjszakai)";
+  if (value.includes("HRV")) return "HRV (éjszakai átlag)";
   if (value.includes("ALVÁS")) return "Alvás";
   if (value.includes("RPE")) return "RPE";
   if (value.includes("PULZUS") || value.includes("BPM")) return "Pulzus";
@@ -482,7 +492,7 @@ function personalizeDashboard(data, profile, checkin) {
   const safeProfile = profile || defaultProfile,
     base = data || {},
     mode = goalModes[safeProfile.goal] || goalModes["Hibrid teljesítmény"],
-    readiness = Number(base.readiness ?? 78),
+    readiness = Number.isFinite(Number(base.readiness)) ? Number(base.readiness) : 0,
     week = base.week || {};
   const sessions = base.sessions || [],
     latest = sessions[0]?.date ? new Date(sessions[0].date) : new Date(),
@@ -589,6 +599,13 @@ function personalizeDashboard(data, profile, checkin) {
       daysDone: new Set(recent.map((x) => x.date)).size,
       daysTarget: available,
       totalLoad: week.total_load || 0,
+      loadSource: week.load_source,
+      loadLabel:
+        week.load_source === "garmin_activity_training_load"
+          ? "GARMIN EDZÉSTERHELÉS-ÖSSZEG"
+          : week.load_source === "no_activities"
+            ? "NINCS EDZÉSTERHELÉS"
+            : "HYBRID TERHELÉSBECSLÉS",
     },
     insights,
   };
@@ -904,7 +921,7 @@ function buildAdaptiveWeek(profile, data, cloudState) {
       .filter(([date]) => date <= todayValue)
       .sort(([a], [b]) => b.localeCompare(a)),
     checkin = checkinEntries[0]?.[1],
-    readiness = Number(data?.readiness ?? 70),
+    readiness = Number.isFinite(Number(data?.readiness)) ? Number(data.readiness) : null,
     reasons = [];
   let adjustment = 0;
   if (checkin?.illness) {
@@ -918,12 +935,12 @@ function buildAdaptiveWeek(profile, data, cloudState) {
       "A jelzett fájdalom miatt a következő hét intenzitása és volumene is csökken.",
     );
   }
-  if (readiness < 55) {
+  if (readiness !== null && readiness < 55) {
     adjustment -= 20;
     reasons.push(
       `A terhelhetőségi érték ${readiness}/100, ezért most a regeneráció élvez elsőbbséget.`,
     );
-  } else if (readiness < 70) {
+  } else if (readiness !== null && readiness < 70) {
     adjustment -= 10;
     reasons.push(
       `A terhelhetőségi érték ${readiness}/100, ezért kisebb edzésmennyiség javasolt.`,
@@ -1381,7 +1398,9 @@ function ScoreRing({ score, className = "", showMaximum = false, ariaLabel }) {
 
 function Decision({ onWhy, data, profile, checkin }) {
   const view = personalizeDashboard(data, profile, checkin),
-    score = view.adjustedReadiness;
+    score = Number(data.readiness),
+    official = data.readinessSource === "garmin_training_readiness",
+    scoreName = official ? "Garmin Training Readiness" : "Hybrid Athlete állapotbecslés";
   const d = view.decision;
   return (
     <section className="card decision-card">
@@ -1389,12 +1408,12 @@ function Decision({ onWhy, data, profile, checkin }) {
         <ScoreRing score={score} ariaLabel={`Mai terhelhetőség: ${score} pont a 100-ból`} />
         <div className="decision-copy">
           <div className="recommend">
-            <MetricHelp term="Readiness">
+            <MetricHelp term={scoreName}>
               <span>{view.band.toUpperCase()}</span>
             </MetricHelp>
             <MetricHelp term="Bizonyosság">
               <small>
-                {(data?.confidence || "MAGAS").toUpperCase()} BIZONYOSSÁG
+                {official ? "GARMIN SAJÁT PONTSZÁM" : `${(data?.confidence || "KÖZEPES").toUpperCase()} BIZONYOSSÁG`}
               </small>
             </MetricHelp>
           </div>
@@ -1433,7 +1452,7 @@ function ReadinessMetric({ row, data }) {
     [open, setOpen] = useState(false),
     quality =
       data?.source === "garmin"
-        ? `${(data?.confidence || "közepes").toLowerCase()} bizonyosságú Garmin-adat`
+        ? "Garmin-mérés; az esetleges pontsáv forrását külön jelöljük"
         : "bemutató adat – saját szinkron után válik személyessé",
     term = name.includes("TSB") ? "TSB" : name;
   return (
@@ -1450,9 +1469,9 @@ function ReadinessMetric({ row, data }) {
         <strong>{value}</strong>
         <span
           className="bar"
-          aria-label={`${name} hozzájárulási pontszáma: ${Math.round(width)} / 100`}
+          aria-label={width == null ? `${name}: még nincs kiszámítható hozzájárulási pontszám` : `${name} hozzájárulási pontszáma: ${Math.round(width)} / 100`}
         >
-          <i style={{ width: `${Math.max(0, Math.min(100, width))}%` }} />
+          {width != null && <i style={{ width: `${Math.max(0, Math.min(100, width))}%` }} />}
         </span>
         <em>{delta}</em>
         <ChevronDown size={14} />
@@ -1461,7 +1480,7 @@ function ReadinessMetric({ row, data }) {
         <div className="metric-detail">
           <div>
             <span>MIT JELENT MOST?</span>
-            <p>{metricImpact(name, width)}</p>
+            <p>{width == null ? "A mérés rendelkezésre áll, de az értelmezéséhez még nincs elegendő adat vagy személyes alapérték. Ez nem nulla pontot jelent." : metricImpact(name, width)}</p>
           </div>
           <div>
             <span>ADATMINŐSÉG</span>
@@ -1496,15 +1515,17 @@ function MetricList({ data }) {
         x.name.startsWith("HRV") ? "warn" : "good",
       ])
     : data ? [] : metrics;
+  const garminRows = data?.metrics?.filter((item) => item.source === "garmin").length || 0;
+  const hybridRows = data?.metrics?.filter((item) => item.source === "hybrid").length || 0;
   return (
     <section className="card metric-card">
       <div className="section-head">
-        <MetricHelp term="Readiness">
-          <span className="eyebrow">TERHELHETŐSÉG ÖSSZETEVŐI</span>
+        <MetricHelp term={data?.readinessSource === "garmin_training_readiness" ? "Garmin Training Readiness" : "Hybrid Athlete állapotbecslés"}>
+          <span className="eyebrow">REGENERÁCIÓS MÉRÉSEK</span>
         </MetricHelp>
         <small>
           {data?.source === "garmin"
-            ? `${rows.length} MÉRŐSZÁM · ${(data?.confidence || "KÖZEPES").toUpperCase()} BIZONYOSSÁG`
+            ? `${garminRows} GARMIN · ${hybridRows} HYBRID`
             : `${rows.length} DEMO MÉRŐSZÁM`}
         </small>
       </div>
@@ -1865,7 +1886,7 @@ function TodayLive({
             <div className="week-stats">
               <div>
                 <strong>{week.totalLoad.toLocaleString("hu-HU")}</strong>
-                <span>TERHELÉS</span>
+                <span>{week.loadLabel}</span>
               </div>
               <div>
                 <strong>{formatMinutes(week.actualMinutes)}</strong>
@@ -1906,8 +1927,8 @@ function TodayLive({
             <h2>Miért {view.decision.title.toLowerCase()}?</h2>
             <p>{view.decision.rationale}</p>
             <ul>
-              <li>Garmin-adatokból számított alapérték: {data.readiness}/100</li>
-              <li>Az állapotfelmérés után: {view.adjustedReadiness}/100</li>
+              <li>{data.readinessSource === "garmin_training_readiness" ? "Garmin Training Readiness" : "Hybrid Athlete állapotbecslés"}: {data.readiness}/100</li>
+              <li>Az ajánlás biztonsági szabályaihoz használt, check-innel módosított érték: {view.adjustedReadiness}/100</li>
               <li>Fő cél: {profile.goal}</li>
               <li>
                 Heti keret: {profile.weeklyHours} óra, {profile.strengthRatio}%
@@ -1915,6 +1936,20 @@ function TodayLive({
               </li>
               <li>Edzésirány: {profile.preference}</li>
             </ul>
+            {data.readinessSource === "garmin_training_readiness" && data.garminTrainingReadiness && (
+              <>
+                <h3>A Garmin által átadott háttértényezők</h3>
+                <ul>
+                  {Number.isFinite(Number(data.garminTrainingReadiness.sleepScore)) && <li>Alváspontszám: {data.garminTrainingReadiness.sleepScore}/100</li>}
+                  {Number.isFinite(Number(data.garminTrainingReadiness.recoveryTime)) && <li>Hátralévő regenerációs idő: {Math.round(Number(data.garminTrainingReadiness.recoveryTime) / 60)} óra</li>}
+                  {Number.isFinite(Number(data.garminTrainingReadiness.sleepScoreFactorPercent)) && <li>Alvás tényezőértéke: {data.garminTrainingReadiness.sleepScoreFactorPercent}</li>}
+                  {Number.isFinite(Number(data.garminTrainingReadiness.hrvFactorPercent)) && <li>HRV-állapot tényezőértéke: {data.garminTrainingReadiness.hrvFactorPercent}</li>}
+                  {Number.isFinite(Number(data.garminTrainingReadiness.acwrFactorPercent)) && <li>Akut terhelés tényezőértéke: {data.garminTrainingReadiness.acwrFactorPercent}</li>}
+                  {Number.isFinite(Number(data.garminTrainingReadiness.stressHistoryFactorPercent)) && <li>Stresszelőzmény tényezőértéke: {data.garminTrainingReadiness.stressHistoryFactorPercent}</li>}
+                </ul>
+                <p>A tényezőértékeket a Garmin számítja. Nem kezeljük őket százalékos hozzájárulásként, és nem próbáljuk visszafejteni a Garmin saját algoritmusát.</p>
+              </>
+            )}
             <button className="primary" onClick={() => setWhyOpen(false)}>
               Értem
             </button>
@@ -2302,9 +2337,9 @@ function LiveTrendsPage({ profile }) {
       ? Math.ceil((new Date(profile.eventDate) - new Date()) / 86400000)
       : null;
   const summaries = [
-    [current.ctl == null ? "—" : Math.round(current.ctl), "CTL", delta("ctl")],
-    [current.atl == null ? "—" : Math.round(current.atl), "ATL", delta("atl")],
-    [current.tsb == null ? "—" : current.tsb.toFixed(1), "TSB", delta("tsb")],
+    [current.ctl == null ? "—" : Math.round(current.ctl), "HYBRID CTL", delta("ctl")],
+    [current.atl == null ? "—" : Math.round(current.atl), "HYBRID ATL", delta("atl")],
+    [current.tsb == null ? "—" : current.tsb.toFixed(1), "HYBRID TSB", delta("tsb")],
     [weeklyFrequency, "EDZÉS / HÉT", null],
     [averageRpe ?? "—", "ÁTLAG RPE", null],
   ];
@@ -2328,7 +2363,7 @@ function LiveTrendsPage({ profile }) {
       </PageHeader>
       <section className="card" role={status === "error" ? "alert" : "status"}>
         <p>{status === "loading" ? "A trendadatok betöltése…" : status === "error" ? "Az adatok betöltése nem sikerült. Nem jelenítünk meg helyettük mintagrafikont." : status === "empty" ? "Még nincs szinkronizált Garmin-adat. A szinkronizálást az Áttekintés oldalon indíthatod." : `Vizsgált időszak: ${model.from} – ${model.today}. Az utolsó elérhető trendpont: ${current.date || "nincs adat"}.`}</p>
-        <p>A CTL, ATL és TSB terhelési pontban szerepel. A heti edzésszám a kiválasztott teljes időszakra vetített átlag; a hiányosan szinkronizált időszak torzíthatja. Az RPE az edzés érzékelt nehézsége 1–10 között, csak a kitöltött visszajelzések alapján.</p>
+        <p>A Hybrid CTL, ATL és TSB saját teljesítménymenedzsment-modell, nem Garmin-metrika. Ahol elérhető, a bemenet a Garmin activityTrainingLoad; hiányos lefedettségnél külön jelölt becslés. A heti edzésszám a kiválasztott teljes időszakra vetített átlag.</p>
       </section>
       <section className="trend-summary">
         {summaries.map(([value, label, change]) => (
@@ -2347,7 +2382,7 @@ function LiveTrendsPage({ profile }) {
       <section className="card chart-card">
         <div className="section-head">
           <span className="eyebrow">
-            HOSSZÚ TÁVÚ TERHELÉS · ATL · CTL · TSB
+            HYBRID TERHELÉSI MODELL · ATL · CTL · TSB
           </span>
           <small>
             {data ? "SZINKRONIZÁLT ADATOK" : "NINCS ADAT"} ·{" "}
@@ -2395,7 +2430,7 @@ function LiveTrendsPage({ profile }) {
             <Line
               type="monotone"
               dataKey="ctl"
-              name="Krónikus terhelés"
+              name="Hybrid CTL"
               stroke="var(--accent)"
               strokeWidth={2}
               dot={false}
@@ -2403,7 +2438,7 @@ function LiveTrendsPage({ profile }) {
             <Line
               type="monotone"
               dataKey="atl"
-              name="Akut terhelés"
+              name="Hybrid ATL"
               stroke="#f59e0b"
               strokeWidth={2}
               dot={false}
@@ -2411,7 +2446,7 @@ function LiveTrendsPage({ profile }) {
             <Line
               type="monotone"
               dataKey="tsb"
-              name="Forma (TSB)"
+              name="Hybrid TSB"
               stroke="#3b82f6"
               strokeWidth={2}
               dot={false}
@@ -2420,8 +2455,8 @@ function LiveTrendsPage({ profile }) {
         </ResponsiveContainer>
         <p className="chart-axis-note">
           X tengely: időszak hetekben · Y tengely: súlyozott terhelési pont.
-          A terhelési pont nem perc vagy pulzusérték: az edzések időtartamából
-          és intenzitásából számított, összehasonlító mérőszám.
+          Ez nem a Garmin Acute Load grafikonja. A saját modell elsődlegesen a Garmin
+          activityTrainingLoad értékeit használja, és csak hiány esetén alkalmaz külön jelölt becslést.
         </p>
       </section>
       <div className="trend-bottom">
@@ -2940,7 +2975,7 @@ function InsightsPage({ profile }) {
             </div>
             <div>
               {[
-                [week.totalLoad.toLocaleString("hu-HU"), "ÖSSZTERHELÉS"],
+                [week.totalLoad.toLocaleString("hu-HU"), week.loadLabel],
                 [
                   `${Math.floor(week.actualMinutes / 60)}ó ${week.actualMinutes % 60}p`,
                   "EDZÉSIDŐ",
