@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 from http.server import BaseHTTPRequestHandler
+from urllib.parse import urlsplit
 
 from auth_store import (
     RateLimitError, clear_cookie_header, cookie_header, create_password_reset,
@@ -10,6 +11,45 @@ from auth_store import (
     verify_email,
 )
 from email_service import send_password_reset, send_verification
+
+
+def _validated_base_url(raw: str, *, allow_local_http: bool = False) -> str:
+    value = str(raw or "").strip().rstrip("/")
+    parsed = urlsplit(value)
+    local_hosts = {"localhost", "127.0.0.1", "::1"}
+    if (
+        not parsed.hostname
+        or parsed.username
+        or parsed.password
+        or parsed.query
+        or parsed.fragment
+        or parsed.path not in ("", "/")
+        or parsed.scheme not in ({"https", "http"} if allow_local_http else {"https"})
+        or (parsed.scheme == "http" and parsed.hostname not in local_hosts)
+    ):
+        raise RuntimeError("A nyilvános alkalmazáscím nincs biztonságosan beállítva.")
+    return value
+
+
+def _public_base_url(headers: object) -> str:
+    configured = os.getenv("AUTH_PUBLIC_URL", "").strip()
+    if configured:
+        return _validated_base_url(configured, allow_local_http=True)
+
+    vercel_host = (
+        os.getenv("VERCEL_PROJECT_PRODUCTION_URL", "").strip()
+        or os.getenv("VERCEL_URL", "").strip()
+    )
+    if vercel_host:
+        return _validated_base_url(f"https://{vercel_host.lstrip('/')}")
+
+    host = str(headers.get("Host", "") if hasattr(headers, "get") else "").strip()
+    protocol = str(headers.get("X-Forwarded-Proto", "http") if hasattr(headers, "get") else "http").strip().lower()
+    candidate = f"{protocol}://{host}"
+    parsed = urlsplit(candidate)
+    if parsed.hostname not in {"localhost", "127.0.0.1", "::1"}:
+        raise RuntimeError("Állítsd be az AUTH_PUBLIC_URL környezeti változót.")
+    return _validated_base_url(candidate, allow_local_http=True)
 
 
 class handler(BaseHTTPRequestHandler):
@@ -39,15 +79,12 @@ class handler(BaseHTTPRequestHandler):
             payload = json.loads(self.rfile.read(size))
             action = payload.get("action")
             protocol = self.headers.get("X-Forwarded-Proto", "https")
-            host = self.headers.get("X-Forwarded-Host") or self.headers.get("Host", "localhost")
-            base_url = os.getenv("AUTH_PUBLIC_URL", "").rstrip("/") or f"{protocol}://{host}"
-            if not base_url.startswith(("https://", "http://")):
-                raise ValueError("Érvénytelen nyilvános alkalmazáscím.")
             secure = protocol != "http"
             if action == "register":
                 if not os.getenv("RESEND_API_KEY", "").strip():
                     self._send({"error": "A regisztrációs e-mail-küldés még nincs beállítva."}, 503)
                     return
+                base_url = _public_base_url(self.headers)
                 user, verification_token = register(payload.get("email", ""), payload.get("password", ""), payload.get("name", ""))
                 send_verification(user["email"], verification_token, base_url)
                 status = 201
@@ -67,6 +104,7 @@ class handler(BaseHTTPRequestHandler):
                 )
                 status = 200
             elif action == "resend_verification":
+                base_url = _public_base_url(self.headers)
                 result = resend_verification(payload.get("email", ""))
                 if result:
                     try:
@@ -76,6 +114,7 @@ class handler(BaseHTTPRequestHandler):
                 self._send({"ok": True, "message": "Ha a címhez ellenőrizetlen fiók tartozik, elküldtük az üzenetet."})
                 return
             elif action == "request_password_reset":
+                base_url = _public_base_url(self.headers)
                 result = create_password_reset(payload.get("email", ""))
                 if result:
                     try:

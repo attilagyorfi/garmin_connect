@@ -67,7 +67,7 @@ try {
   console.log("OK kötelező napi check-in és biztonsági felülírás");
   await act(async () => new Promise(resolve=>setTimeout(resolve,5)));
   const explainedKpi=document.querySelector('.week-stats>div.explained-value');
-  if (!explainedKpi?.dataset.explanation?.includes("regenerációs igényt")) throw new Error("A laikus mérőszám-magyarázat nem épült fel.");
+  if (explainedKpi?.dataset.metric!=="Terhelés" || !explainedKpi.dataset.explanation?.includes("forrását mindig külön jelöljük")) throw new Error("A terhelés forrását tisztázó laikus magyarázat nem épült fel.");
   if (explainedKpi.getAttribute("tabindex")!=="0") throw new Error("A mérőszám-magyarázat nem érhető el billentyűzettel.");
   console.log("OK desktop logó és laikus mérőszám-magyarázat");
   await act(async () => new Promise(resolve=>setTimeout(resolve,25)));
