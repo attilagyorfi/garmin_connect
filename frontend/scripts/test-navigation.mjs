@@ -15,7 +15,8 @@ dom.window.HTMLElement.prototype.attachEvent = () => {};
 globalThis.ResizeObserver = class { observe() {} unobserve() {} disconnect() {} };
 const dashboardFixture={
   today:budapestToday(),readiness:78,confidence:"magas",decision:{title:"Zone 2 alapozás",duration:"45–70 perc",intensity:"közepes",rationale:"Teszt regenerációs indoklás."},week:{total_load:420,change_pct:4,recommendations:["Tartsd a kiegyensúlyozott struktúrát."]},
-  sessions:[{id:"test-activity",date:"2026-08-18",type:"Futás",name:"Teszt Zone 2 futás",durationMin:48,avgHr:137,distanceKm:8.2,load:64}],heat:[],metrics:[],trends:[],zones:[0,48,0,0,0]
+  sessions:[{id:"test-activity",date:budapestToday(),type:"Futás",name:"Teszt Zone 2 futás",durationMin:48,avgHr:137,distanceKm:8.2,load:64,loadSource:"garmin_activity_training_load"}],heat:[],metrics:[],trends:[],zones:[0,48,0,0,0],
+  dataQuality:{referenceDate:budapestToday(),missingMetrics:["Garmin alváspontszám"],activityCount:461,activityDateFrom:"2024-04-01",activityDateTo:budapestToday()}
 };
 const cloudPatches=[];
 dashboardFixture.metrics = [{name:"HRV (éjszakai)",value:"62 ms",score:75}];
@@ -62,6 +63,9 @@ try {
   if (!document.querySelector(".content")?.textContent.includes("FEJLŐDÉSTÖRTÉNET")) throw new Error("Az Áttekintés nem a kezdőképernyő.");
   if (!document.querySelector(".content")?.textContent.toLowerCase().includes("terhelési pont")) throw new Error("Az Áttekintés grafikon Y tengelyének neve vagy mértékegysége hiányzik.");
   if (!document.querySelector(".content")?.textContent.includes("X tengely: dátum")) throw new Error("Az Áttekintés grafikon X tengelyének magyarázata hiányzik.");
+  const quality=document.querySelector(".overview-quality");
+  if (!quality?.textContent.includes("4 / 5 elérhető")||!quality.textContent.includes("100% Garmin-adat")||!quality.textContent.includes("461 edzés")) throw new Error("Az Áttekintés adatminőségi és lefedettségi magyarázata hiányos.");
+  console.log("OK közérthető adatminőség és forráslefedettség");
   await act(async () => [...document.querySelectorAll("button")].find(node=>node.textContent.trim()==="Ma").click());
   if (!document.querySelector(".checkin-gate")) throw new Error("A Ma oldal nem az állapotfelméréssel kezdődik.");
   for (const row of document.querySelectorAll(".checkin-gate .scale-row")) await act(async()=>row.querySelector("button").click());

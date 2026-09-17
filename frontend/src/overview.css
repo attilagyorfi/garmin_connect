@@ -9,6 +9,20 @@
 .overview-page .overview-kpis span {font-size:15px;letter-spacing:0;margin:0 0 12px;color:#dce2df}
 .overview-page .overview-kpis strong {font-size:32px;color:#fff}
 .overview-page .overview-kpis small {display:block;font-size:13px;color:#bac2be;margin-top:10px}
+.overview-quality {padding:26px;margin-bottom:16px}
+.overview-quality h2 {margin-top:8px;font-size:23px}
+.overview-quality-intro {max-width:920px;margin:12px 0 20px}
+.overview-quality-grid {display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.overview-quality-grid article {position:relative;min-height:178px;padding:19px;border:1px solid #343a37;border-radius:10px;background:#151716}
+.overview-quality-grid article::before {content:"";position:absolute;left:19px;top:20px;width:8px;height:8px;border-radius:50%;background:#7b827e;box-shadow:0 0 0 4px rgba(123,130,126,.12)}
+.overview-quality-grid article[data-state="good"]::before {background:var(--accent);box-shadow:0 0 0 4px color-mix(in srgb,var(--accent) 16%,transparent)}
+.overview-quality-grid article[data-state="mixed"]::before {background:#f59e0b;box-shadow:0 0 0 4px rgba(245,158,11,.14)}
+.overview-quality-grid article>span {display:block;margin-left:22px;color:#b9c0bc;font:600 12px/1.2 "Geist Mono",monospace;letter-spacing:.04em}
+.overview-quality-grid article>strong {display:block;margin:17px 0 8px;color:#fff;font-size:20px;line-height:1.25}
+.overview-quality-grid article>p {margin:0;font-size:13px;line-height:1.55;color:#adb5b1}
+.overview-quality-note {margin:18px 0 0;padding-top:17px;border-top:1px solid #303431}
+.overview-quality-note b {color:#fff}
 .overview-explanations {display:grid;grid-template-columns:repeat(3,1fr);gap:24px}
 .overview-empty {padding:48px 16px;text-align:center;border:1px dashed #49534c;border-radius:12px}
-@media(max-width:900px){.overview-page .overview-heading{padding-right:0;padding-top:64px}.overview-explanations{grid-template-columns:1fr;gap:0}.overview-page .overview-kpis{grid-template-columns:1fr}}
+@media(max-width:1200px){.overview-quality-grid{grid-template-columns:1fr 1fr}}
+@media(max-width:900px){.overview-page .overview-heading{padding-right:0;padding-top:64px}.overview-explanations{grid-template-columns:1fr;gap:0}.overview-page .overview-kpis{grid-template-columns:1fr}.overview-quality-grid{grid-template-columns:1fr}.overview-quality-grid article{min-height:0}}

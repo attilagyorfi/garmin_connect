@@ -21,7 +21,7 @@
 - elkészült: a többszöri sikertelen próbálkozás után leállított futás ugyanazzal a futásazonosítóval folytatható
 - elkészült: asztali szinkronfolyamat-panel a futó Hybrid Athlete logóval
 - elkészült: Garmin-tokenek titkosított, tartós tárolása és MFA bootstrap folyamat
-- következő: valós fiókos, többéves backfill terhelés- és rate-limit teszt Vercelen
+- elkészült: valós fiókos, 379 napos backfill terhelési teszt Vercelen; a böngészőben követett futás megszakítás nélkül befejeződött, és frissítette a dashboardot
 
 ## P5 – Személyes AI-asszisztens
 
@@ -117,8 +117,8 @@
 
 ## Ismert korlátok
 
-- Az SQLite-adattár egyszemélyes, nincs auth vagy titkosítás.
+- A régi, helyi Streamlit/SQLite futtatás továbbra is csak egyszemélyes fejlesztői mód; a production webalkalmazás PostgreSQL-alapú fiók- és adatszigetelést használ.
 - A Garmin nem hivatalos web API-ja változhat; nincs élő accountos CI.
-- A jelenlegi cardio zóna-load akkor elsődleges, ha a payload már tartalmaz zónaperceket; külön részletlekérés még nincs.
-- A demo Mountain példákat ad, de a külön Mountain UI/score P3.
+- A pulzuszóna-részletek külön Garmin-lekéréssel érkeznek, de az eszköz- és library-verziók közötti payload-eltérések miatt további anonim fixture-validáció szükséges.
+- A Mountain readiness elérhető, de pontossága az aktivitástípusok, szintadatok és manuális stabilitási/egylábas bejegyzések lefedettségétől függ.
 - Az eseményspecifikus periodizáció és a Garmin-tényadatokra reagáló heti adaptáció első szabályalapú változata elkészült; az automatikus alkalmazás továbbra is felhasználói jóváhagyást igényel.
