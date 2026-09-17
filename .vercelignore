@@ -1,4 +1,8 @@
 .git/
+node_modules/
+.deploy-*/
+.deploy-*.tar
+.deploy-*.zip
 .pytest_cache/
 .pytest-tmp-*/
 test-tmp-*/
