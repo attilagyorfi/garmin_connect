@@ -2,11 +2,12 @@
 from __future__ import annotations
 
 import json
+import math
 import tempfile
 import uuid
 from datetime import date, datetime, timedelta
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from cloud_cache import load_user_json, save_user_json, sync_lock
 from cloud_dashboard import DASHBOARD_KEY, RAW_CACHE_KEY
@@ -19,10 +20,25 @@ SYNC_JOB_KEY = "garmin_sync_job_v2"
 ACTIVITY_PAGE_SIZE = 100
 HR_ZONE_CHUNK = 8
 WELLNESS_CHUNK = 5
+MAX_TRANSIENT_RETRIES = 6
 
 
 def _now() -> str:
     return datetime.now().astimezone().isoformat()
+
+
+def _is_retryable_error(exc: Exception) -> bool:
+    message = str(exc).lower()
+    markers = (
+        "429", "rate limit", "too many requests", "timeout", "timed out",
+        "temporarily", "átmenetileg", "connection reset", "connection aborted",
+        "connection error", "remote end closed", "service unavailable", "502", "503", "504",
+    )
+    return any(marker in message for marker in markers)
+
+
+def _retry_delay(attempt: int) -> int:
+    return min(60, 2 ** max(1, attempt))
 
 
 def _public(job: dict[str, Any] | None) -> dict[str, Any]:
@@ -32,6 +48,7 @@ def _public(job: dict[str, Any] | None) -> dict[str, Any]:
         "run_id", "status", "phase", "progress", "message", "activities_fetched",
         "activity_offset", "hr_zones_done", "hr_zones_total", "wellness_done",
         "wellness_total", "started_at", "updated_at", "completed_at", "partial_errors",
+        "retry_count", "retry_after_seconds", "next_retry_at", "last_error",
     ) if job.get(key) is not None}
 
 
@@ -58,8 +75,71 @@ def _new_job(raw: dict[str, Any]) -> dict[str, Any]:
 
 
 def _fail(job: dict[str, Any], exc: Exception) -> dict[str, Any]:
-    job.update(status="failed", phase="failed", message=str(exc) or "A szinkron megszakadt.", updated_at=_now())
+    phase = job.get("phase")
+    if phase and phase != "failed":
+        job["resume_phase"] = phase
+    message = str(exc) if isinstance(exc, GarminSyncError) else "A szinkron váratlan hiba miatt megszakadt."
+    job.update(
+        status="failed", phase="failed",
+        message=message,
+        last_error=type(exc).__name__, retry_after_seconds=0,
+        next_retry_at=None, updated_at=_now(),
+    )
     return job
+
+
+def _schedule_retry(job: dict[str, Any], exc: Exception) -> dict[str, Any]:
+    attempt = int(job.get("retry_count", 0)) + 1
+    if attempt > MAX_TRANSIENT_RETRIES:
+        return _fail(job, GarminSyncError(
+            "A Garmin többszöri automatikus próbálkozás után sem válaszolt. "
+            "Az eddigi előrehaladás megmaradt; később folytathatod a szinkront."
+        ))
+    delay = _retry_delay(attempt)
+    job.update(
+        status="running", retry_count=attempt, retry_after_seconds=delay,
+        next_retry_at=(datetime.now().astimezone() + timedelta(seconds=delay)).isoformat(),
+        last_error="garmin_temporarily_unavailable",
+        message=f"A Garmin átmenetileg nem elérhető. Automatikus újrapróbálás {delay} másodperc múlva…",
+        updated_at=_now(),
+    )
+    return job
+
+
+def _resume_failed_job(job: dict[str, Any]) -> dict[str, Any]:
+    phase = job.get("resume_phase")
+    if not phase:
+        raise GarminSyncError("Ez a szinkron nem folytatható. Indíts új szinkront.")
+    job.update(
+        status="running", phase=phase, retry_count=0, retry_after_seconds=0,
+        next_retry_at=None, last_error=None,
+        message="A korábbi szinkron folytatása…", updated_at=_now(),
+    )
+    return job
+
+
+def _retry_wait_remaining(job: dict[str, Any]) -> int:
+    raw = job.get("next_retry_at")
+    if not raw:
+        return 0
+    try:
+        remaining = (datetime.fromisoformat(str(raw)) - datetime.now().astimezone()).total_seconds()
+        return max(0, math.ceil(remaining))
+    except (TypeError, ValueError):
+        return 0
+
+
+def _optional_call(call: Callable[[], Any], default: Any, errors: list[str], label: str) -> Any:
+    try:
+        result = call()
+        return default if result is None else result
+    except Exception as exc:
+        if _is_retryable_error(exc):
+            raise GarminSyncError(
+                "A Garmin átmenetileg korlátozta vagy megszakította az adatlekérést."
+            ) from exc
+        errors.append(f"{label}: {type(exc).__name__}")
+        return default
 
 
 def _activity_kind(activity: dict[str, Any]) -> str:
@@ -111,7 +191,10 @@ def _advance_hr_zones(job: dict[str, Any], sync: GarminSync) -> None:
     activities = job["raw"].get("activities", [])
     by_id = {str(item.get("activityId")): item for item in activities if item.get("activityId") is not None}
     for activity_id in ids[start:start + HR_ZONE_CHUNK]:
-        by_id[activity_id]["hr_zone_minutes"] = sync._safe_call(lambda value=activity_id: client.get_activity_hr_in_timezones(value), {}, errors, f"hr-zones:{activity_id}")
+        by_id[activity_id]["hr_zone_minutes"] = _optional_call(
+            lambda value=activity_id: client.get_activity_hr_in_timezones(value),
+            {}, errors, f"hr-zones:{activity_id}",
+        )
     done = min(len(ids), start + HR_ZONE_CHUNK)
     job["hr_zones_done"] = done
     if done < len(ids):
@@ -133,10 +216,10 @@ def _advance_wellness(job: dict[str, Any], sync: GarminSync) -> None:
     while cursor <= end and processed < WELLNESS_CHUNK:
         iso = cursor.isoformat()
         if iso not in cached or cached[iso].get("metric_schema_version") != 2 or cursor == end:
-            hrv = sync._safe_call(lambda d=iso: client.get_hrv_data(d), {}, errors, f"hrv:{iso}")
-            sleep = sync._safe_call(lambda d=iso: client.get_sleep_data(d), {}, errors, f"sleep:{iso}")
-            heart = sync._safe_call(lambda d=iso: client.get_heart_rates(d), {}, errors, f"heart:{iso}")
-            readiness = sync._safe_call(lambda d=iso: client.get_morning_training_readiness(d), {}, errors, f"training-readiness:{iso}") if cursor == end else None
+            hrv = _optional_call(lambda d=iso: client.get_hrv_data(d), {}, errors, f"hrv:{iso}")
+            sleep = _optional_call(lambda d=iso: client.get_sleep_data(d), {}, errors, f"sleep:{iso}")
+            heart = _optional_call(lambda d=iso: client.get_heart_rates(d), {}, errors, f"heart:{iso}")
+            readiness = _optional_call(lambda d=iso: client.get_morning_training_readiness(d), {}, errors, f"training-readiness:{iso}") if cursor == end else None
             cached[iso] = _wellness_record(iso, hrv, sleep, heart, readiness)
         cursor += timedelta(days=1)
         processed += 1
@@ -172,7 +255,18 @@ def advance_sync(user_id: str, run_id: str | None = None) -> tuple[dict[str, Any
         current = load_user_json(user_id, SYNC_JOB_KEY, db)
         if run_id and (not current or current.get("run_id") != run_id):
             raise GarminSyncError("A szinkron munkamenete már nem érvényes. Indíts új szinkront.")
-        job = current if current and current.get("status") == "running" else _new_job(load_user_json(user_id, RAW_CACHE_KEY, db) or {})
+        if current and current.get("status") == "running":
+            job = current
+        elif current and current.get("status") == "failed" and run_id:
+            job = _resume_failed_job(current)
+        else:
+            job = _new_job(load_user_json(user_id, RAW_CACHE_KEY, db) or {})
+
+        wait = _retry_wait_remaining(job)
+        if wait:
+            job["retry_after_seconds"] = wait
+            save_user_json(user_id, SYNC_JOB_KEY, job, db)
+            return _public(job), 202
         try:
             if job["phase"] == "finalize":
                 _finalize(job, db, user_id)
@@ -196,9 +290,13 @@ def advance_sync(user_id: str, run_id: str | None = None) -> tuple[dict[str, Any
                     _advance_hr_zones(job, sync)
                 elif job["phase"] == "wellness":
                     _advance_wellness(job, sync)
+                job.update(retry_count=0, retry_after_seconds=0, next_retry_at=None, last_error=None)
                 job["updated_at"] = _now()
         except Exception as exc:
-            _fail(job, exc)
+            if _is_retryable_error(exc):
+                _schedule_retry(job, exc)
+            else:
+                _fail(job, exc)
         save_user_json(user_id, SYNC_JOB_KEY, job, db)
         public = _public(job)
         return public, 200 if job["status"] == "completed" else 202 if job["status"] == "running" else 409

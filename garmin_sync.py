@@ -122,8 +122,13 @@ class GarminSync:
             client.login(tokenstore or str(self.token_dir))
         except Exception as exc:
             message = str(exc).lower()
-            if "429" in message or "rate" in message:
+            if "429" in message or "rate limit" in message or "ratelimit" in message or "too many requests" in message:
                 reason = "Garmin rate limit. Várj, majd próbáld újra; az utolsó cache használható."
+            elif any(marker in message for marker in (
+                "timeout", "timed out", "connection reset", "connection aborted",
+                "connection error", "remote end closed", "502", "503", "504",
+            )):
+                reason = "A Garmin átmenetileg nem elérhető. Az eddigi szinkronizálási előrehaladás megmarad."
             elif "mfa" in message or "challenge" in message:
                 reason = "Garmin MFA szükséges. Csatlakoztasd újra a fiókot a Beállításokban."
             else:

@@ -1718,21 +1718,24 @@ function TodayLive({
             `A szinkronizáló szolgáltatás nem JSON választ adott (${r.status})${reference ? `: ${reference}` : "."}`,
           );
         }
+        if (body?.run_id) {
+          setSyncJob(body);
+          runId = body.run_id;
+        }
         if (!r.ok && r.status !== 202)
           throw new Error(
             body?.error ||
               body?.message ||
               `A szinkron nem sikerült (${r.status}).`,
           );
-        setSyncJob(body);
-        runId = body.run_id;
         if (body.status === "completed") {
           await load();
           break;
         }
         if (body.status === "failed")
           throw new Error(body.message || "A szinkron megszakadt.");
-        await new Promise((resolve) => setTimeout(resolve, 350));
+        const retryDelay = Number(body.retry_after_seconds || 0);
+        await new Promise((resolve) => setTimeout(resolve, Math.max(350, retryDelay * 1000)));
       }
     } catch (e) {
       setError(e.message || "A szinkron nem sikerült.");
@@ -5306,11 +5309,12 @@ function GarminSyncControl({ garminStatus, onConnect }) {
         const response = await fetch("/api/sync", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(runId ? { run_id: runId } : {}) });
         const text = await response.text(); let body;
         try { body = JSON.parse(text); } catch { throw new Error("A szinkronizáló szolgáltatás érvénytelen választ adott."); }
+        if (body?.run_id) { setJob(body); runId = body.run_id; }
         if (!response.ok && response.status !== 202) throw new Error(body?.error || body?.message || `A szinkron nem sikerült (${response.status}).`);
-        setJob(body); runId = body.run_id;
         if (body.status === "completed") { globalThis.window?.dispatchEvent(new Event("hybrid-dashboard-refresh")); break; }
         if (body.status === "failed") throw new Error(body.message || "A szinkron megszakadt.");
-        await new Promise((resolve) => setTimeout(resolve, 350));
+        const retryDelay = Number(body.retry_after_seconds || 0);
+        await new Promise((resolve) => setTimeout(resolve, Math.max(350, retryDelay * 1000)));
       }
     } catch (syncError) { setError(syncError.message || "A szinkron nem sikerült."); }
     finally { setSyncing(false); }
@@ -5323,7 +5327,7 @@ function GarminSyncControl({ garminStatus, onConnect }) {
   }, []);
   if (garminStatus?.status !== "connected") return <button onClick={onConnect}><Activity size={14} /> ÖSSZEKÖTÉS GARMIN-FIÓKKAL</button>;
   const progress = Math.max(0, Math.min(100, Math.round(job?.progress || 0)));
-  return <div className="overview-sync-control">{error && <span role="alert">{error}</span>}<button onClick={() => syncNow()} disabled={syncing}>{syncing ? <AnimatedBrandMark className="sync-brand-mark" /> : <RefreshCw size={14} />}{syncing ? `${progress}%` : "SZINKRONIZÁLÁS"}</button>{syncing && <div className="sync-lock-overlay" role="dialog" aria-modal="true" aria-labelledby="sync-title" aria-describedby="sync-message" onKeyDown={(event) => { if (event.key === "Tab") event.preventDefault(); }} tabIndex={-1}><div className="sync-lock-content"><AnimatedBrandMark mode="assembling" /><strong id="sync-title">GARMIN SZINKRONIZÁLÁS</strong><span id="sync-message">{job?.message || "A szinkronizálás előkészítése…"}</span><div className="sync-lock-progress"><progress max="100" value={progress} aria-label={`Szinkronizálás: ${progress}%`} /><b>{progress}%</b></div><small>Az összes elérhető történeti adat feldolgozása folyamatban van. Kérjük, ne zárd be az oldalt.</small></div></div>}</div>;
+  return <div className="overview-sync-control">{error && <span role="alert">{error}</span>}<button onClick={() => syncNow(job?.status === "failed" ? job.run_id : null)} disabled={syncing}>{syncing ? <AnimatedBrandMark className="sync-brand-mark" /> : <RefreshCw size={14} />}{syncing ? `${progress}%` : job?.status === "failed" ? "SZINKRON FOLYTATÁSA" : "SZINKRONIZÁLÁS"}</button>{syncing && <div className="sync-lock-overlay" role="dialog" aria-modal="true" aria-labelledby="sync-title" aria-describedby="sync-message" onKeyDown={(event) => { if (event.key === "Tab") event.preventDefault(); }} tabIndex={-1}><div className="sync-lock-content"><AnimatedBrandMark mode="assembling" /><strong id="sync-title">GARMIN SZINKRONIZÁLÁS</strong><span id="sync-message">{job?.message || "A szinkronizálás előkészítése…"}</span><div className="sync-lock-progress"><progress max="100" value={progress} aria-label={`Szinkronizálás: ${progress}%`} /><b>{progress}%</b></div><small>Az összes elérhető történeti adat feldolgozása folyamatban van. Kérjük, ne zárd be az oldalt.</small></div></div>}</div>;
 }
 
 

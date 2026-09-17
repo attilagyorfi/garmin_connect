@@ -20,11 +20,18 @@ const dashboardFixture={
 const cloudPatches=[];
 dashboardFixture.metrics = [{name:"HRV (éjszakai)",value:"62 ms",score:75}];
 let mockedCloudState={version:2,profile:{name:"Attila",goal:"Általános fittség",weeklyHours:7,strengthRatio:25},accent:"teal",checkins:{},feedback:{},plans:[]};
+let syncResponseMode="non-json";
 globalThis.fetch = async (input,options={}) => {
   const url=String(input);
   if(url.endsWith("/api/auth"))return {ok:true,status:200,json:async()=>({user:{id:"test-user",email:"attilla@example.com",name:"Attila"}}),text:async()=>""};
   if(url.endsWith("/api/garmin"))return {ok:true,status:200,json:async()=>({status:"connected",email_hint:"at••••@example.com"}),text:async()=>""};
-  if(url.endsWith("/api/sync"))return {ok:false,status:404,text:async()=>"The page could not be found"};
+  if(url.endsWith("/api/sync")){
+    if(syncResponseMode==="failed"){
+      const body={run_id:"resume-test",status:"failed",phase:"failed",progress:42,message:"A Garmin átmenetileg nem elérhető."};
+      return {ok:false,status:409,text:async()=>JSON.stringify(body)};
+    }
+    return {ok:false,status:404,text:async()=>"The page could not be found"};
+  }
   if(url.endsWith("/api/state")){
     if(options.method==="PATCH"){
       const patch=JSON.parse(options.body);cloudPatches.push(patch);
@@ -84,6 +91,10 @@ try {
   await act(async () => sync.click());
   if (!document.querySelector(".overview-sync-position")?.textContent.includes("érvénytelen választ")) throw new Error("A nem JSON szinkronhiba nem kapott érthető üzenetet az Áttekintés oldalon.");
   console.log("OK online szinkronhiba kezelése");
+  syncResponseMode="failed";
+  await act(async () => sync.click());
+  if (![...document.querySelectorAll("button")].some(node=>node.textContent.trim()==="SZINKRON FOLYTATÁSA")) throw new Error("A megszakadt szinkron nem folytatható ugyanabból a futásból.");
+  console.log("OK megszakadt szinkron folytatása");
   for (const label of ["Naptár", "Trendek", "Cél", "Elemzések", "Napló", "Profil", "Beállítások"]) {
     const button = [...document.querySelectorAll("button")].find(node => node.textContent.trim() === label);
     if (!button) throw new Error(`Hiányzó navigációs gomb: ${label}`);

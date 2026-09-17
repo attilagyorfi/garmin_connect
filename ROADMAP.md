@@ -17,6 +17,8 @@
 - elkészült: a monolitikus, időtúllépésre érzékeny teljes szinkron felbontása rövid, újraindítható szerverless lépésekre
 - elkészült: tartós Neon job-állapot, fázis, százalék, aktivitás-/pulzuszóna-/wellness számlálók és részleges hibák
 - elkészült: böngészőből vezérelt folytatás és automatikus újracsatlakozás oldal-újratöltés után
+- elkészült: átmeneti Garmin rate-limit és hálózati hibák fokozatos automatikus újrapróbálása az előrehaladás elvesztése nélkül
+- elkészült: a többszöri sikertelen próbálkozás után leállított futás ugyanazzal a futásazonosítóval folytatható
 - elkészült: asztali szinkronfolyamat-panel a futó Hybrid Athlete logóval
 - elkészült: Garmin-tokenek titkosított, tartós tárolása és MFA bootstrap folyamat
 - következő: valós fiókos, többéves backfill terhelés- és rate-limit teszt Vercelen

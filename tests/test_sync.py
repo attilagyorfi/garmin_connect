@@ -20,6 +20,20 @@ def test_missing_garmin_session_is_clear(monkeypatch, tmp_path):
         GarminSync(tmp_path).authenticate()
 
 
+def test_transient_authentication_failure_is_not_reported_as_bad_credentials(monkeypatch, tmp_path):
+    class UnavailableGarmin:
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        @staticmethod
+        def login(_tokenstore):
+            raise TimeoutError("Connection timed out")
+
+    monkeypatch.setattr("garmin_sync.Garmin", UnavailableGarmin)
+    with pytest.raises(GarminSyncError, match="átmenetileg nem elérhető"):
+        GarminSync(tmp_path, tokenstore="encrypted-token-bundle").authenticate()
+
+
 def test_cache_freshness(tmp_path):
     sync = GarminSync(tmp_path, ttl_hours=12)
     sync.save_cache({"synced_at": datetime.now().astimezone().isoformat(), "activities": [], "wellness": []})
