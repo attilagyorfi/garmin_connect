@@ -1,0 +1,70 @@
+[
+  {
+    "name": "garmin_watch_five_zone_list",
+    "origin": "anonymized_real_device_shape",
+    "payload": [
+      {"zoneNumber": 1, "secsInZone": 180.0, "zoneLowBoundary": 90},
+      {"zoneNumber": 2, "secsInZone": 720.0, "zoneLowBoundary": 110},
+      {"zoneNumber": 3, "secsInZone": 1440.0, "zoneLowBoundary": 130},
+      {"zoneNumber": 4, "secsInZone": 480.0, "zoneLowBoundary": 150},
+      {"zoneNumber": 5, "secsInZone": 120.0, "zoneLowBoundary": 170}
+    ],
+    "expected_minutes": [3.0, 12.0, 24.0, 8.0, 2.0]
+  },
+  {
+    "name": "nested_hr_time_in_zones",
+    "origin": "schema_drift_contract",
+    "payload": {
+      "data": {
+        "hrTimeInZones": [
+          {"zone": "ZONE_1", "seconds": 60},
+          {"zone": "ZONE_2", "seconds": 300},
+          {"zone": "ZONE_3", "seconds": 600},
+          {"zone": "ZONE_4", "seconds": 180},
+          {"zone": "ZONE_5", "seconds": 0}
+        ]
+      }
+    },
+    "expected_minutes": [1.0, 5.0, 10.0, 3.0, 0.0]
+  },
+  {
+    "name": "zero_based_zone_indexes",
+    "origin": "schema_drift_contract",
+    "payload": [
+      {"zoneIndex": 0, "timeInZoneSeconds": 120},
+      {"zoneIndex": 1, "timeInZoneSeconds": 240},
+      {"zoneIndex": 2, "timeInZoneSeconds": 360},
+      {"zoneIndex": 3, "timeInZoneSeconds": 480},
+      {"zoneIndex": 4, "timeInZoneSeconds": 600}
+    ],
+    "expected_minutes": [2.0, 4.0, 6.0, 8.0, 10.0]
+  },
+  {
+    "name": "zone_mapping_with_minutes",
+    "origin": "schema_drift_contract",
+    "payload": {
+      "result": {
+        "heartRateZones": {
+          "zone1": {"timeInZoneMinutes": 4},
+          "zone2": {"minsInZone": 9},
+          "zone3": {"timeInZoneSeconds": 900},
+          "zone4": {"totalSeconds": 360},
+          "zone5": {"seconds": -60}
+        }
+      }
+    },
+    "expected_minutes": [4.0, 9.0, 15.0, 6.0, 0.0]
+  },
+  {
+    "name": "positional_seconds",
+    "origin": "schema_drift_contract",
+    "payload": [60, 120, 180, 240, 300],
+    "expected_minutes": [1.0, 2.0, 3.0, 4.0, 5.0]
+  },
+  {
+    "name": "empty_device_response",
+    "origin": "anonymized_real_device_shape",
+    "payload": [],
+    "expected_minutes": [0.0, 0.0, 0.0, 0.0, 0.0]
+  }
+]

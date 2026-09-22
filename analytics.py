@@ -89,42 +89,78 @@ def extract_hr_zone_minutes(payload: Any) -> list[float]:
     """Normalize Garmin HR-zone payload variants to five minute values.
 
     Garmin's unofficial response shape has changed over time. Known variants
-    include a list of zone dictionaries, a nested ``zones`` list and mappings
-    such as ``zone1``. Unknown or malformed values safely become zero.
+    include a list of zone dictionaries, nested response envelopes and mappings
+    such as ``zone1``. ``zoneIndex`` is handled as a zero-based index, while
+    ``zoneNumber`` remains one-based. Unknown or malformed values safely become
+    zero.
     """
+    def first_number(item: dict[str, Any], keys: tuple[str, ...]) -> float | None:
+        for key in keys:
+            if key in item:
+                value = number(item.get(key))
+                if value is not None:
+                    return value
+        return None
+
+    def parse_zone_number(item: dict[str, Any], position: int) -> int:
+        if "zoneIndex" in item:
+            index = number(item.get("zoneIndex"))
+            if index is not None and index.is_integer() and 0 <= index <= 4:
+                return int(index) + 1
+        for key in ("zoneNumber", "zone"):
+            if key not in item:
+                continue
+            raw = item.get(key)
+            parsed = number(raw)
+            if parsed is None:
+                digits = "".join(character for character in str(raw) if character.isdigit())
+                parsed = number(digits)
+            if parsed is not None and parsed.is_integer() and 1 <= parsed <= 5:
+                return int(parsed)
+        return position
+
     zones = [0.0] * 5
     candidate = payload
-    if isinstance(candidate, dict):
-        for key in ("hrTimeInZones", "heartRateZones", "zones", "zoneData"):
-            if isinstance(candidate.get(key), (list, dict)):
-                candidate = candidate[key]
-                break
+    for _ in range(3):
+        if not isinstance(candidate, dict):
+            break
+        nested = next(
+            (
+                candidate[key]
+                for key in ("hrTimeInZones", "heartRateZones", "zones", "zoneData", "timeInZones", "data", "result")
+                if isinstance(candidate.get(key), (list, dict))
+            ),
+            None,
+        )
+        if nested is None:
+            break
+        candidate = nested
     if isinstance(candidate, dict):
         for key, raw in candidate.items():
             digits = "".join(character for character in str(key) if character.isdigit())
             if not digits:
                 continue
-            zone_number = int(digits)
-            if not 1 <= zone_number <= 5:
+            zone_id = int(digits)
+            if not 1 <= zone_id <= 5:
                 continue
             if isinstance(raw, dict):
-                seconds = number(raw.get("secsInZone") or raw.get("seconds") or raw.get("duration"))
-                minutes = number(raw.get("minutes"))
+                seconds = first_number(raw, ("secsInZone", "seconds", "duration", "value", "timeInZone", "timeInZoneSeconds", "totalSeconds"))
+                minutes = first_number(raw, ("minutes", "minsInZone", "timeInZoneMinutes"))
             else:
                 seconds, minutes = number(raw), None
-            zones[zone_number - 1] = max(0.0, minutes if minutes is not None else (seconds or 0.0) / 60)
+            zones[zone_id - 1] = max(0.0, minutes if minutes is not None else (seconds or 0.0) / 60)
         return zones
     if not isinstance(candidate, list):
         return zones
     for position, item in enumerate(candidate[:5], start=1):
         if isinstance(item, dict):
-            zone_number = int(number(item.get("zoneNumber") or item.get("zone") or item.get("zoneIndex"), position) or position)
-            seconds = number(item.get("secsInZone") or item.get("seconds") or item.get("duration") or item.get("value"))
-            minutes = number(item.get("minutes"))
+            zone_id = parse_zone_number(item, position)
+            seconds = first_number(item, ("secsInZone", "seconds", "duration", "value", "timeInZone", "timeInZoneSeconds", "totalSeconds"))
+            minutes = first_number(item, ("minutes", "minsInZone", "timeInZoneMinutes"))
         else:
-            zone_number, seconds, minutes = position, number(item), None
-        if 1 <= zone_number <= 5:
-            zones[zone_number - 1] = max(0.0, minutes if minutes is not None else (seconds or 0.0) / 60)
+            zone_id, seconds, minutes = position, number(item), None
+        if 1 <= zone_id <= 5:
+            zones[zone_id - 1] = max(0.0, minutes if minutes is not None else (seconds or 0.0) / 60)
     return zones
 
 

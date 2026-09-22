@@ -1,3 +1,6 @@
+import json
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 
@@ -49,6 +52,14 @@ def test_hr_zone_payload_variants_are_normalized_to_minutes():
     assert extract_hr_zone_minutes(list_payload)[:2] == [10, 20]
     assert extract_hr_zone_minutes(dict_payload) == [5, 0, 0, 10, 0]
     assert extract_hr_zone_minutes({"unexpected": "shape"}) == [0, 0, 0, 0, 0]
+
+
+def test_anonymized_hr_zone_schema_fixtures():
+    fixture_path = Path(__file__).with_name("fixtures") / "hr_zone_payloads.json"
+    fixtures = json.loads(fixture_path.read_text(encoding="utf-8"))
+    assert {item["origin"] for item in fixtures} == {"anonymized_real_device_shape", "schema_drift_contract"}
+    for fixture in fixtures:
+        assert extract_hr_zone_minutes(fixture["payload"]) == fixture["expected_minutes"], fixture["name"]
 
 
 def test_session_and_musculoskeletal_load():

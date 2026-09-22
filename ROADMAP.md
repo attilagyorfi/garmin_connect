@@ -65,9 +65,9 @@
 - heti összefoglalók és napi ajánlások automatikus SQLite-snapshotja
 - reszponzív havi kártyás naptár és magyar nyelvű alapfelület
 
-## Következő P1 finomítások
+## P1 megbízhatósági finomítások
 
-- pulzuszóna-payloadok anonim, valós eszközfixture-ökkel történő további schema-drift validációja
+- elkészült: 148 valós eszközválasz szerkezeti auditja és személyes értéket nem tartalmazó fixture-készlet; ötzónás lista, üres válasz, nested wrapper, névvel jelölt zóna, perces mezők és nullaalapú `zoneIndex` regressziós védelme
 - elkészült: valódi böngészős billentyűzet- és képernyőolvasó-audit; skip link, egységes fókuszjelzés, csökkentett mozgás, elnevezett grafikonok és modális vezérlők
 - elkészült: a generált napi ajánlások és heti összefoglalók külön historikus UI-ja, grafikonokkal és JSON-exporttal
 
