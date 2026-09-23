@@ -4,7 +4,8 @@ from datetime import date, datetime, timedelta, timezone
 
 from garmin_sync import demo_data
 from api.retrain import authorized_cron
-from model_registry import evaluate_retraining
+from analytics import build_daily_frames, recovery_model_data_readiness
+from model_registry import evaluate_retraining, next_scheduled_check
 
 
 def test_retraining_builds_auditable_candidate_for_new_history():
@@ -82,3 +83,24 @@ def test_cron_endpoint_requires_configured_matching_secret(monkeypatch):
     monkeypatch.setenv("CRON_SECRET", "scheduled-secret")
     assert authorized_cron({"Authorization": "Bearer scheduled-secret"}) is True
     assert authorized_cron({"Authorization": "Bearer wrong"}) is False
+
+
+def test_model_readiness_uses_the_same_132_day_gate_as_validation():
+    raw = demo_data(365)
+    frame, activities = build_daily_frames(raw, {})
+    readiness = recovery_model_data_readiness(frame, activities, {})
+    validation = evaluate_retraining(raw, {"feedback": {}}, [], today=date(2026, 9, 22))["validation"]
+    assert readiness["requiredSamples"] == 132
+    assert readiness["availableSamples"] == validation["samples"]
+    assert readiness["readyForValidation"] is True
+    assert readiness["progressPct"] == 100
+    assert {item["key"] for item in readiness["coverage"]} == {
+        "sleep_score", "hrv", "resting_hr", "hybrid_load", "session_rpe"
+    }
+
+
+def test_next_scheduled_check_rolls_over_after_daily_cron_time():
+    before = datetime(2026, 9, 23, 3, 14, tzinfo=timezone.utc)
+    after = datetime(2026, 9, 23, 3, 16, tzinfo=timezone.utc)
+    assert next_scheduled_check(before) == "2026-09-23T03:15:00+00:00"
+    assert next_scheduled_check(after) == "2026-09-24T03:15:00+00:00"

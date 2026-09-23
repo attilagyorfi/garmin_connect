@@ -114,6 +114,7 @@
 - elkészült: 30 új adatnap, 30 napos modellkor vagy magas drift alapján magyar újratanítási jelzés
 - elkészült: aktív modell auditnézet, kétverziós összevetés és megerősített visszaállítás
 - elkészült: napi Vercel Cron által indított, `CRON_SECRET`-tel védett, felhasználónként elkülönített opcionális újratanítás; változatlan adatoknál nem fut újra, és csak az idősoros validációban jobb jelöltet aktiválja
+- elkészült: közérthető személyesmodell-állapot az értékelhető napok előrehaladásával, bemeneti adatlefedettséggel, baseline-összevetéssel, időrendi tesztablakokkal és a következő automatikus ellenőrzés idejével
 
 ## Ismert korlátok
 

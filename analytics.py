@@ -803,11 +803,18 @@ def pattern_uncertainty(frame: pd.DataFrame, activities: pd.DataFrame, feedback:
     return output
 
 
-def validate_recovery_model(frame: pd.DataFrame, activities: pd.DataFrame, feedback: dict[str, dict[str, Any]] | None = None) -> dict[str, Any]:
-    """Validate a small ridge model with expanding, strictly chronological folds."""
-    feature_columns = ["sleep_score", "hrv", "resting_hr", "hybrid_tsb", "hybrid_load", "session_rpe"]
+RECOVERY_MODEL_REQUIRED_SAMPLES = 132
+RECOVERY_MODEL_FEATURES = ["sleep_score", "hrv", "resting_hr", "hybrid_tsb", "hybrid_load", "session_rpe"]
+
+
+def _recovery_model_dataset(
+    frame: pd.DataFrame,
+    activities: pd.DataFrame,
+    feedback: dict[str, dict[str, Any]] | None = None,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Build the exact labeled dataset shared by readiness and validation."""
     if frame.empty:
-        return {"status": "insufficient", "eligible": False, "samples": 0, "folds": [], "message": "Nincs elemezhető adat."}
+        return frame.copy(), pd.DataFrame(columns=[*RECOVERY_MODEL_FEATURES, "target"])
     data = frame.copy().sort_index()
     hrv_history = data["hrv"].shift(1).rolling(28, min_periods=14)
     rhr_history = data["resting_hr"].shift(1).rolling(28, min_periods=14)
@@ -820,9 +827,55 @@ def validate_recovery_model(frame: pd.DataFrame, activities: pd.DataFrame, feedb
         enriched = activities.copy()
         enriched["rpe"] = [number((feedback or {}).get(str(activity_id), {}).get("rpe")) for activity_id in enriched["activity_id"]]
         data["session_rpe"] = enriched.groupby("date")["rpe"].max().reindex(data.index)
-    labeled = data[feature_columns + ["target"]].dropna(subset=["target"])
-    if len(labeled) < 132:
-        return {"status": "insufficient", "eligible": False, "samples": len(labeled), "folds": [], "message": f"Legalább 132 célértékes nap kell; jelenleg {len(labeled)} áll rendelkezésre."}
+    return data, data[RECOVERY_MODEL_FEATURES + ["target"]].dropna(subset=["target"])
+
+
+def recovery_model_data_readiness(
+    frame: pd.DataFrame,
+    activities: pd.DataFrame,
+    feedback: dict[str, dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    """Return a user-facing, non-predictive summary of model data suitability."""
+    data, labeled = _recovery_model_dataset(frame, activities, feedback)
+    samples = int(len(labeled))
+    labels = {
+        "sleep_score": "Alváspontszám",
+        "hrv": "Éjszakai HRV",
+        "resting_hr": "Nyugalmi pulzus",
+        "hybrid_load": "Edzésterhelés",
+        "session_rpe": "Saját edzésérzet (RPE)",
+    }
+    coverage = []
+    for key, label in labels.items():
+        available = int(data[key].notna().sum()) if key in data else 0
+        coverage.append(
+            {
+                "key": key,
+                "label": label,
+                "availableDays": available,
+                "coveragePct": round(available / len(data) * 100) if len(data) else 0,
+            }
+        )
+    return {
+        "availableSamples": samples,
+        "requiredSamples": RECOVERY_MODEL_REQUIRED_SAMPLES,
+        "progressPct": min(100, round(samples / RECOVERY_MODEL_REQUIRED_SAMPLES * 100)),
+        "observedDays": int(len(data)),
+        "dataStart": str(data.index.min().date()) if len(data) else None,
+        "dataEnd": str(data.index.max().date()) if len(data) else None,
+        "readyForValidation": samples >= RECOVERY_MODEL_REQUIRED_SAMPLES,
+        "coverage": coverage,
+    }
+
+
+def validate_recovery_model(frame: pd.DataFrame, activities: pd.DataFrame, feedback: dict[str, dict[str, Any]] | None = None) -> dict[str, Any]:
+    """Validate a small ridge model with expanding, strictly chronological folds."""
+    feature_columns = RECOVERY_MODEL_FEATURES
+    data, labeled = _recovery_model_dataset(frame, activities, feedback)
+    if data.empty:
+        return {"status": "insufficient", "eligible": False, "samples": 0, "folds": [], "message": "Nincs elemezhető adat."}
+    if len(labeled) < RECOVERY_MODEL_REQUIRED_SAMPLES:
+        return {"status": "insufficient", "eligible": False, "samples": len(labeled), "folds": [], "message": f"Legalább {RECOVERY_MODEL_REQUIRED_SAMPLES} célértékes nap kell; jelenleg {len(labeled)} áll rendelkezésre."}
 
     def fit_predict(train: pd.DataFrame, test: pd.DataFrame) -> tuple[np.ndarray, float, dict[str, Any]]:
         medians = train[feature_columns].median().fillna(0)

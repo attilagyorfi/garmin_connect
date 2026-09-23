@@ -3,13 +3,14 @@ from __future__ import annotations
 
 import json
 import time
-from datetime import date, datetime
+from datetime import date, datetime, time as datetime_time, timedelta, timezone
 from typing import Any
 
 from analytics import (
     build_daily_frames,
     feature_drift_audit,
     model_promotion_decision,
+    recovery_model_data_readiness,
     retraining_recommendation,
     validate_recovery_model,
 )
@@ -20,6 +21,8 @@ RAW_CACHE_KEY = "garmin_raw_cache_v1"
 USER_STATE_KEY = "user_state_v1"
 DEFAULT_BATCH_SIZE = 10
 DEFAULT_TIME_BUDGET_SECONDS = 240
+CRON_HOUR_UTC = 3
+CRON_MINUTE_UTC = 15
 
 
 def _as_date(value: Any) -> date:
@@ -28,6 +31,23 @@ def _as_date(value: Any) -> date:
     if isinstance(value, date):
         return value
     return datetime.fromisoformat(str(value).replace("Z", "+00:00")).date()
+
+
+def next_scheduled_check(now: datetime | None = None) -> str:
+    """Return the next daily cron time in UTC for transparent UI display."""
+    current = now or datetime.now(timezone.utc)
+    if current.tzinfo is None:
+        current = current.replace(tzinfo=timezone.utc)
+    else:
+        current = current.astimezone(timezone.utc)
+    candidate = datetime.combine(
+        current.date(),
+        datetime_time(CRON_HOUR_UTC, CRON_MINUTE_UTC),
+        tzinfo=timezone.utc,
+    )
+    if candidate <= current:
+        candidate += timedelta(days=1)
+    return candidate.isoformat()
 
 
 def initialize_model_registry(db: Any) -> None:
@@ -366,18 +386,55 @@ def model_status(user_id: str) -> dict[str, Any]:
             (user_id,),
         ).fetchone()
 
+        source = db.execute(
+            """
+            SELECT raw.payload, state.payload
+            FROM hybrid_user_state raw
+            LEFT JOIN hybrid_user_state state
+              ON state.user_id = raw.user_id AND state.state_key = %s
+            WHERE raw.user_id = %s AND raw.state_key = %s
+            """,
+            (USER_STATE_KEY, user_id, RAW_CACHE_KEY),
+        ).fetchone()
+        readiness = None
+        if source:
+            frame, activities = build_daily_frames(
+                source[0] or {}, (source[1] or {}).get("feedback") or {}
+            )
+            readiness = recovery_model_data_readiness(
+                frame, activities, (source[1] or {}).get("feedback") or {}
+            )
+
         def public_version(value: dict[str, Any] | None) -> dict[str, Any] | None:
             if not value:
                 return None
-            return {
+            public = {
                 key: (item.isoformat() if isinstance(item, datetime) else item)
                 for key, item in value.items()
                 if key != "metrics"
             }
+            metrics = value.get("metrics") if isinstance(value.get("metrics"), dict) else {}
+            folds = metrics.get("folds") if isinstance(metrics.get("folds"), list) else []
+            public["validation"] = {
+                "improvementPct": metrics.get("improvement_pct"),
+                "windowsWon": sum(
+                    1
+                    for fold in folds
+                    if float(fold.get("model_mae", float("inf")))
+                    < float(fold.get("baseline_mae", float("-inf")))
+                ),
+                "windowCount": len(folds),
+            }
+            return public
 
         return {
             "active": public_version(active),
             "latest": public_version(latest),
+            "readiness": readiness,
+            "schedule": {
+                "nextCheckAt": next_scheduled_check(),
+                "frequency": "daily",
+            },
             "lastRun": None
             if not run
             else {

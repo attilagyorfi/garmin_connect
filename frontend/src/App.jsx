@@ -2975,10 +2975,21 @@ function InsightsPage({ profile }) {
       : `A következő hét fókusza: ${profile.goal.toLowerCase()}`;
   const activeModel = modelState.data?.active,
     lastModelRun = modelState.data?.lastRun,
+    modelReadiness = modelState.data?.readiness,
+    modelSchedule = modelState.data?.schedule,
     modelDate = (value) =>
       value
         ? new Date(`${value}T12:00:00`).toLocaleDateString("hu-HU")
         : "ismeretlen dátum",
+    modelDateTime = (value) =>
+      value
+        ? new Date(value).toLocaleString("hu-HU", {
+            month: "short",
+            day: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+          })
+        : "a következő napi futáskor",
     modelTitle = activeModel
       ? "Aktív személyes regenerációs modell"
       : lastModelRun?.status === "insufficient"
@@ -2987,7 +2998,25 @@ function InsightsPage({ profile }) {
     modelMessage = activeModel
       ? `${activeModel.samples} érvényes nap alapján, ${modelDate(activeModel.data_start)} és ${modelDate(activeModel.data_end)} között. Az átlagos abszolút hiba ${Number(activeModel.model_mae).toLocaleString("hu-HU", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} a belső, standardizált következő napi regenerációs indexen. Ez nem terhelhetőségi pontszám: az alacsonyabb hiba pontosabb előrejelzést jelent.`
       : lastModelRun?.message ||
-        "A rendszer naponta ellenőrzi, hogy rendelkezésre áll-e elég jó minőségű adat. Gyengébb jelöltet nem aktivál automatikusan.";
+        "A rendszer naponta ellenőrzi, hogy rendelkezésre áll-e elég jó minőségű adat. Gyengébb jelöltet nem aktivál automatikusan.",
+    validationImprovement = activeModel?.validation?.improvementPct ??
+      (activeModel?.baseline_mae > 0
+        ? ((activeModel.baseline_mae - activeModel.model_mae) /
+            activeModel.baseline_mae) *
+          100
+        : null),
+    validationWindows = activeModel?.validation,
+    samplesRemaining = modelReadiness
+      ? Math.max(
+          0,
+          Number(modelReadiness.requiredSamples || 132) -
+            Number(modelReadiness.availableSamples || 0),
+        )
+      : null,
+    modelProgress = Math.max(
+      0,
+      Math.min(100, Number(modelReadiness?.progressPct || 0)),
+    );
   return (
     <>
       <PageHeader eyebrow="INSIGHTS" title="Mi működik nálam" />
@@ -3052,29 +3081,127 @@ function InsightsPage({ profile }) {
             </div>
           </section>
           <section className="card model-status" aria-live="polite">
-            {modelState.status === "loading" ? (
-              <RefreshCw className="model-status-spinner" size={18} />
-            ) : activeModel ? (
-              <TrendingUp size={18} />
-            ) : (
-              <LockKeyhole size={18} />
+            <div className="model-status-heading">
+              {modelState.status === "loading" ? (
+                <RefreshCw className="model-status-spinner" size={19} />
+              ) : activeModel ? (
+                <TrendingUp size={19} />
+              ) : (
+                <LockKeyhole size={19} />
+              )}
+              <div>
+                <span className="eyebrow">SZEMÉLYES MODELL</span>
+                <b>
+                  {modelState.status === "loading"
+                    ? "Modellállapot betöltése"
+                    : modelState.status === "unavailable"
+                      ? "A modellállapot most nem érhető el"
+                      : modelTitle}
+                </b>
+              </div>
+              {modelState.status === "ready" && (
+                <span className={`model-status-pill ${activeModel ? "active" : "preparing"}`}>
+                  {activeModel ? "AKTÍV" : "ELŐKÉSZÍTÉS"}
+                </span>
+              )}
+            </div>
+            <p className="model-status-summary">
+              {modelState.status === "unavailable"
+                ? "A többi elemzés továbbra is használható. A háttérellenőrzés állapotát később újra lekérjük."
+                : modelMessage}
+            </p>
+
+            {modelState.status === "ready" && modelReadiness && (
+              <div className="model-data-readiness">
+                <div className="model-progress-label">
+                  <span>Értékelhető előzmény</span>
+                  <strong>
+                    {modelReadiness.availableSamples} / {modelReadiness.requiredSamples} nap
+                  </strong>
+                </div>
+                <span
+                  className="model-progress-track"
+                  role="progressbar"
+                  aria-label="A személyes modellhez felhasználható előzmény"
+                  aria-valuemin="0"
+                  aria-valuemax={modelReadiness.requiredSamples}
+                  aria-valuenow={Math.min(
+                    modelReadiness.availableSamples,
+                    modelReadiness.requiredSamples,
+                  )}
+                >
+                  <i style={{ width: `${modelProgress}%` }} />
+                </span>
+                <p>
+                  {samplesRemaining > 0
+                    ? `Még ${samplesRemaining} értékelhető nap szükséges az első modelljelölt vizsgálatához.`
+                    : "Megvan a minimális előzmény. Ez még nem jelent automatikus aktiválást: a jelöltnek három időrendi tesztből legalább kettőben jobbnak kell lennie az egyszerű viszonyítási alapnál."}
+                </p>
+              </div>
             )}
-            <div>
-              <b>
-                {modelState.status === "loading"
-                  ? "Modellállapot betöltése"
-                  : modelState.status === "unavailable"
-                    ? "A modellállapot most nem érhető el"
-                    : modelTitle}
-              </b>
-              <p>
-                {modelState.status === "unavailable"
-                  ? "A többi elemzés továbbra is használható. A háttérellenőrzés állapotát később újra lekérjük."
-                  : modelMessage}
-              </p>
+
+            {activeModel && (
+              <div className="model-validation-grid">
+                <div>
+                  <span>VISZONYÍTÁSI ALAPHOZ KÉPEST</span>
+                  <strong>
+                    {validationImprovement !== null &&
+                    validationImprovement !== undefined &&
+                    Number.isFinite(Number(validationImprovement))
+                      ? `${Number(validationImprovement).toLocaleString("hu-HU", { maximumFractionDigits: 1 })}% kisebb hiba`
+                      : "Érvényesített"}
+                  </strong>
+                  <p>Az egyszerű, személyre nem szabott becsléshez viszonyított eredmény.</p>
+                </div>
+                <div>
+                  <span>IDŐRENDI TESZTABLAKOK</span>
+                  <strong>
+                    {validationWindows?.windowCount
+                      ? `${validationWindows.windowsWon} / ${validationWindows.windowCount} jobb`
+                      : "Legalább 2 / 3 jobb"}
+                  </strong>
+                  <p>A régebbi adatokon tanul, majd későbbi, addig nem látott napokon vizsgázik.</p>
+                </div>
+              </div>
+            )}
+
+            {modelState.status === "ready" && modelReadiness?.coverage?.length > 0 && (
+              <div className="model-coverage">
+                <span>ADATLEFEDETTSÉG</span>
+                <div>
+                  {modelReadiness.coverage.map((item) => (
+                    <span key={item.key}>
+                      <b>{item.label}</b>
+                      <small>{item.coveragePct}%</small>
+                    </span>
+                  ))}
+                </div>
+                <p>
+                  A lefedettség azt mutatja, az összes megfigyelt nap mekkora részén volt jelen az adott adat. A hiányzó érték nem számít nullának.
+                </p>
+              </div>
+            )}
+
+            {lastModelRun?.reasons?.length > 0 && !activeModel && (
+              <div className="model-reasons">
+                <span>MIÉRT VÁR MÉG?</span>
+                <ul>
+                  {lastModelRun.reasons.map((reason) => (
+                    <li key={reason}>{reason}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            <div className="model-status-timing">
               {lastModelRun?.checkedAt && (
                 <small>
-                  Utolsó automatikus ellenőrzés: {new Date(lastModelRun.checkedAt).toLocaleString("hu-HU")}
+                  Utolsó ellenőrzés: {modelDateTime(lastModelRun.checkedAt)}
+                </small>
+              )}
+              {modelSchedule?.nextCheckAt && (
+                <small>
+                  Következő automatikus ellenőrzés: {modelDateTime(modelSchedule.nextCheckAt)}
                 </small>
               )}
             </div>
