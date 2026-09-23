@@ -90,6 +90,18 @@ Ez az ujjlenyomat nem titkosítás, ezért a napló továbbra is felhasználóho
 
 Ellenőrzés (éles modellhívás nélkül): `npm run test:ai` és `py -m pytest tests/test_ai_usage.py`.
 
+## Vercel: automatikus személyes modellkarbantartás
+
+A production telepítés naponta egyszer meghívja a `/api/retrain` végpontot. Ehhez a Vercel
+projekt Production környezetében kötelező egy hosszú, véletlen `CRON_SECRET` érték. A Vercel
+ezt `Bearer` hitelesítésként küldi; hiányzó vagy eltérő titoknál a végpont nem indul el.
+
+Az ütemező felhasználónként elkülönítve, egyszerre legfeljebb tíz fiókot ellenőriz. Nem futtatja
+újra ugyanazt az adatállapotot, és az idősoros validációs kaput nem kerüli meg: gyengébb vagy
+elégtelen jelöltet eltárolhat ellenőrzési eredményként, de nem aktivál. Az Elemzések oldalon csak
+a mintanagyság, az adat-időszak és a közérthetően magyarázott hibaérték jelenik meg; a modell
+együtthatói és a nyers Garmin-adatok nem kerülnek a böngészőbe.
+
 ## Garmin-szinkron és MFA
 
 Az app kizárólag lekérő metódusokat használ: `get_activities`, `get_activities_by_date`, `get_activity_hr_in_timezones`, `get_hrv_data`, `get_sleep_data`, `get_heart_rates`. A szinkron csak a felhasználó gombnyomására fut; rerenderkor nem. Az **Összes rendelkezésre álló adat** mód lapozva lekéri a teljes aktivitástörténetet, a legkorábbi aktivitásig tölti vissza a napi wellness adatokat, 30 naponként részleges cache-t ment, és újrafuttatáskor kihagyja a már cache-elt napokat. Részleges végponthiba nem állítja le a teljes folyamatot, teljes sikertelenségnél pedig az utolsó érvényes cache marad látható. A pulzuszóna-normalizáló anonim, valós eszközszerkezetből készült fixture-ökkel védi az ismert lista-, wrapper-, mapping- és nullaalapú indexváltozatokat; ismeretlen vagy hibás válaszból nem készít kitalált zónaadatot.

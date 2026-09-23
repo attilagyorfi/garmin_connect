@@ -25,6 +25,7 @@ let syncResponseMode="non-json";
 globalThis.fetch = async (input,options={}) => {
   const url=String(input);
   if(url.endsWith("/api/auth"))return {ok:true,status:200,json:async()=>({user:{id:"test-user",email:"attilla@example.com",name:"Attila"}}),text:async()=>""};
+  if(url.endsWith("/api/model"))return {ok:true,status:200,json:async()=>({active:{id:7,trained_at:"2026-09-22T03:15:00+00:00",data_start:"2025-09-01",data_end:"2026-09-21",samples:340,model_mae:0.42,baseline_mae:0.61,eligible:true,active:true,promotion_reason:"A jelölt MAE-je jobb."},latest:null,lastRun:{checkedAt:"2026-09-22T03:15:00+00:00",status:"candidate_ready",due:true,reasons:["30 új adatnap érkezett"],dataEnd:"2026-09-22",message:"A validált jelölt aktiválva."}}),text:async()=>""};
   if(url.endsWith("/api/garmin"))return {ok:true,status:200,json:async()=>({status:"connected",email_hint:"at••••@example.com"}),text:async()=>""};
   if(url.endsWith("/api/sync")){
     if(syncResponseMode==="failed"){
@@ -151,6 +152,13 @@ try {
       if (!range.classList.contains("active")) throw new Error("A trendek időszakváltása nem működik.");
       if (document.querySelectorAll(".trend-summary .card").length !== 5) throw new Error("Hiányoznak a fejlődéstörténet összesítői.");
       console.log("OK fejlődéstörténet és időszakváltás");
+    }
+    if (label === "Elemzések") {
+      await act(async () => new Promise(resolve=>setTimeout(resolve,5)));
+      const modelStatus=document.querySelector('.model-status');
+      if (!modelStatus?.textContent.includes("Aktív személyes regenerációs modell")) throw new Error("Az automatikus személyes modell állapota nem jelent meg.");
+      if (!modelStatus.textContent.includes("átlagos abszolút hiba 0,42")||!modelStatus.textContent.includes("nem terhelhetőségi pontszám")) throw new Error("A modell pontosságának laikus magyarázata hiányzik.");
+      console.log("OK ütemezett személyes modellállapot és közérthető pontosság");
     }
     if (label === "Cél") {
       const goalScore=document.querySelector(".goal-score");

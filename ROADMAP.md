@@ -113,7 +113,7 @@
 - elkészült: automatikus aktiválás csak validált és az aktív modellnél jobb MAE-jű jelöltnél
 - elkészült: 30 új adatnap, 30 napos modellkor vagy magas drift alapján magyar újratanítási jelzés
 - elkészült: aktív modell auditnézet, kétverziós összevetés és megerősített visszaállítás
-- következő: opcionális ütemezett újratanítás a telepítési környezet ütemezőjével
+- elkészült: napi Vercel Cron által indított, `CRON_SECRET`-tel védett, felhasználónként elkülönített opcionális újratanítás; változatlan adatoknál nem fut újra, és csak az idősoros validációban jobb jelöltet aktiválja
 
 ## Ismert korlátok
 

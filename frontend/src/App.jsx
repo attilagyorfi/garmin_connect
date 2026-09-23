@@ -388,6 +388,32 @@ function useDashboardData(withStatus = false) {
   }, []);
   return withStatus ? { data, status } : data;
 }
+function useModelStatus() {
+  const [state, setState] = useState({ status: "loading", data: null });
+  useEffect(() => {
+    let active = true;
+    fetch("/api/model", { cache: "no-store" })
+      .then(async (response) => {
+        const value = await response.json();
+        if (
+          !response.ok ||
+          !value ||
+          typeof value !== "object" ||
+          !("active" in value) ||
+          !("lastRun" in value)
+        )
+          throw new Error("model-status-unavailable");
+        if (active) setState({ status: "ready", data: value });
+      })
+      .catch(() => {
+        if (active) setState({ status: "unavailable", data: null });
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+  return state;
+}
 async function fetchCloudState() {
   const response = await fetch("/api/state");
   if (!response.ok) throw new Error("cloud-state-unavailable");
@@ -2907,6 +2933,7 @@ function GoalPage({ profile, onEdit, cloudState, onCloudPatch }) {
 function InsightsPage({ profile }) {
   const [accepted, setAccepted] = useState(false),
     data = useDashboardData(),
+    modelState = useModelStatus(),
     view = personalizeDashboard(data, profile),
     week = view.week;
   let activityFeedback = [];
@@ -2946,6 +2973,21 @@ function InsightsPage({ profile }) {
     week.progress > 110 || Number(data?.week?.change_pct || 0) > 20
       ? "A következő hét legyen stabilizáló hét"
       : `A következő hét fókusza: ${profile.goal.toLowerCase()}`;
+  const activeModel = modelState.data?.active,
+    lastModelRun = modelState.data?.lastRun,
+    modelDate = (value) =>
+      value
+        ? new Date(`${value}T12:00:00`).toLocaleDateString("hu-HU")
+        : "ismeretlen dátum",
+    modelTitle = activeModel
+      ? "Aktív személyes regenerációs modell"
+      : lastModelRun?.status === "insufficient"
+        ? "Még gyűjtjük a szükséges előzményt"
+        : "A személyes modell előkészítés alatt áll",
+    modelMessage = activeModel
+      ? `${activeModel.samples} érvényes nap alapján, ${modelDate(activeModel.data_start)} és ${modelDate(activeModel.data_end)} között. Az átlagos abszolút hiba ${Number(activeModel.model_mae).toLocaleString("hu-HU", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} a belső, standardizált következő napi regenerációs indexen. Ez nem terhelhetőségi pontszám: az alacsonyabb hiba pontosabb előrejelzést jelent.`
+      : lastModelRun?.message ||
+        "A rendszer naponta ellenőrzi, hogy rendelkezésre áll-e elég jó minőségű adat. Gyengébb jelöltet nem aktivál automatikusan.";
   return (
     <>
       <PageHeader eyebrow="INSIGHTS" title="Mi működik nálam" />
@@ -3009,14 +3051,32 @@ function InsightsPage({ profile }) {
               <button>MAJD KÉSŐBB</button>
             </div>
           </section>
-          <section className="card locked">
-            <LockKeyhole size={16} />
+          <section className="card model-status" aria-live="polite">
+            {modelState.status === "loading" ? (
+              <RefreshCw className="model-status-spinner" size={18} />
+            ) : activeModel ? (
+              <TrendingUp size={18} />
+            ) : (
+              <LockKeyhole size={18} />
+            )}
             <div>
-              <b>Következő mélyelemzés</b>
+              <b>
+                {modelState.status === "loading"
+                  ? "Modellállapot betöltése"
+                  : modelState.status === "unavailable"
+                    ? "A modellállapot most nem érhető el"
+                    : modelTitle}
+              </b>
               <p>
-                A felismerések a következő Garmin-szinkron és edzés-visszajelzés
-                után újraszámolódnak.
+                {modelState.status === "unavailable"
+                  ? "A többi elemzés továbbra is használható. A háttérellenőrzés állapotát később újra lekérjük."
+                  : modelMessage}
               </p>
+              {lastModelRun?.checkedAt && (
+                <small>
+                  Utolsó automatikus ellenőrzés: {new Date(lastModelRun.checkedAt).toLocaleString("hu-HU")}
+                </small>
+              )}
             </div>
           </section>
         </aside>

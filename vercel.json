@@ -39,8 +39,22 @@
     "api/sync.py": {
       "maxDuration": 300,
       "excludeFiles": "{tests/**,frontend/**,data/**,output/**,.pytest-tmp-*/**}"
+    },
+    "api/retrain.py": {
+      "maxDuration": 300,
+      "excludeFiles": "{tests/**,frontend/**,data/**,output/**,.pytest-tmp-*/**}"
+    },
+    "api/model.py": {
+      "maxDuration": 30,
+      "excludeFiles": "{tests/**,frontend/**,data/**,output/**,.pytest-tmp-*/**}"
     }
   },
+  "crons": [
+    {
+      "path": "/api/retrain",
+      "schedule": "15 3 * * *"
+    }
+  ],
   "rewrites": [
     { "source": "/(.*)", "destination": "/index.html" }
   ]

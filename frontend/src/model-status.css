@@ -1,0 +1,49 @@
+.model-status {
+  display: flex;
+  gap: 13px;
+  padding: 18px;
+  color: #a8adaa;
+  border-color: color-mix(in srgb, var(--accent) 35%, #303232);
+}
+
+.model-status > svg {
+  flex: 0 0 auto;
+  color: var(--accent);
+  margin-top: 2px;
+}
+
+.model-status b {
+  display: block;
+  color: #f2f4f3;
+  font-size: 13px;
+}
+
+.model-status p {
+  margin: 7px 0 0;
+  color: #a4a8a6;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.model-status small {
+  display: block;
+  margin-top: 10px;
+  color: #747977;
+  font: 10px/1.4 "Geist Mono", monospace;
+}
+
+.model-status-spinner {
+  animation: model-status-spin 1.3s linear infinite;
+}
+
+@keyframes model-status-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .model-status-spinner {
+    animation: none;
+  }
+}
