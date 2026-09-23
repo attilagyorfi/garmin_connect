@@ -4,7 +4,7 @@ import json
 from http.server import BaseHTTPRequestHandler
 
 from ai_usage import usage_today
-from auth_store import current_user
+from auth_store import current_user, is_ai_enabled
 
 
 class handler(BaseHTTPRequestHandler):
@@ -22,6 +22,9 @@ class handler(BaseHTTPRequestHandler):
             user = current_user(self.headers)
             if not user:
                 self._send({"error": "A művelethez bejelentkezés szükséges."}, 401)
+                return
+            if not is_ai_enabled():
+                self._send({"error": "Az AI-asszisztens ebben a zárt kiadásban még nincs bekapcsolva."}, 503)
                 return
             self._send(usage_today(user["id"]))
         except Exception:

@@ -65,9 +65,15 @@ Másold a `.env.example` tartalmát saját, Gitből kizárt `.env` fájlba vagy 
 
 A `.env`, tokenkönyvtár, cache, SQLite, export és egészségadat Gitből kizárt. A repóba soha ne commitolj valódi hitelesítőt vagy személyes egészségadatot.
 
+## Zárt hozzáférés
+
+A jelenlegi kiadásban nincs nyilvános regisztráció és nincs szükség e-mail-küldő szolgáltatásra. A `HYBRID_ADMIN_EMAILS` változóban vesszővel elválasztva megadott meglévő fiókok adminisztrátori szerepet kapnak. Az admin a **Beállítások → Zárt hozzáférés** részen 7 napig érvényes, egyszer használható meghívólinket, valamint egyszer használható jelszó-visszaállító linket készíthet. A linkeket az admin küldi el közvetlenül a felhasználónak.
+
+Az AI-integráció alapértelmezetten zárt. Csak tudatos későbbi bekapcsoláskor állítsd a `HYBRID_AI_ENABLED` változót `true` értékre; addig az AI-végpontok nem olvasnak felhasználói sportadatot és nem hívnak külső modellt.
+
 ## Vercel: az AI-asszisztens opcionális használati beállításai
 
-Az asztali webfelület AI-használati kerete további változó nélkül **50 000 token/felhasználó/nap**.
+Bekapcsolt AI-integrációnál az asztali webfelület AI-használati kerete további változó nélkül **50 000 token/felhasználó/nap**.
 A token a feldolgozott szöveg kis egysége; a keret a kérdések, az adatkontextus és a válaszok összesített használatát számolja.
 
 | Változó | Szükséges? | Hatása |

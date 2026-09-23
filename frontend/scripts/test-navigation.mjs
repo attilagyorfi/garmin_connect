@@ -24,7 +24,14 @@ let mockedCloudState={version:2,profile:{name:"Attila",goal:"Általános fittsé
 let syncResponseMode="non-json";
 globalThis.fetch = async (input,options={}) => {
   const url=String(input);
-  if(url.endsWith("/api/auth"))return {ok:true,status:200,json:async()=>({user:{id:"test-user",email:"attilla@example.com",name:"Attila"}}),text:async()=>""};
+  if(url.endsWith("/api/auth"))return {ok:true,status:200,json:async()=>({user:{id:"test-user",email:"attilla@example.com",name:"Attila",role:"admin"}}),text:async()=>""};
+  if(url.endsWith("/api/admin")){
+    const action=options.body?JSON.parse(options.body).action:"";
+    const body=action==="create_invite"
+      ? {id:"invite-1",status:"active",expiresAt:"2026-09-30T12:00:00+00:00",path:"/?invite=teszt-token"}
+      : {users:[{id:"test-user",email:"attilla@example.com",name:"Attila",role:"admin"}],invites:[]};
+    return {ok:true,status:action?201:200,json:async()=>body,text:async()=>JSON.stringify(body)};
+  }
   if(url.endsWith("/api/model"))return {ok:true,status:200,json:async()=>({active:{id:7,trained_at:"2026-09-22T03:15:00+00:00",data_start:"2025-09-01",data_end:"2026-09-21",samples:340,model_mae:0.42,baseline_mae:0.61,eligible:true,active:true,promotion_reason:"A jelölt MAE-je jobb.",validation:{improvementPct:31.1,windowsWon:3,windowCount:3}},latest:null,readiness:{availableSamples:340,requiredSamples:132,progressPct:100,observedDays:365,dataStart:"2025-09-01",dataEnd:"2026-09-22",readyForValidation:true,coverage:[{key:"sleep_score",label:"Alváspontszám",availableDays:350,coveragePct:96},{key:"hrv",label:"Éjszakai HRV",availableDays:340,coveragePct:93},{key:"resting_hr",label:"Nyugalmi pulzus",availableDays:355,coveragePct:97},{key:"hybrid_load",label:"Edzésterhelés",availableDays:365,coveragePct:100},{key:"session_rpe",label:"Saját edzésérzet (RPE)",availableDays:40,coveragePct:11}]},schedule:{nextCheckAt:"2026-09-23T03:15:00+00:00",frequency:"daily"},lastRun:{checkedAt:"2026-09-22T03:15:00+00:00",status:"candidate_ready",due:true,reasons:["30 új adatnap érkezett"],dataEnd:"2026-09-22",message:"A validált jelölt aktiválva."}}),text:async()=>""};
   if(url.endsWith("/api/garmin"))return {ok:true,status:200,json:async()=>({status:"connected",email_hint:"at••••@example.com"}),text:async()=>""};
   if(url.endsWith("/api/sync")){
@@ -161,6 +168,15 @@ try {
       if (!modelStatus.textContent.includes("340 / 132 nap")||!modelStatus.textContent.includes("31,1% kisebb hiba")||!modelStatus.textContent.includes("3 / 3 jobb")) throw new Error("A modell adatalkalmassági vagy validációs összefoglalója hiányzik.");
       if (!modelStatus.textContent.includes("Éjszakai HRV")||!modelStatus.textContent.includes("Következő automatikus ellenőrzés")) throw new Error("A modell adatlefedettsége vagy ütemezése hiányzik.");
       console.log("OK ütemezett személyes modellállapot, adatalkalmasság és közérthető pontosság");
+    }
+    if (label === "Beállítások") {
+      const access=document.querySelector(".admin-access-card");
+      if (!access?.textContent.includes("Zárt hozzáférés")) throw new Error("Az adminisztrátori hozzáférés-kezelés hiányzik.");
+      const invite=[...access.querySelectorAll("button")].find(node=>node.textContent.includes("Új meghívólink"));
+      await act(async()=>invite.click());
+      await act(async()=>new Promise(resolve=>setTimeout(resolve,5)));
+      if (!access.querySelector('.admin-generated-link input')?.value.includes("?invite=teszt-token")) throw new Error("A meghívólink nem generálódott le.");
+      console.log("OK zárt adminisztrátori meghívás");
     }
     if (label === "Cél") {
       const goalScore=document.querySelector(".goal-score");

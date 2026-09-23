@@ -4099,9 +4099,72 @@ function SettingsPage({
             <LogOut size={17} /> Kijelentkezés
           </button>
         </section>
+        {user?.role === "admin" && <AdminAccessCard />}
         <ActiveSessionsCard />
       </main>
     </>
+  );
+}
+
+function AdminAccessCard() {
+  const [data, setData] = useState({ users: [], invites: [] }),
+    [resetEmail, setResetEmail] = useState(""),
+    [generated, setGenerated] = useState(null),
+    [busy, setBusy] = useState(false),
+    [error, setError] = useState("");
+  const load = () =>
+    fetch("/api/admin")
+      .then(async (response) => {
+        const body = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(body.error || "A hozzáférések nem tölthetők be.");
+        return body;
+      })
+      .then(setData)
+      .catch((reason) => setError(reason.message));
+  useEffect(() => { load(); }, []);
+  const act = async (payload) => {
+    setBusy(true); setError(""); setGenerated(null);
+    try {
+      const response = await fetch("/api/admin", {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.error || "A művelet sikertelen.");
+      if (body.path) setGenerated({ url: `${window.location.origin}${body.path}`, email: body.email || "" });
+      await load();
+    } catch (reason) { setError(reason.message); }
+    finally { setBusy(false); }
+  };
+  const copy = async () => {
+    if (generated?.url) await navigator.clipboard.writeText(generated.url);
+  };
+  return (
+    <section className="card admin-access-card">
+      <span className="eyebrow">ADMINISZTRÁCIÓ</span>
+      <h2>Zárt hozzáférés</h2>
+      <p>Csak az általad létrehozott, egyszer használható hivatkozással lehet új fiókot nyitni. A link 7 napig érvényes.</p>
+      <div className="admin-access-actions">
+        <button className="primary" disabled={busy} onClick={() => act({ action: "create_invite" })}>
+          <Plus size={17} /> Új meghívólink
+        </button>
+        <div className="admin-reset-row">
+          <input type="email" value={resetEmail} onChange={(event) => setResetEmail(event.target.value)} placeholder="Felhasználó e-mail-címe" />
+          <button disabled={busy || !resetEmail} onClick={() => act({ action: "create_password_reset", email: resetEmail })}>Jelszólink</button>
+        </div>
+      </div>
+      {generated && (
+        <div className="admin-generated-link">
+          <div><b>{generated.email ? "Jelszó-visszaállító link" : "Meghívólink"}</b><small>Másold ki és küldd el közvetlenül a felhasználónak.</small></div>
+          <input readOnly value={generated.url} aria-label="Generált hivatkozás" />
+          <button onClick={copy}>Másolás</button>
+        </div>
+      )}
+      {error && <p className="auth-error" role="alert">{error}</p>}
+      <div className="admin-access-grid">
+        <div><h3>Felhasználók ({data.users.length})</h3>{data.users.map((item) => <div className="admin-access-row" key={item.id}><span><b>{item.name}</b><small>{item.email}</small></span><em>{item.role === "admin" ? "ADMIN" : "TAG"}</em></div>)}</div>
+        <div><h3>Meghívók</h3>{data.invites.length === 0 && <p className="admin-empty">Még nincs létrehozott meghívó.</p>}{data.invites.map((item) => <div className="admin-access-row" key={item.id}><span><b>{item.status === "active" ? "Aktív" : item.status === "used" ? "Felhasználva" : item.status === "revoked" ? "Visszavonva" : "Lejárt"}</b><small>{item.usedBy || new Date(item.expiresAt).toLocaleString("hu-HU")}</small></span>{item.status === "active" && <button className="danger-outline" disabled={busy} onClick={() => act({ action: "revoke_invite", id: item.id })}><Trash2 size={15} /> Visszavonás</button>}</div>)}</div>
+      </div>
+    </section>
   );
 }
 function Onboarding({ accent, onAccent, onDone }) {
@@ -4599,7 +4662,8 @@ async function authRequest(payload) {
 }
 function AuthScreen({ onAuthenticated }) {
   const query = new URLSearchParams(window.location.search),
-    initialAuthMode = query.get("auth") === "reset" ? "reset" : "login",
+    inviteToken = query.get("invite") || "",
+    initialAuthMode = query.get("auth") === "reset" ? "reset" : inviteToken ? "register" : "login",
     authToken = query.get("token") || "",
     [mode, setMode] = useState(initialAuthMode),
     [name, setName] = useState(""),
@@ -4614,12 +4678,12 @@ function AuthScreen({ onAuthenticated }) {
       setError("");
       setMessage("");
       try {
-        const action = mode === "forgot" ? "request_password_reset" : mode === "reset" ? "reset_password" : mode;
-        const result = await authRequest({ action, email, password, name, token: authToken });
+        const action = mode === "reset" ? "reset_password" : mode;
+        const result = await authRequest({ action, email, password, name, token: authToken, inviteToken });
         if (result.user) onAuthenticated(result.user);
         else {
           setMessage(result.message || "A kérés sikeresen megtörtént.");
-          if (mode === "register" || mode === "reset") setMode("login");
+          if (mode === "reset") setMode("login");
         }
       } catch (reason) {
         setError(reason.message);
@@ -4627,27 +4691,8 @@ function AuthScreen({ onAuthenticated }) {
         setBusy(false);
       }
     };
-  useEffect(() => {
-    if (query.get("auth") !== "verify" || !authToken) return;
-    setBusy(true);
-    authRequest({ action: "verify_email", token: authToken })
-      .then((result) => {
-        window.history.replaceState({}, "", window.location.pathname);
-        onAuthenticated(result.user);
-      })
-      .catch((reason) => setError(reason.message))
-      .finally(() => setBusy(false));
-  }, [authToken, onAuthenticated]);
   const switchMode = (next) => {
     setMode(next); setError(""); setMessage("");
-  };
-  const resend = async () => {
-    setBusy(true); setError("");
-    try {
-      const result = await authRequest({ action: "resend_verification", email });
-      setMessage(result.message);
-    } catch (reason) { setError(reason.message); }
-    finally { setBusy(false); }
   };
   return (
     <main className="auth-shell">
@@ -4665,7 +4710,7 @@ function AuthScreen({ onAuthenticated }) {
         </p>
       </section>
       <section className="auth-card card">
-        {(mode === "login" || mode === "register") && <div className="auth-tabs">
+        {inviteToken && (mode === "login" || mode === "register") && <div className="auth-tabs">
           <button
             className={mode === "login" ? "active" : ""}
             onClick={() => {
@@ -4680,16 +4725,16 @@ function AuthScreen({ onAuthenticated }) {
               switchMode("register");
             }}
           >
-            Regisztráció
+            Meghívás elfogadása
           </button>
         </div>}
         <span className="eyebrow">
-          {mode === "login" ? "ÜDV ÚJRA" : mode === "register" ? "ÚJ SPORTOLÓI FIÓK" : mode === "forgot" ? "FIÓKHELYREÁLLÍTÁS" : "ÚJ JELSZÓ"}
+          {mode === "login" ? "ÜDV ÚJRA" : mode === "register" ? "SZEMÉLYES MEGHÍVÓ" : "ÚJ JELSZÓ"}
         </span>
         <h2>
           {mode === "login"
             ? "Lépj be a dashboardodba"
-            : mode === "register" ? "Hozd létre a saját tered" : mode === "forgot" ? "Kérj visszaállító hivatkozást" : "Állíts be új jelszót"}
+            : mode === "register" ? "Hozd létre a meghívott fiókodat" : "Állíts be új jelszót"}
         </h2>
         <form onSubmit={submit}>
           {mode === "register" && (
@@ -4714,7 +4759,7 @@ function AuthScreen({ onAuthenticated }) {
               required
             />
           </label>}
-          {mode !== "forgot" && <label>
+          <label>
             Jelszó
             <input
               type="password"
@@ -4727,7 +4772,7 @@ function AuthScreen({ onAuthenticated }) {
               required
             />
             <small>Legalább 10 karakter</small>
-          </label>}
+          </label>
           {message && <p className="auth-success" role="status">{message}</p>}
           {error && (
             <p className="auth-error" role="alert">
@@ -4737,11 +4782,10 @@ function AuthScreen({ onAuthenticated }) {
           <button className="primary" disabled={busy}>
             {busy
               ? "Feldolgozás…"
-              : mode === "login" ? "Bejelentkezés" : mode === "register" ? "Fiók létrehozása" : mode === "forgot" ? "Hivatkozás kérése" : "Jelszó mentése"}
+              : mode === "login" ? "Bejelentkezés" : mode === "register" ? "Meghívás elfogadása" : "Jelszó mentése"}
           </button>
-          {mode === "login" && <button type="button" className="auth-link" onClick={() => switchMode("forgot")}>Elfelejtettem a jelszavam</button>}
-          {(mode === "forgot" || mode === "reset") && <button type="button" className="auth-link" onClick={() => switchMode("login")}>Vissza a bejelentkezéshez</button>}
-          {mode === "login" && email && error.includes("erősítsd meg") && <button type="button" className="auth-link" onClick={resend} disabled={busy}>Megerősítő e-mail újraküldése</button>}
+          {mode === "login" && <p className="auth-admin-note">Elfelejtett jelszó esetén kérj egyszer használható visszaállító linket az adminisztrátortól.</p>}
+          {mode === "reset" && <button type="button" className="auth-link" onClick={() => switchMode("login")}>Vissza a bejelentkezéshez</button>}
         </form>
         <p className="auth-privacy">
           <LockKeyhole size={15} /> A munkamenetet biztonságos, HttpOnly cookie

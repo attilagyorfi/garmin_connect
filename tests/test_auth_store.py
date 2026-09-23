@@ -3,8 +3,9 @@ from http.client import HTTPMessage
 import pytest
 
 from auth_store import (
-    _clean_credentials, _device_name, _ip_hint, _limit_key, _password_hash,
-    _verify_password, cookie_header, initialize_auth, token_from_headers,
+    _admin_emails, _clean_credentials, _device_name, _ip_hint, _limit_key,
+    _password_hash, _public_user, _verify_password, cookie_header,
+    initialize_auth, is_ai_enabled, token_from_headers,
 )
 
 
@@ -51,6 +52,19 @@ def test_session_metadata_is_human_readable_and_ip_is_masked():
     ) == "Chrome · Windows"
     assert _ip_hint("192.0.2.123") == "192.0.2.…"
     assert _ip_hint("2001:db8:abcd:12::1") == "2001:db8:abcd:…"
+
+
+def test_admin_accounts_and_ai_flag_are_explicit(monkeypatch):
+    monkeypatch.setenv("HYBRID_ADMIN_EMAILS", " Admin@Example.com, hibás, sportolo@example.com ")
+    monkeypatch.delenv("HYBRID_AI_ENABLED", raising=False)
+    assert _admin_emails() == {"admin@example.com", "sportolo@example.com"}
+    assert is_ai_enabled() is False
+    monkeypatch.setenv("HYBRID_AI_ENABLED", "true")
+    assert is_ai_enabled() is True
+
+
+def test_public_user_includes_authorization_role():
+    assert _public_user(("id", "admin@example.com", "Admin", object(), "admin"))["role"] == "admin"
 
 
 class SchemaConnection:

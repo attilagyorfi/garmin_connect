@@ -6,11 +6,9 @@ from http.server import BaseHTTPRequestHandler
 from urllib.parse import urlsplit
 
 from auth_store import (
-    RateLimitError, clear_cookie_header, cookie_header, create_password_reset,
-    current_user, login, logout, register, resend_verification, reset_password,
-    verify_email,
+    RateLimitError, clear_cookie_header, cookie_header, current_user, login,
+    logout, register, reset_password, verify_email,
 )
-from email_service import send_password_reset, send_verification
 
 
 def _validated_base_url(raw: str, *, allow_local_http: bool = False) -> str:
@@ -81,15 +79,13 @@ class handler(BaseHTTPRequestHandler):
             protocol = self.headers.get("X-Forwarded-Proto", "https")
             secure = protocol != "http"
             if action == "register":
-                if not os.getenv("RESEND_API_KEY", "").strip():
-                    self._send({"error": "A regisztrációs e-mail-küldés még nincs beállítva."}, 503)
-                    return
-                base_url = _public_base_url(self.headers)
-                user, verification_token = register(payload.get("email", ""), payload.get("password", ""), payload.get("name", ""))
-                send_verification(user["email"], verification_token, base_url)
+                client_ip = self.headers.get("X-Forwarded-For", "").split(",")[0].strip() or self.client_address[0]
+                user, token = register(
+                    payload.get("email", ""), payload.get("password", ""),
+                    payload.get("name", ""), payload.get("inviteToken", ""),
+                    self.headers.get("User-Agent", ""), client_ip,
+                )
                 status = 201
-                self._send({"user": None, "requiresVerification": True, "message": "Elküldtük a megerősítő e-mailt."}, status)
-                return
             elif action == "login":
                 client_id = self.headers.get("X-Forwarded-For", "").split(",")[0].strip() or self.client_address[0]
                 user, token = login(
@@ -104,24 +100,10 @@ class handler(BaseHTTPRequestHandler):
                 )
                 status = 200
             elif action == "resend_verification":
-                base_url = _public_base_url(self.headers)
-                result = resend_verification(payload.get("email", ""))
-                if result:
-                    try:
-                        send_verification(result[0], result[1], base_url)
-                    except RuntimeError:
-                        pass
-                self._send({"ok": True, "message": "Ha a címhez ellenőrizetlen fiók tartozik, elküldtük az üzenetet."})
+                self._send({"error": "A zárt rendszerben nincs e-mailes megerősítés."}, 403)
                 return
             elif action == "request_password_reset":
-                base_url = _public_base_url(self.headers)
-                result = create_password_reset(payload.get("email", ""))
-                if result:
-                    try:
-                        send_password_reset(result[0], result[1], base_url)
-                    except RuntimeError:
-                        pass
-                self._send({"ok": True, "message": "Ha a címhez fiók tartozik, elküldtük a visszaállító hivatkozást."})
+                self._send({"error": "Kérj egyszer használható jelszó-visszaállító hivatkozást az adminisztrátortól."}, 403)
                 return
             elif action == "reset_password":
                 reset_password(payload.get("token", ""), payload.get("password", ""))

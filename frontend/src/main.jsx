@@ -19,6 +19,7 @@ import "./auth-security.css";
 import "./garmin-connection.css";
 import "./ux-enhancements.css";
 import "./model-status.css";
+import "./admin-access.css";
 
 createRoot(document.getElementById("root")).render(
   <React.StrictMode>

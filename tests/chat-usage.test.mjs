@@ -16,8 +16,19 @@ const readOwnData = async (_request, path) => Response.json({
 function dependencies(overrides = {}) {
   return { readOwnData, reserve: async () => ({ allowed: true }),
     generate: async () => ({ text: "Tesztválasz", usage: { inputTokens: 100, outputTokens: 10 } }),
-    complete: async () => {}, ...overrides };
+    complete: async () => {}, enabled: true, ...overrides };
 }
+
+test("closed release rejects AI requests before reading personal data", async () => {
+  let read = false;
+  const response = await handle(request(), dependencies({
+    enabled: false,
+    readOwnData: async () => { read = true; return Response.json({}); },
+  }));
+  assert.equal(response.status, 503);
+  assert.equal(read, false);
+  assert.match(await response.text(), /még nincs bekapcsolva/);
+});
 
 test("denied quota produces a local explanation without a provider call", async () => {
   for (const reason of ["daily_limit", "request_too_large"]) {

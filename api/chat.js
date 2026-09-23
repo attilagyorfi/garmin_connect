@@ -164,7 +164,11 @@ function fallbackAnswer(context, question, reason = "provider") {
 export async function handle(request, {
   readOwnData = ownData, generate = generateText,
   reserve = reserveGeneration, complete = completeGeneration,
+  enabled = ["1", "true", "yes", "on"].includes(String(process.env.HYBRID_AI_ENABLED || "false").toLowerCase()),
 } = {}) {
+  if (!enabled) {
+    return json({ error: "Az AI-asszisztens ebben a zárt kiadásban még nincs bekapcsolva.", code: "ai_disabled" }, 503);
+  }
   try {
     const body = await request.json();
     if (!Array.isArray(body?.messages) || body.messages.length === 0) {

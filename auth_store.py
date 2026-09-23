@@ -19,6 +19,7 @@ from cloud_cache import connect
 SESSION_COOKIE = "hybrid_session"
 SESSION_DAYS = 30
 TOKEN_MINUTES = 30
+INVITE_DAYS = 7
 MAX_LOGIN_FAILURES = 5
 LOGIN_WINDOW_MINUTES = 15
 EMAIL_PATTERN = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
@@ -36,15 +37,16 @@ def _auth_schema_ready(db: Any) -> bool:
             AND to_regclass('hybrid_sessions') IS NOT NULL
             AND to_regclass('hybrid_auth_tokens') IS NOT NULL
             AND to_regclass('hybrid_login_limits') IS NOT NULL
+            AND to_regclass('hybrid_invites') IS NOT NULL
             AND to_regclass('hybrid_sessions_user_idx') IS NOT NULL
             AND to_regclass('hybrid_sessions_public_id_idx') IS NOT NULL
             AND to_regclass('hybrid_auth_tokens_user_idx') IS NOT NULL
             AND (
-                SELECT COUNT(*) = 5 FROM pg_attribute
+                SELECT COUNT(*) = 6 FROM pg_attribute
                 WHERE NOT attisdropped AND (
                     (attrelid = to_regclass('hybrid_sessions')
                      AND attname IN ('session_id', 'user_agent', 'ip_hint', 'last_seen_at'))
-                    OR (attrelid = to_regclass('hybrid_users') AND attname = 'email_verified_at')
+                    OR (attrelid = to_regclass('hybrid_users') AND attname IN ('email_verified_at', 'role'))
                 )
             )
     """).fetchone()[0])
@@ -54,10 +56,12 @@ def initialize_auth(db: Any) -> None:
     # Running CREATE INDEX / ALTER TABLE on every request can deadlock with
     # concurrent authentication reads and last-seen updates. Migrate only once.
     if _auth_schema_ready(db):
+        _apply_bootstrap_admin(db)
         db.commit()
         return
     db.execute("SELECT pg_advisory_xact_lock(1213809234, 1)")
     if _auth_schema_ready(db):
+        _apply_bootstrap_admin(db)
         db.commit()
         return
     db.execute("""
@@ -114,7 +118,42 @@ def initialize_auth(db: Any) -> None:
             locked_until TIMESTAMPTZ
         )
     """)
+    db.execute("ALTER TABLE hybrid_users ADD COLUMN IF NOT EXISTS role TEXT NOT NULL DEFAULT 'member'")
+    db.execute("""
+        CREATE TABLE IF NOT EXISTS hybrid_invites (
+            token_hash TEXT PRIMARY KEY,
+            created_by UUID NOT NULL REFERENCES hybrid_users(id) ON DELETE CASCADE,
+            expires_at TIMESTAMPTZ NOT NULL,
+            used_at TIMESTAMPTZ,
+            used_by UUID REFERENCES hybrid_users(id) ON DELETE SET NULL,
+            revoked_at TIMESTAMPTZ,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )
+    """)
+    db.execute("CREATE INDEX IF NOT EXISTS hybrid_invites_created_idx ON hybrid_invites(created_by, created_at DESC)")
+    _apply_bootstrap_admin(db)
     db.commit()
+
+
+def _admin_emails() -> set[str]:
+    return {
+        item.strip().lower()
+        for item in os.getenv("HYBRID_ADMIN_EMAILS", "").split(",")
+        if EMAIL_PATTERN.fullmatch(item.strip().lower())
+    }
+
+
+def _apply_bootstrap_admin(db: Any) -> None:
+    emails = sorted(_admin_emails())
+    if emails:
+        db.execute(
+            "UPDATE hybrid_users SET role = 'admin' WHERE LOWER(email) = ANY(%s) AND role <> 'admin'",
+            (emails,),
+        )
+
+
+def is_ai_enabled() -> bool:
+    return os.getenv("HYBRID_AI_ENABLED", "false").strip().lower() in {"1", "true", "yes", "on"}
 
 
 def _password_hash(password: str, salt: bytes | None = None) -> str:
@@ -172,7 +211,7 @@ def _new_session(db: Any, user_id: str, user_agent: str = "", client_ip: str = "
 def _public_user(row: Any) -> dict[str, Any]:
     return {
         "id": str(row[0]), "email": row[1], "name": row[2],
-        "emailVerified": bool(row[3]),
+        "emailVerified": bool(row[3]), "role": row[4] or "member",
     }
 
 
@@ -213,23 +252,45 @@ def _record_login_failure(db: Any, key: str) -> None:
     db.commit()
 
 
-def register(email: str, password: str, name: str) -> tuple[dict[str, Any], str]:
+def register(
+    email: str, password: str, name: str, invite_token: str,
+    user_agent: str = "", client_ip: str = "",
+) -> tuple[dict[str, Any], str]:
     email, password, name = _clean_credentials(email, password, name)
     if not name:
         raise ValueError("Add meg a nevedet.")
     db = connect()
     try:
         initialize_auth(db)
+        invite_hash = hashlib.sha256(str(invite_token or "").encode()).hexdigest()
+        invite = db.execute(
+            """SELECT token_hash FROM hybrid_invites
+               WHERE token_hash = %s AND used_at IS NULL AND revoked_at IS NULL
+                 AND expires_at > NOW() FOR UPDATE""",
+            (invite_hash,),
+        ).fetchone()
+        if not invite:
+            raise ValueError("A meghívó hivatkozás lejárt, visszavonták vagy már felhasználták.")
         user_id = str(uuid.uuid4())
         try:
-            db.execute("INSERT INTO hybrid_users (id, email, password_hash, display_name) VALUES (%s, %s, %s, %s)", (user_id, email, _password_hash(password), name))
+            db.execute(
+                """INSERT INTO hybrid_users
+                   (id, email, password_hash, display_name, email_verified_at, role)
+                   VALUES (%s, %s, %s, %s, NOW(), 'member')""",
+                (user_id, email, _password_hash(password), name),
+            )
+            db.execute(
+                "UPDATE hybrid_invites SET used_at = NOW(), used_by = %s WHERE token_hash = %s",
+                (user_id, invite_hash),
+            )
             db.commit()
         except Exception as exc:
             db.rollback()
             if db.execute("SELECT 1 FROM hybrid_users WHERE email = %s", (email,)).fetchone():
                 raise ValueError("Ehhez az e-mail-címhez már tartozik fiók.") from exc
             raise
-        return {"id": user_id, "email": email, "name": name, "emailVerified": False}, _new_auth_token(db, user_id, "verify_email")
+        user = {"id": user_id, "email": email, "name": name, "emailVerified": True, "role": "member"}
+        return user, _new_session(db, user_id, user_agent, client_ip)
     finally:
         db.close()
 
@@ -244,8 +305,8 @@ def login(
         initialize_auth(db)
         key = _limit_key(email, client_id)
         _check_login_limit(db, key)
-        row = db.execute("SELECT id, email, display_name, email_verified_at, password_hash FROM hybrid_users WHERE email = %s", (email,)).fetchone()
-        if not row or not _verify_password(password, row[4]):
+        row = db.execute("SELECT id, email, display_name, email_verified_at, role, password_hash FROM hybrid_users WHERE email = %s", (email,)).fetchone()
+        if not row or not _verify_password(password, row[5]):
             _record_login_failure(db, key)
             raise ValueError("Hibás e-mail-cím vagy jelszó.")
         db.execute("DELETE FROM hybrid_login_limits WHERE limit_key = %s", (key,))
@@ -281,7 +342,7 @@ def verify_email(
         initialize_auth(db)
         token_hash = hashlib.sha256(str(token or "").encode()).hexdigest()
         row = db.execute("""
-            SELECT u.id, u.email, u.display_name, u.email_verified_at
+            SELECT u.id, u.email, u.display_name, u.email_verified_at, u.role
             FROM hybrid_auth_tokens t JOIN hybrid_users u ON u.id = t.user_id
             WHERE t.token_hash = %s AND t.purpose = 'verify_email'
               AND t.used_at IS NULL AND t.expires_at > NOW()
@@ -291,7 +352,7 @@ def verify_email(
         db.execute("UPDATE hybrid_users SET email_verified_at = COALESCE(email_verified_at, NOW()) WHERE id = %s", (row[0],))
         db.execute("UPDATE hybrid_auth_tokens SET used_at = NOW() WHERE token_hash = %s", (token_hash,))
         db.commit()
-        user = {"id": str(row[0]), "email": row[1], "name": row[2], "emailVerified": True}
+        user = {"id": str(row[0]), "email": row[1], "name": row[2], "emailVerified": True, "role": row[4] or "member"}
         return user, _new_session(db, user["id"], user_agent, client_ip)
     finally:
         db.close()
@@ -304,6 +365,98 @@ def create_password_reset(email: str) -> tuple[str, str] | None:
     db = connect()
     try:
         initialize_auth(db)
+        row = db.execute("SELECT id FROM hybrid_users WHERE email = %s", (clean_email,)).fetchone()
+        return (clean_email, _new_auth_token(db, str(row[0]), "reset_password")) if row else None
+    finally:
+        db.close()
+
+
+def _require_admin(db: Any, user_id: str) -> None:
+    row = db.execute("SELECT role FROM hybrid_users WHERE id = %s", (user_id,)).fetchone()
+    if not row or row[0] != "admin":
+        raise PermissionError("Ehhez a művelethez adminisztrátori jogosultság szükséges.")
+
+
+def _iso(value: Any) -> str | None:
+    return value.isoformat() if value else None
+
+
+def create_invite(admin_id: str, days: int = INVITE_DAYS) -> tuple[str, dict[str, Any]]:
+    db = connect()
+    try:
+        initialize_auth(db)
+        _require_admin(db, admin_id)
+        token = secrets.token_urlsafe(32)
+        token_hash = hashlib.sha256(token.encode()).hexdigest()
+        expires_at = datetime.now(timezone.utc) + timedelta(days=max(1, min(30, int(days))))
+        db.execute(
+            "INSERT INTO hybrid_invites (token_hash, created_by, expires_at) VALUES (%s, %s, %s)",
+            (token_hash, admin_id, expires_at),
+        )
+        db.commit()
+        return token, {"id": token_hash, "expiresAt": _iso(expires_at), "status": "active"}
+    finally:
+        db.close()
+
+
+def list_access_admin(admin_id: str) -> dict[str, Any]:
+    db = connect()
+    try:
+        initialize_auth(db)
+        _require_admin(db, admin_id)
+        users = db.execute(
+            """SELECT id, email, display_name, role, created_at
+               FROM hybrid_users ORDER BY created_at DESC"""
+        ).fetchall()
+        invites = db.execute(
+            """SELECT i.token_hash, i.created_at, i.expires_at, i.used_at,
+                      i.revoked_at, u.email
+               FROM hybrid_invites i
+               LEFT JOIN hybrid_users u ON u.id = i.used_by
+               ORDER BY i.created_at DESC LIMIT 100"""
+        ).fetchall()
+        now = datetime.now(timezone.utc)
+        return {
+            "users": [
+                {"id": str(row[0]), "email": row[1], "name": row[2], "role": row[3], "createdAt": _iso(row[4])}
+                for row in users
+            ],
+            "invites": [
+                {
+                    "id": row[0], "createdAt": _iso(row[1]), "expiresAt": _iso(row[2]),
+                    "usedAt": _iso(row[3]), "revokedAt": _iso(row[4]), "usedBy": row[5],
+                    "status": "used" if row[3] else "revoked" if row[4] else "expired" if row[2] <= now else "active",
+                }
+                for row in invites
+            ],
+        }
+    finally:
+        db.close()
+
+
+def revoke_invite(admin_id: str, invite_id: str) -> None:
+    db = connect()
+    try:
+        initialize_auth(db)
+        _require_admin(db, admin_id)
+        db.execute(
+            """UPDATE hybrid_invites SET revoked_at = NOW()
+               WHERE token_hash = %s AND used_at IS NULL AND revoked_at IS NULL""",
+            (str(invite_id or ""),),
+        )
+        db.commit()
+    finally:
+        db.close()
+
+
+def create_admin_password_reset(admin_id: str, email: str) -> tuple[str, str] | None:
+    clean_email = str(email or "").strip().lower()[:254]
+    if not EMAIL_PATTERN.fullmatch(clean_email):
+        raise ValueError("Adj meg egy érvényes e-mail-címet.")
+    db = connect()
+    try:
+        initialize_auth(db)
+        _require_admin(db, admin_id)
         row = db.execute("SELECT id FROM hybrid_users WHERE email = %s", (clean_email,)).fetchone()
         return (clean_email, _new_auth_token(db, str(row[0]), "reset_password")) if row else None
     finally:
@@ -348,7 +501,7 @@ def current_user(headers: Any) -> dict[str, Any] | None:
         initialize_auth(db)
         token_hash = hashlib.sha256(token.encode()).hexdigest()
         row = db.execute("""
-            SELECT u.id, u.email, u.display_name, u.email_verified_at
+            SELECT u.id, u.email, u.display_name, u.email_verified_at, u.role
             FROM hybrid_sessions s JOIN hybrid_users u ON u.id = s.user_id
             WHERE s.token_hash = %s AND s.expires_at > NOW()
         """, (token_hash,)).fetchone()

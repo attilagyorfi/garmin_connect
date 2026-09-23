@@ -61,6 +61,7 @@ def test_summary_requires_login_and_uses_authenticated_owner(monkeypatch):
     handler._send = Mock()
     usage = Mock(return_value={"usedTokens": 10})
     monkeypatch.setattr(module, "usage_today", usage)
+    monkeypatch.setattr(module, "is_ai_enabled", lambda: True)
     monkeypatch.setattr(module, "current_user", lambda _headers: None)
     handler.do_GET()
     usage.assert_not_called()
