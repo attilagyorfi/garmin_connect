@@ -67,7 +67,7 @@ A `.env`, tokenkönyvtár, cache, SQLite, export és egészségadat Gitből kiz�
 
 ## Zárt hozzáférés
 
-A jelenlegi kiadásban nincs nyilvános regisztráció és nincs szükség e-mail-küldő szolgáltatásra. A `HYBRID_ADMIN_EMAILS` változóban vesszővel elválasztva megadott meglévő fiókok adminisztrátori szerepet kapnak. Az admin a **Beállítások → Zárt hozzáférés** részen 7 napig érvényes, egyszer használható meghívólinket, valamint egyszer használható jelszó-visszaállító linket készíthet. A linkeket az admin küldi el közvetlenül a felhasználónak.
+A jelenlegi kiadásban nincs nyilvános regisztráció és nincs szükség e-mail-küldő szolgáltatásra. A `HYBRID_ADMIN_EMAILS` változóban vesszővel elválasztva megadott meglévő fiókok adminisztrátori szerepet kapnak. Az admin a **Beállítások → Zárt hozzáférés** részen 7 napig érvényes, egyszer használható meghívólinket, valamint egyszer használható jelszó-visszaállító linket készíthet. Ugyanitt egy tag hozzáférése felfüggeszthető és újraaktiválható; felfüggesztéskor az összes aktív munkamenete megszűnik. A linkeket az admin küldi el közvetlenül a felhasználónak.
 
 Az AI-integráció alapértelmezetten zárt. Csak tudatos későbbi bekapcsoláskor állítsd a `HYBRID_AI_ENABLED` változót `true` értékre; addig az AI-végpontok nem olvasnak felhasználói sportadatot és nem hívnak külső modellt.
 

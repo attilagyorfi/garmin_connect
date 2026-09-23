@@ -6,7 +6,8 @@
 - elkészült: véletlen, lejáró munkamenet HttpOnly + SameSite cookie-ban
 - elkészült: profil, terv, check-in, Garmin-cache, dashboard és szinkronállapot elkülönítése `user_id` szerint
 - elkészült: felhasználónkénti szinkronzár
-- elkészült: egyszer használható, 30 perces tokennel működő e-mail-megerősítés és jelszó-visszaállítás
+- elkészült: zárt, admin által létrehozott, egyszer használható meghívó- és jelszó-visszaállító linkek külső e-mail-szolgáltató nélkül
+- elkészült: meglévő tag hozzáférésének admin általi felfüggesztése és újraaktiválása; felfüggesztéskor minden munkamenet azonnali visszavonása
 - elkészült: öt sikertelen belépés után 15 perces, e-mail- és klienskulcshoz kötött próbálkozáskorlátozás
 - elkészült: aktív munkamenetek megtekintése, jelenlegi eszköz jelölése és távoli visszavonása
 - elkészült: felhasználónkénti, Fernet-titkosított Garmin-kapcsolat; sikeres hitelesítés után a jelszó nem kerül tárolásra

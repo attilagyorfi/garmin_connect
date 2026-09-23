@@ -23,6 +23,8 @@
 .admin-access-row small { overflow: hidden; text-overflow: ellipsis; }
 .admin-access-row em { color: var(--accent-text); font: 700 10px/1.4 "Geist Mono", monospace; font-style: normal; letter-spacing: .08em; }
 .admin-access-row .danger-outline { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.admin-access-row > .admin-access-confirm { display: flex; align-items: center; justify-content: flex-end; gap: 7px; flex-wrap: wrap; }
+.admin-access-confirm button { min-height: 36px; }
 .admin-empty, .auth-admin-note { color: var(--muted); font-size: 13px; line-height: 1.5; }
 .auth-admin-note { margin: 0; padding: 11px 13px; border-left: 2px solid var(--accent); background: #151616; }
 @media (max-width: 820px) {

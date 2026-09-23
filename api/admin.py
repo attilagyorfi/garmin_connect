@@ -10,6 +10,7 @@ from auth_store import (
     current_user,
     list_access_admin,
     revoke_invite,
+    set_user_access,
 )
 
 
@@ -69,6 +70,10 @@ class handler(BaseHTTPRequestHandler):
                 return
             if action == "revoke_invite":
                 revoke_invite(user["id"], payload.get("id", ""))
+                self._send({"ok": True})
+                return
+            if action == "set_user_access":
+                set_user_access(user["id"], payload.get("id", ""), payload.get("status", ""))
                 self._send({"ok": True})
                 return
             raise ValueError("Ismeretlen adminisztrátori művelet.")

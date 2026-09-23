@@ -1,6 +1,7 @@
 from http.client import HTTPMessage
 
 import pytest
+import auth_store
 
 from auth_store import (
     _admin_emails, _clean_credentials, _device_name, _ip_hint, _limit_key,
@@ -64,7 +65,53 @@ def test_admin_accounts_and_ai_flag_are_explicit(monkeypatch):
 
 
 def test_public_user_includes_authorization_role():
-    assert _public_user(("id", "admin@example.com", "Admin", object(), "admin"))["role"] == "admin"
+    user = _public_user(("id", "admin@example.com", "Admin", object(), "admin", "active"))
+    assert user["role"] == "admin"
+    assert user["accessStatus"] == "active"
+
+
+class AccessConnection:
+    def __init__(self, target=("member", "active")):
+        self.target = target
+        self.sql = []
+        self.commits = 0
+
+    def execute(self, sql, params=None):
+        self.sql.append((" ".join(sql.split()), params))
+        self.current_sql = sql
+        return self
+
+    def fetchone(self):
+        if "FROM pg_attribute" in self.current_sql:
+            return (True,)
+        if "SELECT role FROM hybrid_users" in self.current_sql:
+            return ("admin",)
+        if "SELECT role, access_status" in self.current_sql:
+            return self.target
+        return None
+
+    def commit(self):
+        self.commits += 1
+
+    def close(self):
+        pass
+
+
+def test_suspending_member_revokes_every_session(monkeypatch):
+    db = AccessConnection()
+    monkeypatch.setattr(auth_store, "connect", lambda: db)
+    auth_store.set_user_access("admin-1", "member-1", "suspended")
+    statements = [sql for sql, _params in db.sql]
+    assert any("UPDATE hybrid_users SET access_status" in sql for sql in statements)
+    assert any("DELETE FROM hybrid_sessions" in sql for sql in statements)
+    assert db.commits == 2
+
+
+def test_admin_access_cannot_be_suspended(monkeypatch):
+    db = AccessConnection(target=("admin", "active"))
+    monkeypatch.setattr(auth_store, "connect", lambda: db)
+    with pytest.raises(ValueError, match="Adminisztrátori"):
+        auth_store.set_user_access("admin-1", "admin-2", "suspended")
 
 
 class SchemaConnection:

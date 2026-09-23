@@ -22,15 +22,21 @@ const cloudPatches=[];
 dashboardFixture.metrics = [{name:"HRV (éjszakai)",value:"62 ms",score:75}];
 let mockedCloudState={version:2,profile:{name:"Attila",goal:"Általános fittség",weeklyHours:7,strengthRatio:25},accent:"teal",checkins:{},feedback:{},plans:[]};
 let syncResponseMode="non-json";
+let adminUsers=[
+  {id:"test-user",email:"attilla@example.com",name:"Attila",role:"admin",accessStatus:"active"},
+  {id:"member-user",email:"sportolo@example.com",name:"Teszt Sportoló",role:"member",accessStatus:"active"},
+];
 globalThis.fetch = async (input,options={}) => {
   const url=String(input);
   if(url.endsWith("/api/auth"))return {ok:true,status:200,json:async()=>({user:{id:"test-user",email:"attilla@example.com",name:"Attila",role:"admin"}}),text:async()=>""};
   if(url.endsWith("/api/admin")){
-    const action=options.body?JSON.parse(options.body).action:"";
+    const payload=options.body?JSON.parse(options.body):{};
+    const action=payload.action||"";
+    if(action==="set_user_access")adminUsers=adminUsers.map(item=>item.id===payload.id?{...item,accessStatus:payload.status}:item);
     const body=action==="create_invite"
       ? {id:"invite-1",status:"active",expiresAt:"2026-09-30T12:00:00+00:00",path:"/?invite=teszt-token"}
-      : {users:[{id:"test-user",email:"attilla@example.com",name:"Attila",role:"admin"}],invites:[]};
-    return {ok:true,status:action?201:200,json:async()=>body,text:async()=>JSON.stringify(body)};
+      : action ? {ok:true} : {users:adminUsers,invites:[]};
+    return {ok:true,status:action==="create_invite"?201:200,json:async()=>body,text:async()=>JSON.stringify(body)};
   }
   if(url.endsWith("/api/model"))return {ok:true,status:200,json:async()=>({active:{id:7,trained_at:"2026-09-22T03:15:00+00:00",data_start:"2025-09-01",data_end:"2026-09-21",samples:340,model_mae:0.42,baseline_mae:0.61,eligible:true,active:true,promotion_reason:"A jelölt MAE-je jobb.",validation:{improvementPct:31.1,windowsWon:3,windowCount:3}},latest:null,readiness:{availableSamples:340,requiredSamples:132,progressPct:100,observedDays:365,dataStart:"2025-09-01",dataEnd:"2026-09-22",readyForValidation:true,coverage:[{key:"sleep_score",label:"Alváspontszám",availableDays:350,coveragePct:96},{key:"hrv",label:"Éjszakai HRV",availableDays:340,coveragePct:93},{key:"resting_hr",label:"Nyugalmi pulzus",availableDays:355,coveragePct:97},{key:"hybrid_load",label:"Edzésterhelés",availableDays:365,coveragePct:100},{key:"session_rpe",label:"Saját edzésérzet (RPE)",availableDays:40,coveragePct:11}]},schedule:{nextCheckAt:"2026-09-23T03:15:00+00:00",frequency:"daily"},lastRun:{checkedAt:"2026-09-22T03:15:00+00:00",status:"candidate_ready",due:true,reasons:["30 új adatnap érkezett"],dataEnd:"2026-09-22",message:"A validált jelölt aktiválva."}}),text:async()=>""};
   if(url.endsWith("/api/garmin"))return {ok:true,status:200,json:async()=>({status:"connected",email_hint:"at••••@example.com"}),text:async()=>""};
@@ -176,7 +182,14 @@ try {
       await act(async()=>invite.click());
       await act(async()=>new Promise(resolve=>setTimeout(resolve,5)));
       if (!access.querySelector('.admin-generated-link input')?.value.includes("?invite=teszt-token")) throw new Error("A meghívólink nem generálódott le.");
-      console.log("OK zárt adminisztrátori meghívás");
+      const suspend=[...access.querySelectorAll("button")].find(node=>node.textContent.trim()==="Felfüggesztés");
+      await act(async()=>suspend.click());
+      const confirmSuspend=[...access.querySelectorAll("button")].find(node=>node.textContent.trim()==="Biztosan felfüggesztem");
+      if (!confirmSuspend) throw new Error("A hozzáférés felfüggesztése nem kér megerősítést.");
+      await act(async()=>confirmSuspend.click());
+      await act(async()=>new Promise(resolve=>setTimeout(resolve,5)));
+      if (!access.textContent.includes("FELFÜGGESZTVE")||![...access.querySelectorAll("button")].some(node=>node.textContent.trim()==="Újraaktiválás")) throw new Error("A felhasználói hozzáférés nem függeszthető fel és nem aktiválható újra.");
+      console.log("OK zárt adminisztrátori meghívás és hozzáférés-kezelés");
     }
     if (label === "Cél") {
       const goalScore=document.querySelector(".goal-score");

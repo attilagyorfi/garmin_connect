@@ -4110,6 +4110,7 @@ function AdminAccessCard() {
   const [data, setData] = useState({ users: [], invites: [] }),
     [resetEmail, setResetEmail] = useState(""),
     [generated, setGenerated] = useState(null),
+    [pendingAccessId, setPendingAccessId] = useState(""),
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
   const load = () =>
@@ -4132,6 +4133,7 @@ function AdminAccessCard() {
       if (!response.ok) throw new Error(body.error || "A művelet sikertelen.");
       if (body.path) setGenerated({ url: `${window.location.origin}${body.path}`, email: body.email || "" });
       await load();
+      setPendingAccessId("");
     } catch (reason) { setError(reason.message); }
     finally { setBusy(false); }
   };
@@ -4161,7 +4163,30 @@ function AdminAccessCard() {
       )}
       {error && <p className="auth-error" role="alert">{error}</p>}
       <div className="admin-access-grid">
-        <div><h3>Felhasználók ({data.users.length})</h3>{data.users.map((item) => <div className="admin-access-row" key={item.id}><span><b>{item.name}</b><small>{item.email}</small></span><em>{item.role === "admin" ? "ADMIN" : "TAG"}</em></div>)}</div>
+        <div>
+          <h3>Felhasználók ({data.users.length})</h3>
+          {data.users.map((item) => (
+            <div className="admin-access-row" key={item.id}>
+              <span>
+                <b>{item.name}</b>
+                <small>{item.email}</small>
+                <em>{item.role === "admin" ? "ADMIN" : item.accessStatus === "suspended" ? "FELFÜGGESZTVE" : "AKTÍV TAG"}</em>
+              </span>
+              {item.role !== "admin" && item.accessStatus === "suspended" && (
+                <button disabled={busy} onClick={() => act({ action: "set_user_access", id: item.id, status: "active" })}>Újraaktiválás</button>
+              )}
+              {item.role !== "admin" && item.accessStatus !== "suspended" && pendingAccessId !== item.id && (
+                <button className="danger-outline" disabled={busy} onClick={() => setPendingAccessId(item.id)}>Felfüggesztés</button>
+              )}
+              {pendingAccessId === item.id && (
+                <span className="admin-access-confirm">
+                  <button className="danger-outline" disabled={busy} onClick={() => act({ action: "set_user_access", id: item.id, status: "suspended" })}>Biztosan felfüggesztem</button>
+                  <button disabled={busy} onClick={() => setPendingAccessId("")}>Mégse</button>
+                </span>
+              )}
+            </div>
+          ))}
+        </div>
         <div><h3>Meghívók</h3>{data.invites.length === 0 && <p className="admin-empty">Még nincs létrehozott meghívó.</p>}{data.invites.map((item) => <div className="admin-access-row" key={item.id}><span><b>{item.status === "active" ? "Aktív" : item.status === "used" ? "Felhasználva" : item.status === "revoked" ? "Visszavonva" : "Lejárt"}</b><small>{item.usedBy || new Date(item.expiresAt).toLocaleString("hu-HU")}</small></span>{item.status === "active" && <button className="danger-outline" disabled={busy} onClick={() => act({ action: "revoke_invite", id: item.id })}><Trash2 size={15} /> Visszavonás</button>}</div>)}</div>
       </div>
     </section>
