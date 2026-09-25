@@ -27,8 +27,21 @@
 .admin-access-confirm button { min-height: 36px; }
 .admin-empty, .auth-admin-note { color: var(--muted); font-size: 13px; line-height: 1.5; }
 .auth-admin-note { margin: 0; padding: 11px 13px; border-left: 2px solid var(--accent); background: #151616; }
+.admin-audit { margin-top: 18px; padding: 18px; border: 1px solid var(--border); border-radius: 9px; background: #151616; }
+.admin-audit-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; }
+.admin-audit-heading h3 { margin: 0 0 6px; font-size: 16px; }
+.admin-audit-heading p { max-width: 760px; margin: 0; color: var(--muted); font-size: 13px; line-height: 1.55; }
+.admin-audit-heading > span { color: var(--accent-text); font: 700 10px/1.4 "Geist Mono", monospace; letter-spacing: .08em; white-space: nowrap; }
+.admin-audit-list { margin-top: 13px; }
+.admin-audit-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 22px; padding: 12px 0; border-top: 1px solid var(--border); }
+.admin-audit-row > span { display: grid; gap: 5px; min-width: 0; }
+.admin-audit-row > span:last-child { text-align: right; }
+.admin-audit-row b { color: #fff; font-size: 13px; }
+.admin-audit-row small { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; }
 @media (max-width: 820px) {
   .admin-access-grid { grid-template-columns: 1fr; }
   .admin-generated-link { grid-template-columns: 1fr; }
   .admin-reset-row { flex-direction: column; }
+  .admin-audit-heading, .admin-audit-row { grid-template-columns: 1fr; display: grid; }
+  .admin-audit-row > span:last-child { text-align: left; }
 }

@@ -38,9 +38,11 @@ def _auth_schema_ready(db: Any) -> bool:
             AND to_regclass('hybrid_auth_tokens') IS NOT NULL
             AND to_regclass('hybrid_login_limits') IS NOT NULL
             AND to_regclass('hybrid_invites') IS NOT NULL
+            AND to_regclass('hybrid_admin_audit') IS NOT NULL
             AND to_regclass('hybrid_sessions_user_idx') IS NOT NULL
             AND to_regclass('hybrid_sessions_public_id_idx') IS NOT NULL
             AND to_regclass('hybrid_auth_tokens_user_idx') IS NOT NULL
+            AND to_regclass('hybrid_admin_audit_created_idx') IS NOT NULL
             AND (
                 SELECT COUNT(*) = 7 FROM pg_attribute
                 WHERE NOT attisdropped AND (
@@ -132,6 +134,17 @@ def initialize_auth(db: Any) -> None:
         )
     """)
     db.execute("CREATE INDEX IF NOT EXISTS hybrid_invites_created_idx ON hybrid_invites(created_by, created_at DESC)")
+    db.execute("""
+        CREATE TABLE IF NOT EXISTS hybrid_admin_audit (
+            id UUID PRIMARY KEY,
+            actor_id UUID NOT NULL REFERENCES hybrid_users(id) ON DELETE RESTRICT,
+            action TEXT NOT NULL,
+            target_user_id UUID REFERENCES hybrid_users(id) ON DELETE SET NULL,
+            target_email TEXT,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )
+    """)
+    db.execute("CREATE INDEX IF NOT EXISTS hybrid_admin_audit_created_idx ON hybrid_admin_audit(created_at DESC)")
     _apply_bootstrap_admin(db)
     db.commit()
 
@@ -217,14 +230,15 @@ def _public_user(row: Any) -> dict[str, Any]:
     }
 
 
-def _new_auth_token(db: Any, user_id: str, purpose: str) -> str:
+def _new_auth_token(db: Any, user_id: str, purpose: str, *, commit: bool = True) -> str:
     token = secrets.token_urlsafe(32)
     db.execute("DELETE FROM hybrid_auth_tokens WHERE user_id = %s AND purpose = %s", (user_id, purpose))
     db.execute(
         "INSERT INTO hybrid_auth_tokens (token_hash, user_id, purpose, expires_at) VALUES (%s, %s, %s, %s)",
         (hashlib.sha256(token.encode()).hexdigest(), user_id, purpose, datetime.now(timezone.utc) + timedelta(minutes=TOKEN_MINUTES)),
     )
-    db.commit()
+    if commit:
+        db.commit()
     return token
 
 
@@ -391,6 +405,22 @@ def _iso(value: Any) -> str | None:
     return value.isoformat() if value else None
 
 
+def _record_admin_audit(
+    db: Any,
+    actor_id: str,
+    action: str,
+    target_user_id: str | None = None,
+    target_email: str | None = None,
+) -> None:
+    """Record an admin action without ever persisting a generated secret."""
+    db.execute(
+        """INSERT INTO hybrid_admin_audit
+           (id, actor_id, action, target_user_id, target_email)
+           VALUES (%s, %s, %s, %s, %s)""",
+        (str(uuid.uuid4()), actor_id, action, target_user_id, target_email),
+    )
+
+
 def create_invite(admin_id: str, days: int = INVITE_DAYS) -> tuple[str, dict[str, Any]]:
     db = connect()
     try:
@@ -403,6 +433,7 @@ def create_invite(admin_id: str, days: int = INVITE_DAYS) -> tuple[str, dict[str
             "INSERT INTO hybrid_invites (token_hash, created_by, expires_at) VALUES (%s, %s, %s)",
             (token_hash, admin_id, expires_at),
         )
+        _record_admin_audit(db, admin_id, "invite_created")
         db.commit()
         return token, {"id": token_hash, "expiresAt": _iso(expires_at), "status": "active"}
     finally:
@@ -425,6 +456,14 @@ def list_access_admin(admin_id: str) -> dict[str, Any]:
                LEFT JOIN hybrid_users u ON u.id = i.used_by
                ORDER BY i.created_at DESC LIMIT 100"""
         ).fetchall()
+        audit = db.execute(
+            """SELECT a.id, a.action, a.created_at, actor.email,
+                      COALESCE(target.email, a.target_email)
+               FROM hybrid_admin_audit a
+               JOIN hybrid_users actor ON actor.id = a.actor_id
+               LEFT JOIN hybrid_users target ON target.id = a.target_user_id
+               ORDER BY a.created_at DESC LIMIT 100"""
+        ).fetchall()
         now = datetime.now(timezone.utc)
         return {
             "users": [
@@ -442,6 +481,13 @@ def list_access_admin(admin_id: str) -> dict[str, Any]:
                 }
                 for row in invites
             ],
+            "audit": [
+                {
+                    "id": str(row[0]), "action": row[1], "createdAt": _iso(row[2]),
+                    "actor": row[3], "target": row[4],
+                }
+                for row in audit
+            ],
         }
     finally:
         db.close()
@@ -452,11 +498,15 @@ def revoke_invite(admin_id: str, invite_id: str) -> None:
     try:
         initialize_auth(db)
         _require_admin(db, admin_id)
-        db.execute(
+        revoked = db.execute(
             """UPDATE hybrid_invites SET revoked_at = NOW()
-               WHERE token_hash = %s AND used_at IS NULL AND revoked_at IS NULL""",
+               WHERE token_hash = %s AND used_at IS NULL AND revoked_at IS NULL
+               RETURNING token_hash""",
             (str(invite_id or ""),),
-        )
+        ).fetchone()
+        if not revoked:
+            raise ValueError("Az aktív meghívó nem található.")
+        _record_admin_audit(db, admin_id, "invite_revoked")
         db.commit()
     finally:
         db.close()
@@ -470,19 +520,26 @@ def set_user_access(admin_id: str, user_id: str, status: str) -> None:
         initialize_auth(db)
         _require_admin(db, admin_id)
         target = db.execute(
-            "SELECT role, access_status FROM hybrid_users WHERE id = %s",
+            "SELECT role, access_status, email FROM hybrid_users WHERE id = %s",
             (str(user_id or ""),),
         ).fetchone()
         if not target:
             raise ValueError("A felhasználó nem található.")
         if str(user_id) == str(admin_id) or target[0] == "admin":
             raise ValueError("Adminisztrátori fiók hozzáférése itt nem módosítható.")
+        if target[1] == status:
+            return
         db.execute(
             "UPDATE hybrid_users SET access_status = %s WHERE id = %s",
             (status, user_id),
         )
         if status == "suspended":
             db.execute("DELETE FROM hybrid_sessions WHERE user_id = %s", (user_id,))
+        _record_admin_audit(
+            db, admin_id,
+            "user_suspended" if status == "suspended" else "user_reactivated",
+            str(user_id), target[2],
+        )
         db.commit()
     finally:
         db.close()
@@ -497,7 +554,12 @@ def create_admin_password_reset(admin_id: str, email: str) -> tuple[str, str] | 
         initialize_auth(db)
         _require_admin(db, admin_id)
         row = db.execute("SELECT id FROM hybrid_users WHERE email = %s", (clean_email,)).fetchone()
-        return (clean_email, _new_auth_token(db, str(row[0]), "reset_password")) if row else None
+        if not row:
+            return None
+        token = _new_auth_token(db, str(row[0]), "reset_password", commit=False)
+        _record_admin_audit(db, admin_id, "password_reset_created", str(row[0]), clean_email)
+        db.commit()
+        return clean_email, token
     finally:
         db.close()
 

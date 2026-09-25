@@ -71,7 +71,7 @@ def test_public_user_includes_authorization_role():
 
 
 class AccessConnection:
-    def __init__(self, target=("member", "active")):
+    def __init__(self, target=("member", "active", "sportolo@example.com")):
         self.target = target
         self.sql = []
         self.commits = 0
@@ -86,7 +86,7 @@ class AccessConnection:
             return (True,)
         if "SELECT role FROM hybrid_users" in self.current_sql:
             return ("admin",)
-        if "SELECT role, access_status" in self.current_sql:
+        if "SELECT role, access_status, email" in self.current_sql:
             return self.target
         return None
 
@@ -104,14 +104,34 @@ def test_suspending_member_revokes_every_session(monkeypatch):
     statements = [sql for sql, _params in db.sql]
     assert any("UPDATE hybrid_users SET access_status" in sql for sql in statements)
     assert any("DELETE FROM hybrid_sessions" in sql for sql in statements)
+    audit = next(params for sql, params in db.sql if "INSERT INTO hybrid_admin_audit" in sql)
+    assert audit[1:] == ("admin-1", "user_suspended", "member-1", "sportolo@example.com")
     assert db.commits == 2
 
 
 def test_admin_access_cannot_be_suspended(monkeypatch):
-    db = AccessConnection(target=("admin", "active"))
+    db = AccessConnection(target=("admin", "active", "other-admin@example.com"))
     monkeypatch.setattr(auth_store, "connect", lambda: db)
     with pytest.raises(ValueError, match="Adminisztrátori"):
         auth_store.set_user_access("admin-1", "admin-2", "suspended")
+
+
+def test_unchanged_access_state_is_not_added_to_audit(monkeypatch):
+    db = AccessConnection(target=("member", "active", "sportolo@example.com"))
+    monkeypatch.setattr(auth_store, "connect", lambda: db)
+    auth_store.set_user_access("admin-1", "member-1", "active")
+    assert not any("INSERT INTO hybrid_admin_audit" in sql for sql, _params in db.sql)
+    assert db.commits == 1
+
+
+def test_invite_audit_never_contains_generated_secret(monkeypatch):
+    db = AccessConnection()
+    monkeypatch.setattr(auth_store, "connect", lambda: db)
+    token, invite = auth_store.create_invite("admin-1")
+    audit = next(params for sql, params in db.sql if "INSERT INTO hybrid_admin_audit" in sql)
+    assert audit[1:] == ("admin-1", "invite_created", None, None)
+    assert token not in repr(audit)
+    assert invite["id"] not in repr(audit)
 
 
 class SchemaConnection:

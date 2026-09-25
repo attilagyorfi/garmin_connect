@@ -4107,7 +4107,7 @@ function SettingsPage({
 }
 
 function AdminAccessCard() {
-  const [data, setData] = useState({ users: [], invites: [] }),
+  const [data, setData] = useState({ users: [], invites: [], audit: [] }),
     [resetEmail, setResetEmail] = useState(""),
     [generated, setGenerated] = useState(null),
     [pendingAccessId, setPendingAccessId] = useState(""),
@@ -4139,6 +4139,20 @@ function AdminAccessCard() {
   };
   const copy = async () => {
     if (generated?.url) await navigator.clipboard.writeText(generated.url);
+  };
+  const auditLabels = {
+    invite_created: "Meghívólink létrehozva",
+    invite_revoked: "Meghívó visszavonva",
+    password_reset_created: "Jelszó-visszaállító link létrehozva",
+    user_suspended: "Felhasználó felfüggesztve",
+    user_reactivated: "Felhasználó újraaktiválva",
+  };
+  const formatDateTime = (value) => {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return "ismeretlen időpont";
+    return new Intl.DateTimeFormat("hu-HU", {
+      year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit",
+    }).format(date);
   };
   return (
     <section className="card admin-access-card">
@@ -4188,6 +4202,30 @@ function AdminAccessCard() {
           ))}
         </div>
         <div><h3>Meghívók</h3>{data.invites.length === 0 && <p className="admin-empty">Még nincs létrehozott meghívó.</p>}{data.invites.map((item) => <div className="admin-access-row" key={item.id}><span><b>{item.status === "active" ? "Aktív" : item.status === "used" ? "Felhasználva" : item.status === "revoked" ? "Visszavonva" : "Lejárt"}</b><small>{item.usedBy || new Date(item.expiresAt).toLocaleString("hu-HU")}</small></span>{item.status === "active" && <button className="danger-outline" disabled={busy} onClick={() => act({ action: "revoke_invite", id: item.id })}><Trash2 size={15} /> Visszavonás</button>}</div>)}</div>
+      </div>
+      <div className="admin-audit">
+        <div className="admin-audit-heading">
+          <div>
+            <h3>Adminisztrátori napló</h3>
+            <p>A hozzáférést érintő műveletek időpontja és végrehajtója. A titkos linkeket és tokeneket nem tároljuk itt.</p>
+          </div>
+          <span>{data.audit?.length || 0} BEJEGYZÉS</span>
+        </div>
+        {!data.audit?.length && <p className="admin-empty">Még nincs naplózott adminisztrátori művelet.</p>}
+        <div className="admin-audit-list">
+          {(data.audit || []).map((item) => (
+            <div className="admin-audit-row" key={item.id}>
+              <span>
+                <b>{auditLabels[item.action] || "Adminisztrátori művelet"}</b>
+                {item.target && <small>Érintett fiók: {item.target}</small>}
+              </span>
+              <span>
+                <b>{formatDateTime(item.createdAt)}</b>
+                <small>Végrehajtotta: {item.actor}</small>
+              </span>
+            </div>
+          ))}
+        </div>
       </div>
     </section>
   );
