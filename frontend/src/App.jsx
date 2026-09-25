@@ -4028,7 +4028,7 @@ function DataExportCard() {
     setError("");
     setCompleted(false);
     try {
-      const response = await fetch("/api/export", { cache: "no-store", credentials: "same-origin" });
+      const response = await fetch("/api/state?export=1", { cache: "no-store", credentials: "same-origin" });
       if (!response.ok) {
         const body = await response.json().catch(() => ({}));
         throw new Error(body.error || "Az export nem készíthető el.");
