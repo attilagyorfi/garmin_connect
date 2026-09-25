@@ -11,6 +11,7 @@ import {
   CircleHelp,
   ClipboardList,
   Dumbbell,
+  Download,
   Filter,
   HelpCircle,
   LockKeyhole,
@@ -4018,6 +4019,59 @@ function ActiveSessionsCard() {
     </section>
   );
 }
+function DataExportCard() {
+  const [busy, setBusy] = useState(false),
+    [error, setError] = useState(""),
+    [completed, setCompleted] = useState(false);
+  const download = async () => {
+    setBusy(true);
+    setError("");
+    setCompleted(false);
+    try {
+      const response = await fetch("/api/export", { cache: "no-store", credentials: "same-origin" });
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error(body.error || "Az export nem készíthető el.");
+      }
+      const blob = await response.blob();
+      const disposition = response.headers.get("Content-Disposition") || "";
+      const filename = disposition.match(/filename="([^"]+)"/i)?.[1] || "hybrid-athlete-adatexport.json";
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+      setCompleted(true);
+    } catch (reason) {
+      setError(reason.message || "Az export nem készíthető el.");
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <section className="card data-export-card">
+      <span className="eyebrow">SAJÁT ADATOK</span>
+      <h2>Adatok letöltése</h2>
+      <p>
+        Töltsd le JSON-formátumban a profilodat, terveidet, állapotfelméréseidet,
+        edzés-visszajelzéseidet és a szinkronizált teljesítmény-összesítéseidet.
+      </p>
+      <div className="data-export-note">
+        <LockKeyhole size={18} aria-hidden="true" />
+        <span>Az export nem tartalmaz jelszót, munkamenet-cookie-t, titkos Garmin-tokent vagy más felhasználó adatát.</span>
+      </div>
+      <button className="primary data-export-button" disabled={busy} onClick={download}>
+        <Download size={17} aria-hidden="true" />
+        {busy ? "Export készítése…" : "Saját adatok letöltése"}
+      </button>
+      {completed && <p className="auth-success" role="status">Az adatfájl elkészült és letöltődött.</p>}
+      {error && <p className="auth-error" role="alert">{error}</p>}
+    </section>
+  );
+}
 function SettingsPage({
   accent,
   onAccent,
@@ -4099,6 +4153,7 @@ function SettingsPage({
             <LogOut size={17} /> Kijelentkezés
           </button>
         </section>
+        <DataExportCard />
         {user?.role === "admin" && <AdminAccessCard />}
         <ActiveSessionsCard />
       </main>

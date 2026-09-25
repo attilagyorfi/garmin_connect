@@ -69,6 +69,8 @@ A `.env`, tokenkönyvtár, cache, SQLite, export és egészségadat Gitből kiz�
 
 A jelenlegi kiadásban nincs nyilvános regisztráció és nincs szükség e-mail-küldő szolgáltatásra. A `HYBRID_ADMIN_EMAILS` változóban vesszővel elválasztva megadott meglévő fiókok adminisztrátori szerepet kapnak. Az admin a **Beállítások → Zárt hozzáférés** részen 7 napig érvényes, egyszer használható meghívólinket, valamint egyszer használható jelszó-visszaállító linket készíthet. Ugyanitt egy tag hozzáférése felfüggeszthető és újraaktiválható; felfüggesztéskor az összes aktív munkamenete megszűnik. A linkeket az admin küldi el közvetlenül a felhasználónak. Ezek a hozzáférési műveletek időponttal és végrehajtóval bekerülnek az adminisztrátori naplóba, de a generált titkos linkek és tokenek nem.
 
+Minden bejelentkezett felhasználó a **Beállítások → Adatok letöltése** részen saját JSON-exportot készíthet a profiljáról, terveiről, check-injeiről, edzés-visszajelzéseiről és szinkronizált összesítéseiről. Az exportot a szerver kizárólag az aktuális munkamenet felhasználói azonosítójából állítja össze; jelszó, munkamenet-cookie, hitelesítési token és más felhasználó adata nem kerül bele.
+
 Az AI-integráció alapértelmezetten zárt. Csak tudatos későbbi bekapcsoláskor állítsd a `HYBRID_AI_ENABLED` változót `true` értékre; addig az AI-végpontok nem olvasnak felhasználói sportadatot és nem hívnak külső modellt.
 
 ## Vercel: az AI-asszisztens opcionális használati beállításai

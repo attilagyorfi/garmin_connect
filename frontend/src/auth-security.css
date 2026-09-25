@@ -48,6 +48,17 @@
   font: 700 10px/1.4 "Geist Mono", monospace;
   letter-spacing: .08em;
 }
+.data-export-card { padding: 28px; }
+.data-export-card h2 { margin: 10px 0 6px; }
+.data-export-card > p { max-width: 820px; margin: 0 0 18px; color: var(--muted); line-height: 1.55; }
+.data-export-note {
+  display: flex; align-items: flex-start; gap: 10px; max-width: 820px; margin-bottom: 18px;
+  padding: 13px 14px; border: 1px solid var(--border); border-radius: 8px; background: #171818;
+  color: #c9cecc; font-size: 13px; line-height: 1.5;
+}
+.data-export-note svg { flex: 0 0 auto; color: var(--accent); margin-top: 1px; }
+.data-export-button { min-height: 44px; display: inline-flex; align-items: center; gap: 8px; }
+.data-export-card > .auth-success, .data-export-card > .auth-error { margin-top: 14px; }
 @media (max-width: 720px) {
   .active-session-row { grid-template-columns: auto 1fr; }
   .active-session-row > button { grid-column: 1 / -1; width: 100%; }

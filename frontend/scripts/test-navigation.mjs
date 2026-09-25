@@ -29,6 +29,10 @@ let adminUsers=[
 let adminAudit=[
   {id:"audit-1",action:"invite_created",createdAt:"2026-09-24T10:30:00+00:00",actor:"attilla@example.com",target:null},
 ];
+let downloadedExport="";
+globalThis.URL.createObjectURL=()=>"blob:hybrid-export";
+globalThis.URL.revokeObjectURL=()=>{};
+dom.window.HTMLAnchorElement.prototype.click=function(){downloadedExport=this.download;};
 globalThis.fetch = async (input,options={}) => {
   const url=String(input);
   if(url.endsWith("/api/auth"))return {ok:true,status:200,json:async()=>({user:{id:"test-user",email:"attilla@example.com",name:"Attila",role:"admin"}}),text:async()=>""};
@@ -45,6 +49,7 @@ globalThis.fetch = async (input,options={}) => {
       : action ? {ok:true} : {users:adminUsers,invites:[],audit:adminAudit};
     return {ok:true,status:action==="create_invite"?201:200,json:async()=>body,text:async()=>JSON.stringify(body)};
   }
+  if(url.endsWith("/api/export"))return {ok:true,status:200,json:async()=>({}),blob:async()=>new dom.window.Blob(["{}"],{type:"application/json"}),headers:{get:name=>name.toLowerCase()==="content-disposition"?'attachment; filename="hybrid-athlete-adatexport-2026-09-25.json"':null},text:async()=>"{}"};
   if(url.endsWith("/api/model"))return {ok:true,status:200,json:async()=>({active:{id:7,trained_at:"2026-09-22T03:15:00+00:00",data_start:"2025-09-01",data_end:"2026-09-21",samples:340,model_mae:0.42,baseline_mae:0.61,eligible:true,active:true,promotion_reason:"A jelölt MAE-je jobb.",validation:{improvementPct:31.1,windowsWon:3,windowCount:3}},latest:null,readiness:{availableSamples:340,requiredSamples:132,progressPct:100,observedDays:365,dataStart:"2025-09-01",dataEnd:"2026-09-22",readyForValidation:true,coverage:[{key:"sleep_score",label:"Alváspontszám",availableDays:350,coveragePct:96},{key:"hrv",label:"Éjszakai HRV",availableDays:340,coveragePct:93},{key:"resting_hr",label:"Nyugalmi pulzus",availableDays:355,coveragePct:97},{key:"hybrid_load",label:"Edzésterhelés",availableDays:365,coveragePct:100},{key:"session_rpe",label:"Saját edzésérzet (RPE)",availableDays:40,coveragePct:11}]},schedule:{nextCheckAt:"2026-09-23T03:15:00+00:00",frequency:"daily"},lastRun:{checkedAt:"2026-09-22T03:15:00+00:00",status:"candidate_ready",due:true,reasons:["30 új adatnap érkezett"],dataEnd:"2026-09-22",message:"A validált jelölt aktiválva."}}),text:async()=>""};
   if(url.endsWith("/api/garmin"))return {ok:true,status:200,json:async()=>({status:"connected",email_hint:"at••••@example.com"}),text:async()=>""};
   if(url.endsWith("/api/sync")){
@@ -185,6 +190,10 @@ try {
     if (label === "Beállítások") {
       const access=document.querySelector(".admin-access-card");
       if (!access?.textContent.includes("Zárt hozzáférés")) throw new Error("Az adminisztrátori hozzáférés-kezelés hiányzik.");
+      const dataExport=document.querySelector(".data-export-card");
+      if (!dataExport?.textContent.includes("Saját adatok letöltése")||!dataExport.textContent.includes("titkos Garmin-tokent")) throw new Error("A biztonságos sajátadatexport hiányzik a Beállításokból.");
+      await act(async()=>[...dataExport.querySelectorAll("button")].find(node=>node.textContent.includes("Saját adatok letöltése")).click());
+      if(downloadedExport!=="hybrid-athlete-adatexport-2026-09-25.json"||!dataExport.textContent.includes("letöltődött")) throw new Error("A sajátadatexport letöltési folyamata nem működik.");
       if (!access.textContent.includes("Adminisztrátori napló")||!access.textContent.includes("Meghívólink létrehozva")) throw new Error("Az adminisztrátori biztonsági napló hiányzik.");
       if (access.textContent.includes("teszt-token")) throw new Error("A titkos meghívótoken megjelent az adminisztrátori naplóban.");
       const invite=[...access.querySelectorAll("button")].find(node=>node.textContent.includes("Új meghívólink"));
