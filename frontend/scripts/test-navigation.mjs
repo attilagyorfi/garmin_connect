@@ -35,7 +35,9 @@ globalThis.URL.revokeObjectURL=()=>{};
 dom.window.HTMLAnchorElement.prototype.click=function(){downloadedExport=this.download;};
 globalThis.fetch = async (input,options={}) => {
   const url=String(input);
-  if(url.endsWith("/api/auth"))return {ok:true,status:200,json:async()=>({user:{id:"test-user",email:"attilla@example.com",name:"Attila",role:"admin"}}),text:async()=>""};
+  if(url.endsWith("/api/auth")){
+    return {ok:true,status:200,json:async()=>({user:{id:"test-user",email:"attilla@example.com",name:"Attila",role:"admin"}}),text:async()=>""};
+  }
   if(url.endsWith("/api/admin")){
     const payload=options.body?JSON.parse(options.body):{};
     const action=payload.action||"";
@@ -291,6 +293,13 @@ try {
   await act(async () => retry.click());
   if (document.querySelector(".content")?.textContent.includes("Nincs mai Garmin-összesítés")) throw new Error("A friss adatok újratöltése nem oldotta fel az adatkaput.");
   console.log("OK elavult napi adatok kizárása és újratöltés");
+  await act(async () => [...document.querySelectorAll("button")].find(node => node.textContent.trim() === "Beállítások").click());
+  const passwordCard=document.querySelector(".password-change-card");
+  if(!passwordCard?.textContent.includes("minden aktív eszközről kijelentkeztetünk")) throw new Error("A jelszóváltoztatás biztonsági következménye nincs elmagyarázva.");
+  const passwordInputs=passwordCard.querySelectorAll('input[type="password"]');
+  if(passwordInputs.length!==3||passwordInputs[0].autocomplete!=="current-password"||![...passwordInputs].slice(1).every(input=>input.autocomplete==="new-password"&&input.minLength===10)) throw new Error("A jelszóváltoztatási űrlap mezői vagy böngészőbiztonsági jelölései hiányosak.");
+  if(![...passwordCard.querySelectorAll("button")].some(button=>button.textContent.trim()==="Jelszó módosítása")) throw new Error("A jelszóváltoztatás műveleti gombja hiányzik.");
+  console.log("OK önkiszolgáló jelszóváltoztatási felület");
   await act(async () => root.unmount());
 
   localStorage.clear();

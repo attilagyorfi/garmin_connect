@@ -71,6 +71,8 @@ A jelenlegi kiadásban nincs nyilvános regisztráció és nincs szükség e-mai
 
 Minden bejelentkezett felhasználó a **Beállítások → Adatok letöltése** részen saját JSON-exportot készíthet a profiljáról, terveiről, check-injeiről, edzés-visszajelzéseiről és szinkronizált összesítéseiről. Az exportot a szerver kizárólag az aktuális munkamenet felhasználói azonosítójából állítja össze; jelszó, munkamenet-cookie, hitelesítési token és más felhasználó adata nem kerül bele.
 
+A **Beállítások → Jelszó megváltoztatása** rész a jelenlegi jelszó ismételt ellenőrzése után enged új jelszót beállítani. A sikeres módosítás minden aktív munkamenetet visszavon, ezért a felhasználónak minden eszközén újra be kell jelentkeznie.
+
 Az AI-integráció alapértelmezetten zárt. Csak tudatos későbbi bekapcsoláskor állítsd a `HYBRID_AI_ENABLED` változót `true` értékre; addig az AI-végpontok nem olvasnak felhasználói sportadatot és nem hívnak külső modellt.
 
 ## Vercel: az AI-asszisztens opcionális használati beállításai

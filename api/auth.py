@@ -6,8 +6,8 @@ from http.server import BaseHTTPRequestHandler
 from urllib.parse import urlsplit
 
 from auth_store import (
-    RateLimitError, clear_cookie_header, cookie_header, current_user, login,
-    logout, register, reset_password, verify_email,
+    RateLimitError, change_password, clear_cookie_header, cookie_header,
+    current_user, login, logout, register, reset_password, verify_email,
 )
 
 
@@ -108,6 +108,21 @@ class handler(BaseHTTPRequestHandler):
             elif action == "reset_password":
                 reset_password(payload.get("token", ""), payload.get("password", ""))
                 self._send({"ok": True, "message": "A jelszó megváltozott. Most már bejelentkezhetsz."})
+                return
+            elif action == "change_password":
+                authenticated = current_user(self.headers)
+                if not authenticated:
+                    self._send({"error": "A művelethez bejelentkezés szükséges."}, 401)
+                    return
+                client_id = self.headers.get("X-Forwarded-For", "").split(",")[0].strip() or self.client_address[0]
+                change_password(
+                    authenticated["id"], payload.get("currentPassword", ""),
+                    payload.get("newPassword", ""), client_id,
+                )
+                self._send(
+                    {"ok": True, "message": "A jelszavad megváltozott. Biztonsági okból minden eszközről kijelentkeztettünk."},
+                    200, clear_cookie_header(),
+                )
                 return
             else:
                 raise ValueError("Ismeretlen fiókművelet.")

@@ -10,6 +10,7 @@
 - elkészült: meglévő tag hozzáférésének admin általi felfüggesztése és újraaktiválása; felfüggesztéskor minden munkamenet azonnali visszavonása
 - elkészült: adminisztrátori biztonsági napló a meghívókhoz, jelszó-visszaállításhoz és hozzáférésmódosításokhoz, titkos linkek és tokenek tárolása nélkül
 - elkészült: bejelentkezett felhasználónként elkülönített, titkos adatokat kizáró JSON-adatexport a saját profilról, tervekről, check-inekről, edzés-visszajelzésekről és Garmin-összesítésekről
+- elkészült: önkiszolgáló jelszóváltoztatás a jelenlegi jelszó újbóli ellenőrzésével és minden aktív munkamenet azonnali visszavonásával
 - elkészült: öt sikertelen belépés után 15 perces, e-mail- és klienskulcshoz kötött próbálkozáskorlátozás
 - elkészült: aktív munkamenetek megtekintése, jelenlegi eszköz jelölése és távoli visszavonása
 - elkészült: felhasználónkénti, Fernet-titkosított Garmin-kapcsolat; sikeres hitelesítés után a jelszó nem kerül tárolásra

@@ -586,6 +586,40 @@ def reset_password(token: str, password: str) -> None:
         db.close()
 
 
+def change_password(
+    user_id: str, current_password: str, new_password: str,
+    client_id: str = "unknown",
+) -> None:
+    """Change an authenticated user's password and revoke every active session."""
+    if len(new_password or "") < 10 or len(new_password) > 200:
+        raise ValueError("Az új jelszó legalább 10 karakter legyen.")
+    db = connect()
+    try:
+        initialize_auth(db)
+        row = db.execute(
+            "SELECT password_hash, email FROM hybrid_users WHERE id = %s AND access_status = 'active' FOR UPDATE",
+            (str(user_id),),
+        ).fetchone()
+        if not row:
+            raise ValueError("A jelenlegi jelszó nem megfelelő.")
+        limit_key = _limit_key(row[1], f"password-change:{client_id}")
+        _check_login_limit(db, limit_key)
+        if not _verify_password(current_password or "", row[0]):
+            _record_login_failure(db, limit_key)
+            raise ValueError("A jelenlegi jelszó nem megfelelő.")
+        if _verify_password(new_password, row[0]):
+            raise ValueError("Az új jelszó legyen eltérő a jelenlegitől.")
+        db.execute(
+            "UPDATE hybrid_users SET password_hash = %s WHERE id = %s",
+            (_password_hash(new_password), str(user_id)),
+        )
+        db.execute("DELETE FROM hybrid_sessions WHERE user_id = %s", (str(user_id),))
+        db.execute("DELETE FROM hybrid_login_limits WHERE limit_key = %s", (limit_key,))
+        db.commit()
+    finally:
+        db.close()
+
+
 def token_from_headers(headers: Any) -> str | None:
     cookie = SimpleCookie()
     cookie.load(headers.get("Cookie", ""))

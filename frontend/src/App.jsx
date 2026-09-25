@@ -4072,6 +4072,64 @@ function DataExportCard() {
     </section>
   );
 }
+function PasswordChangeCard({ onChanged }) {
+  const [currentPassword, setCurrentPassword] = useState(""),
+    [newPassword, setNewPassword] = useState(""),
+    [confirmation, setConfirmation] = useState(""),
+    [busy, setBusy] = useState(false),
+    [error, setError] = useState("");
+  const submit = async (event) => {
+    event.preventDefault();
+    setError("");
+    if (newPassword !== confirmation) {
+      setError("Az új jelszó és a megerősítés nem egyezik.");
+      return;
+    }
+    setBusy(true);
+    try {
+      const result = await authRequest({
+        action: "change_password",
+        currentPassword,
+        newPassword,
+      });
+      setBusy(false);
+      onChanged(result.message || "A jelszavad megváltozott. Lépj be újra.");
+    } catch (reason) {
+      setError(reason.message || "A jelszó nem módosítható.");
+      setBusy(false);
+    }
+  };
+  return (
+    <section className="card password-change-card">
+      <span className="eyebrow">FIÓKBIZTONSÁG</span>
+      <h2>Jelszó megváltoztatása</h2>
+      <p>
+        A módosításhoz add meg a jelenlegi jelszavadat. Sikeres változtatás után
+        minden aktív eszközről kijelentkeztetünk.
+      </p>
+      <form onSubmit={submit}>
+        <label>
+          Jelenlegi jelszó
+          <input type="password" autoComplete="current-password" value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} required maxLength="200" />
+        </label>
+        <label>
+          Új jelszó
+          <input type="password" autoComplete="new-password" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} required minLength="10" maxLength="200" />
+          <small>Legalább 10 karakter; ne egyezzen a jelenlegi jelszóval.</small>
+        </label>
+        <label>
+          Új jelszó ismét
+          <input type="password" autoComplete="new-password" value={confirmation} onChange={(event) => setConfirmation(event.target.value)} required minLength="10" maxLength="200" />
+        </label>
+        {error && <p className="auth-error" role="alert">{error}</p>}
+        <button className="primary" disabled={busy}>
+          <LockKeyhole size={17} aria-hidden="true" />
+          {busy ? "Jelszó módosítása…" : "Jelszó módosítása"}
+        </button>
+      </form>
+    </section>
+  );
+}
 function SettingsPage({
   accent,
   onAccent,
@@ -4079,6 +4137,7 @@ function SettingsPage({
   onProfileSave,
   user,
   onLogout,
+  onPasswordChanged,
   onGarminStatus,
 }) {
   const [draft, setDraft] = useState(accent),
@@ -4153,6 +4212,7 @@ function SettingsPage({
             <LogOut size={17} /> Kijelentkezés
           </button>
         </section>
+        <PasswordChangeCard onChanged={onPasswordChanged} />
         <DataExportCard />
         {user?.role === "admin" && <AdminAccessCard />}
         <ActiveSessionsCard />
@@ -4778,7 +4838,7 @@ async function authRequest(payload) {
   if (!response.ok) throw new Error(body.error || "A fiókművelet sikertelen.");
   return body;
 }
-function AuthScreen({ onAuthenticated }) {
+function AuthScreen({ onAuthenticated, notice = "" }) {
   const query = new URLSearchParams(window.location.search),
     inviteToken = query.get("invite") || "",
     initialAuthMode = query.get("auth") === "reset" ? "reset" : inviteToken ? "register" : "login",
@@ -4788,7 +4848,7 @@ function AuthScreen({ onAuthenticated }) {
     [email, setEmail] = useState(""),
     [password, setPassword] = useState(""),
     [error, setError] = useState(""),
-    [message, setMessage] = useState(""),
+    [message, setMessage] = useState(notice),
     [busy, setBusy] = useState(false),
     submit = async (event) => {
       event.preventDefault();
@@ -5695,6 +5755,7 @@ export function App() {
       () => forceSplashPreview() || !splashWasShown(),
     ),
     [user, setUser] = useState(null),
+    [authNotice, setAuthNotice] = useState(""),
     [authReady, setAuthReady] = useState(false),
     [garminStatus, setGarminStatus] = useState(null);
   const applyAccent = (value) => {
@@ -5784,6 +5845,11 @@ export function App() {
     setUser(null);
     setCloudState(null);
   };
+  const passwordChanged = (message) => {
+    setAuthNotice(message);
+    setUser(null);
+    setCloudState(null);
+  };
   const pages = {
     Áttekintés: <OverviewPage profile={profile} />,
     Ma: (
@@ -5824,6 +5890,7 @@ export function App() {
         onProfileSave={saveProfileCloud}
         user={user}
         onLogout={logout}
+        onPasswordChanged={passwordChanged}
         onGarminStatus={setGarminStatus}
       />
     ),
@@ -5839,7 +5906,16 @@ export function App() {
         <span>Biztonságos munkamenet ellenőrzése…</span>
       </div>
     );
-  if (!user) return <AuthScreen onAuthenticated={setUser} />;
+  if (!user)
+    return (
+      <AuthScreen
+        notice={authNotice}
+        onAuthenticated={(authenticated) => {
+          setAuthNotice("");
+          setUser(authenticated);
+        }}
+      />
+    );
   return (
     <div className="app">
       <a className="skip-link" href="#main-content">

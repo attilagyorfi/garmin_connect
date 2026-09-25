@@ -124,6 +124,73 @@ def test_unchanged_access_state_is_not_added_to_audit(monkeypatch):
     assert db.commits == 1
 
 
+class PasswordConnection:
+    def __init__(self, password_hash):
+        self.password_hash = password_hash
+        self.sql = []
+        self.commits = 0
+
+    def execute(self, sql, params=None):
+        self.sql.append((" ".join(sql.split()), params))
+        self.current_sql = sql
+        return self
+
+    def fetchone(self):
+        if "FROM pg_attribute" in self.current_sql:
+            return (True,)
+        if "SELECT password_hash" in self.current_sql:
+            return (self.password_hash, "sportolo@example.com")
+        if "SELECT failures, window_started_at" in self.current_sql:
+            return None
+        return None
+
+    def commit(self):
+        self.commits += 1
+
+    def close(self):
+        pass
+
+
+def test_password_change_verifies_current_password_and_revokes_all_sessions(monkeypatch):
+    db = PasswordConnection(_password_hash("jelenlegi-biztonsagos"))
+    monkeypatch.setattr(auth_store, "connect", lambda: db)
+
+    auth_store.change_password("user-1", "jelenlegi-biztonsagos", "uj-biztonsagos-jelszo")
+
+    update = next(params for sql, params in db.sql if "UPDATE hybrid_users SET password_hash" in sql)
+    assert _verify_password("uj-biztonsagos-jelszo", update[0])
+    assert update[1] == "user-1"
+    assert any("DELETE FROM hybrid_sessions WHERE user_id" in sql for sql, _params in db.sql)
+    assert any("DELETE FROM hybrid_login_limits WHERE limit_key" in sql for sql, _params in db.sql)
+    assert db.commits == 2
+
+
+def test_password_change_rejects_wrong_or_reused_password(monkeypatch):
+    encoded = _password_hash("jelenlegi-biztonsagos")
+    for current, new, message in [
+        ("hibas-jelszo", "uj-biztonsagos-jelszo", "jelenlegi jelszó"),
+        ("jelenlegi-biztonsagos", "jelenlegi-biztonsagos", "eltérő"),
+    ]:
+        db = PasswordConnection(encoded)
+        monkeypatch.setattr(auth_store, "connect", lambda: db)
+        with pytest.raises(ValueError, match=message):
+            auth_store.change_password("user-1", current, new)
+        assert not any("UPDATE hybrid_users SET password_hash" in sql for sql, _params in db.sql)
+        assert not any("DELETE FROM hybrid_sessions WHERE user_id" in sql for sql, _params in db.sql)
+
+
+def test_wrong_current_password_is_counted_for_rate_limiting(monkeypatch):
+    db = PasswordConnection(_password_hash("jelenlegi-biztonsagos"))
+    monkeypatch.setattr(auth_store, "connect", lambda: db)
+
+    with pytest.raises(ValueError, match="jelenlegi jelszó"):
+        auth_store.change_password(
+            "user-1", "hibas-jelszo", "uj-biztonsagos-jelszo", "192.0.2.10"
+        )
+
+    assert any("INSERT INTO hybrid_login_limits" in sql for sql, _params in db.sql)
+
+
 def test_invite_audit_never_contains_generated_secret(monkeypatch):
     db = AccessConnection()
     monkeypatch.setattr(auth_store, "connect", lambda: db)
