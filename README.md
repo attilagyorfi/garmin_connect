@@ -73,6 +73,8 @@ Minden bejelentkezett felhasználó a **Beállítások → Adatok letöltése** 
 
 A **Beállítások → Jelszó megváltoztatása** rész a jelenlegi jelszó ismételt ellenőrzése után enged új jelszót beállítani. A sikeres módosítás minden aktív munkamenetet visszavon, ezért a felhasználónak minden eszközén újra be kell jelentkeznie.
 
+A **Beállítások → Fiók és személyes adatok törlése** rész jelszóval és a `FIÓK TÖRLÉSE` szöveg pontos begépelésével indítható. A művelet törli a profilt, terveket, check-ineket, edzés-visszajelzéseket, Garmin-kapcsolatot és -adatokat, személyes modelladatokat, AI-adatokat, valamint minden aktív munkamenetet. Az adminisztrátori biztonsági napló hivatkozási épségéhez kizárólag egy név és valódi e-mail nélküli, belépésre alkalmatlan anonim fiókazonosító marad. Az utolsó aktív adminisztrátori fiók nem törölhető.
+
 Az AI-integráció alapértelmezetten zárt. Csak tudatos későbbi bekapcsoláskor állítsd a `HYBRID_AI_ENABLED` változót `true` értékre; addig az AI-végpontok nem olvasnak felhasználói sportadatot és nem hívnak külső modellt.
 
 ## Vercel: az AI-asszisztens opcionális használati beállításai

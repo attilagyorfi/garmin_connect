@@ -69,8 +69,43 @@
 .password-change-card input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 .password-change-card form > button { min-height: 44px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; align-self: end; }
 .password-change-card form > .auth-error { grid-column: 1 / -1; }
+.account-deletion-card {
+  padding: 28px;
+  border-color: #543034;
+  background: linear-gradient(135deg, rgba(87, 27, 35, .11), transparent 58%), var(--card);
+}
+.account-deletion-card .eyebrow { color: #fda4af; }
+.account-deletion-card h2 { margin: 10px 0 6px; }
+.account-deletion-card > p { max-width: 860px; margin: 0 0 18px; color: var(--muted); line-height: 1.55; }
+.account-deletion-toggle { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; }
+.account-deletion-confirmation { display: grid; gap: 18px; max-width: 980px; }
+.account-deletion-warning {
+  display: flex; align-items: flex-start; gap: 12px; padding: 16px;
+  border: 1px solid #63353c; border-radius: 9px; background: rgba(127, 29, 29, .16);
+  color: #f3dddd; line-height: 1.5;
+}
+.account-deletion-warning > svg { flex: 0 0 auto; color: #fb7185; margin-top: 2px; }
+.account-deletion-warning strong { color: #fff; }
+.account-deletion-warning ul { margin: 8px 0 0; padding-left: 20px; color: #d9c7c9; }
+.account-deletion-warning li + li { margin-top: 5px; }
+.account-deletion-card form { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.account-deletion-card label { display: grid; gap: 8px; color: #f3e8e9; font-size: 14px; font-weight: 650; }
+.account-deletion-card label small { color: #bdaeb0; font-size: 12px; font-weight: 400; line-height: 1.45; }
+.account-deletion-card label small b { color: #fff; font-family: "Geist Mono", monospace; }
+.account-deletion-card input { width: 100%; height: 46px; border: 1px solid #57373b; border-radius: 8px; background: #111212; color: #fff; padding: 0 13px; font: inherit; outline: 0; }
+.account-deletion-card input:focus { border-color: #fb7185; box-shadow: 0 0 0 3px rgba(251, 113, 133, .13); }
+.account-deletion-card form > .auth-error, .account-deletion-actions { grid-column: 1 / -1; }
+.account-deletion-actions { display: flex; justify-content: flex-end; gap: 10px; }
+.account-deletion-actions button { min-height: 44px; padding: 0 16px; border-radius: 7px; }
+.account-deletion-actions > button:not(.account-delete-final) { border: 1px solid var(--border); background: #1c1d1d; color: #e5e7e6; cursor: pointer; }
+.account-deletion-actions > button:not(.account-delete-final):hover:not(:disabled) { border-color: #626665; background: #252727; }
+.account-delete-final { display: inline-flex; align-items: center; justify-content: center; gap: 8px; border: 1px solid #be3b4d; background: #a52336; color: #fff; font-weight: 700; cursor: pointer; }
+.account-delete-final:hover:not(:disabled) { background: #bd2940; }
+.account-delete-final:disabled { opacity: .4; cursor: not-allowed; }
 @media (max-width: 720px) {
   .active-session-row { grid-template-columns: auto 1fr; }
   .active-session-row > button { grid-column: 1 / -1; width: 100%; }
   .password-change-card form { grid-template-columns: 1fr; }
+  .account-deletion-card form { grid-template-columns: 1fr; }
+  .account-deletion-actions { flex-direction: column-reverse; }
 }

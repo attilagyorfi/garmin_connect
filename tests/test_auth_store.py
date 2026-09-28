@@ -1,4 +1,5 @@
 from http.client import HTTPMessage
+from unittest.mock import Mock
 
 import pytest
 import auth_store
@@ -189,6 +190,100 @@ def test_wrong_current_password_is_counted_for_rate_limiting(monkeypatch):
         )
 
     assert any("INSERT INTO hybrid_login_limits" in sql for sql, _params in db.sql)
+
+
+class AccountDeletionConnection:
+    def __init__(self, password_hash, role="member", other_admins=1):
+        self.password_hash = password_hash
+        self.role = role
+        self.other_admins = other_admins
+        self.sql = []
+        self.commits = 0
+
+    def execute(self, sql, params=None):
+        normalized = " ".join(sql.split())
+        self.sql.append((normalized, params))
+        self.current_sql = normalized
+        self.current_params = params
+        return self
+
+    def fetchone(self):
+        if "FROM pg_attribute" in self.current_sql:
+            return (True,)
+        if "SELECT password_hash, email, role" in self.current_sql:
+            return (self.password_hash, "sportolo@example.com", self.role)
+        if "SELECT failures, window_started_at" in self.current_sql:
+            return None
+        if "SELECT COUNT(*) FROM hybrid_users" in self.current_sql:
+            return (self.other_admins,)
+        if "SELECT to_regclass(%s)" in self.current_sql:
+            return (self.current_params[0],)
+        return None
+
+    def commit(self):
+        self.commits += 1
+
+    def close(self):
+        pass
+
+
+def test_account_deletion_erases_data_and_anonymizes_audit_tombstone(monkeypatch):
+    db = AccountDeletionConnection(_password_hash("jelenlegi-biztonsagos"))
+    monkeypatch.setattr(auth_store, "connect", lambda: db)
+
+    auth_store.delete_account(
+        "user-1", "jelenlegi-biztonsagos", auth_store.ACCOUNT_DELETE_CONFIRMATION,
+        "192.0.2.10",
+    )
+
+    statements = [sql for sql, _params in db.sql]
+    for table in auth_store.USER_DATA_TABLES:
+        assert any(f"DELETE FROM {table} WHERE user_id" in sql for sql in statements)
+    assert any("UPDATE hybrid_invites SET revoked_at" in sql for sql in statements)
+    assert any("UPDATE hybrid_admin_audit SET target_email = NULL" in sql for sql in statements)
+    anonymization = next(
+        params for sql, params in db.sql
+        if "SET email = %s, password_hash = %s, display_name = %s" in sql
+    )
+    assert anonymization[0].startswith("deleted-")
+    assert anonymization[0].endswith("@invalid.local")
+    assert "sportolo@example.com" not in anonymization
+    assert anonymization[2:] == ("Törölt felhasználó", "user-1")
+    assert db.commits == 2
+
+
+def test_account_deletion_requires_exact_confirmation_before_database_access(monkeypatch):
+    connect = Mock()
+    monkeypatch.setattr(auth_store, "connect", connect)
+    with pytest.raises(ValueError, match="FIÓK TÖRLÉSE"):
+        auth_store.delete_account("user-1", "jelszo", "fiók törlése")
+    connect.assert_not_called()
+
+
+def test_account_deletion_wrong_password_is_rate_limited_and_does_not_erase(monkeypatch):
+    db = AccountDeletionConnection(_password_hash("jelenlegi-biztonsagos"))
+    monkeypatch.setattr(auth_store, "connect", lambda: db)
+    with pytest.raises(ValueError, match="jelenlegi jelszó"):
+        auth_store.delete_account(
+            "user-1", "hibas-jelszo", auth_store.ACCOUNT_DELETE_CONFIRMATION,
+            "192.0.2.10",
+        )
+    assert any("INSERT INTO hybrid_login_limits" in sql for sql, _params in db.sql)
+    assert not any("DELETE FROM hybrid_user_state" in sql for sql, _params in db.sql)
+    assert not any("access_status = 'deleted'" in sql for sql, _params in db.sql)
+
+
+def test_last_active_admin_cannot_delete_own_account(monkeypatch):
+    db = AccountDeletionConnection(
+        _password_hash("jelenlegi-biztonsagos"), role="admin", other_admins=0,
+    )
+    monkeypatch.setattr(auth_store, "connect", lambda: db)
+    with pytest.raises(ValueError, match="utolsó aktív adminisztrátori"):
+        auth_store.delete_account(
+            "admin-1", "jelenlegi-biztonsagos", auth_store.ACCOUNT_DELETE_CONFIRMATION,
+        )
+    assert not any("DELETE FROM hybrid_user_state" in sql for sql, _params in db.sql)
+    assert not any("access_status = 'deleted'" in sql for sql, _params in db.sql)
 
 
 def test_invite_audit_never_contains_generated_secret(monkeypatch):

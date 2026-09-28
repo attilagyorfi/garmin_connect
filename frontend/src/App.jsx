@@ -27,6 +27,7 @@ import {
   Sparkles,
   Target,
   Trash2,
+  TriangleAlert,
   TrendingUp,
   UserRound,
   X,
@@ -486,6 +487,22 @@ function localCloudSnapshot(profile, accent) {
     );
   } catch {}
   return { profile, accent, checkins, feedbackMap };
+}
+function clearLocalPersonalData() {
+  const exactKeys = new Set([
+    "hybrid-profile",
+    "hybrid-accent",
+    "hybrid-onboarding-version",
+    "hybrid-activity-feedback",
+  ]);
+  const removable = [];
+  for (let index = 0; index < localStorage.length; index += 1) {
+    const key = localStorage.key(index);
+    if (key && (exactKeys.has(key) || key.startsWith("hybrid-checkin-"))) {
+      removable.push(key);
+    }
+  }
+  removable.forEach((key) => localStorage.removeItem(key));
 }
 
 const goalModes = {
@@ -4130,6 +4147,118 @@ function PasswordChangeCard({ onChanged }) {
     </section>
   );
 }
+function AccountDeletionCard({ onDeleted }) {
+  const [expanded, setExpanded] = useState(false),
+    [currentPassword, setCurrentPassword] = useState(""),
+    [confirmation, setConfirmation] = useState(""),
+    [busy, setBusy] = useState(false),
+    [error, setError] = useState("");
+  const expectedConfirmation = "FIÓK TÖRLÉSE";
+  const submit = async (event) => {
+    event.preventDefault();
+    setError("");
+    setBusy(true);
+    try {
+      const result = await authRequest({
+        action: "delete_account",
+        currentPassword,
+        confirmation,
+      });
+      clearLocalPersonalData();
+      onDeleted(result.message || "A fiók és a személyes adatok törlődtek.");
+    } catch (reason) {
+      setError(reason.message || "A fiók törlése nem hajtható végre.");
+      setBusy(false);
+    }
+  };
+  return (
+    <section className="card account-deletion-card">
+      <span className="eyebrow">VESZÉLYZÓNA</span>
+      <h2>Fiók és személyes adatok törlése</h2>
+      <p>
+        A művelet véglegesen eltávolítja a profilodat, terveidet, állapotfelméréseidet,
+        edzés-visszajelzéseidet, Garmin-kapcsolatodat és szinkronizált sportadataidat.
+      </p>
+      {!expanded ? (
+        <button
+          className="danger-outline account-deletion-toggle"
+          type="button"
+          aria-expanded="false"
+          onClick={() => setExpanded(true)}
+        >
+          <Trash2 size={17} aria-hidden="true" /> Fiók törlésének előkészítése
+        </button>
+      ) : (
+        <div className="account-deletion-confirmation">
+          <div className="account-deletion-warning" role="note">
+            <TriangleAlert size={20} aria-hidden="true" />
+            <div>
+              <strong>Ez a művelet nem vonható vissza.</strong>
+              <ul>
+                <li>Minden aktív munkamenet azonnal megszűnik.</li>
+                <li>A Garmin-kapcsolat és minden felhasználói sportadat törlődik.</li>
+                <li>
+                  Csak egy név és e-mail nélküli anonim azonosító marad meg, hogy a
+                  biztonsági napló hitelessége megőrizhető legyen.
+                </li>
+              </ul>
+            </div>
+          </div>
+          <form onSubmit={submit}>
+            <label>
+              Jelenlegi jelszó
+              <input
+                type="password"
+                autoComplete="current-password"
+                value={currentPassword}
+                onChange={(event) => setCurrentPassword(event.target.value)}
+                required
+                maxLength="200"
+              />
+            </label>
+            <label>
+              Megerősítő szöveg
+              <input
+                type="text"
+                autoComplete="off"
+                value={confirmation}
+                onChange={(event) => setConfirmation(event.target.value)}
+                required
+                maxLength={expectedConfirmation.length}
+                aria-describedby="account-delete-phrase"
+              />
+              <small id="account-delete-phrase">
+                Írd be pontosan: <b>{expectedConfirmation}</b>
+              </small>
+            </label>
+            {error && <p className="auth-error" role="alert">{error}</p>}
+            <div className="account-deletion-actions">
+              <button
+                type="button"
+                onClick={() => {
+                  setExpanded(false);
+                  setCurrentPassword("");
+                  setConfirmation("");
+                  setError("");
+                }}
+                disabled={busy}
+              >
+                Mégsem
+              </button>
+              <button
+                className="account-delete-final"
+                disabled={busy || !currentPassword || confirmation !== expectedConfirmation}
+              >
+                <Trash2 size={17} aria-hidden="true" />
+                {busy ? "Fiók törlése…" : "Fiók végleges törlése"}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+    </section>
+  );
+}
 function SettingsPage({
   accent,
   onAccent,
@@ -4138,6 +4267,7 @@ function SettingsPage({
   user,
   onLogout,
   onPasswordChanged,
+  onAccountDeleted,
   onGarminStatus,
 }) {
   const [draft, setDraft] = useState(accent),
@@ -4216,6 +4346,7 @@ function SettingsPage({
         <DataExportCard />
         {user?.role === "admin" && <AdminAccessCard />}
         <ActiveSessionsCard />
+        <AccountDeletionCard onDeleted={onAccountDeleted} />
       </main>
     </>
   );
@@ -5850,6 +5981,20 @@ export function App() {
     setUser(null);
     setCloudState(null);
   };
+  const accountDeleted = (message) => {
+    const defaultAccent = accentOptions[0], root = document.documentElement;
+    setAuthNotice(message);
+    setUser(null);
+    setCloudState(null);
+    setGarminStatus(null);
+    setProfile(defaultProfile);
+    setAccent(defaultAccent.id);
+    root.style.setProperty("--accent", defaultAccent.color);
+    root.style.setProperty("--accent-soft", defaultAccent.soft);
+    root.style.setProperty("--accent-deep", defaultAccent.deep);
+    root.style.setProperty("--accent-text", defaultAccent.text);
+    setOnboarded(false);
+  };
   const pages = {
     Áttekintés: <OverviewPage profile={profile} />,
     Ma: (
@@ -5891,6 +6036,7 @@ export function App() {
         user={user}
         onLogout={logout}
         onPasswordChanged={passwordChanged}
+        onAccountDeleted={accountDeleted}
         onGarminStatus={setGarminStatus}
       />
     ),

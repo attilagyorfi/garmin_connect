@@ -6,7 +6,7 @@ from http.server import BaseHTTPRequestHandler
 from urllib.parse import urlsplit
 
 from auth_store import (
-    RateLimitError, change_password, clear_cookie_header, cookie_header,
+    RateLimitError, change_password, clear_cookie_header, cookie_header, delete_account,
     current_user, login, logout, register, reset_password, verify_email,
 )
 
@@ -121,6 +121,24 @@ class handler(BaseHTTPRequestHandler):
                 )
                 self._send(
                     {"ok": True, "message": "A jelszavad megváltozott. Biztonsági okból minden eszközről kijelentkeztettünk."},
+                    200, clear_cookie_header(),
+                )
+                return
+            elif action == "delete_account":
+                authenticated = current_user(self.headers)
+                if not authenticated:
+                    self._send({"error": "A művelethez bejelentkezés szükséges."}, 401)
+                    return
+                client_id = self.headers.get("X-Forwarded-For", "").split(",")[0].strip() or self.client_address[0]
+                delete_account(
+                    authenticated["id"], payload.get("currentPassword", ""),
+                    payload.get("confirmation", ""), client_id,
+                )
+                self._send(
+                    {
+                        "ok": True,
+                        "message": "A fiók és a hozzá tartozó személyes adatok véglegesen törlődtek.",
+                    },
                     200, clear_cookie_header(),
                 )
                 return

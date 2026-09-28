@@ -300,6 +300,17 @@ try {
   if(passwordInputs.length!==3||passwordInputs[0].autocomplete!=="current-password"||![...passwordInputs].slice(1).every(input=>input.autocomplete==="new-password"&&input.minLength===10)) throw new Error("A jelszóváltoztatási űrlap mezői vagy böngészőbiztonsági jelölései hiányosak.");
   if(![...passwordCard.querySelectorAll("button")].some(button=>button.textContent.trim()==="Jelszó módosítása")) throw new Error("A jelszóváltoztatás műveleti gombja hiányzik.");
   console.log("OK önkiszolgáló jelszóváltoztatási felület");
+  const deletionCard=document.querySelector(".account-deletion-card");
+  if(!deletionCard?.textContent.includes("Fiók és személyes adatok törlése")||!deletionCard.textContent.includes("Garmin-kapcsolatodat")) throw new Error("A fiók- és adattörlés hatása nincs közérthetően elmagyarázva.");
+  const prepareDeletion=[...deletionCard.querySelectorAll("button")].find(button=>button.textContent.includes("Fiók törlésének előkészítése"));
+  if(!prepareDeletion||prepareDeletion.getAttribute("aria-expanded")!=="false") throw new Error("A fióktörlés biztonságos, zárt kezdőállapota hiányzik.");
+  await act(async()=>prepareDeletion.click());
+  if(!deletionCard.textContent.includes("nem vonható vissza")||!deletionCard.textContent.includes("név és e-mail nélküli anonim azonosító")) throw new Error("A visszafordíthatatlan törlés és a naplómegőrzés magyarázata hiányzik.");
+  const deletePassword=deletionCard.querySelector('input[type="password"]');
+  const deletePhrase=deletionCard.querySelector('input[type="text"]');
+  const finalDelete=[...deletionCard.querySelectorAll("button")].find(button=>button.textContent.includes("Fiók végleges törlése"));
+  if(deletePassword?.autocomplete!=="current-password"||deletePhrase?.autocomplete!=="off"||!deletionCard.textContent.includes("FIÓK TÖRLÉSE")||!finalDelete?.disabled) throw new Error("A fióktörlés jelszavas, pontos megerősítése hiányos.");
+  console.log("OK biztonságos fiók- és személyesadattörlési felület");
   await act(async () => root.unmount());
 
   localStorage.clear();

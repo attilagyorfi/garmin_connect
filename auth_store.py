@@ -23,6 +23,17 @@ INVITE_DAYS = 7
 MAX_LOGIN_FAILURES = 5
 LOGIN_WINDOW_MINUTES = 15
 EMAIL_PATTERN = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
+ACCOUNT_DELETE_CONFIRMATION = "FIÓK TÖRLÉSE"
+USER_DATA_TABLES = (
+    "hybrid_user_state",
+    "hybrid_garmin_connections",
+    "hybrid_assistant_actions",
+    "hybrid_retraining_runs",
+    "hybrid_model_versions",
+    "hybrid_ai_generations",
+    "hybrid_sessions",
+    "hybrid_auth_tokens",
+)
 
 
 class RateLimitError(ValueError):
@@ -447,7 +458,8 @@ def list_access_admin(admin_id: str) -> dict[str, Any]:
         _require_admin(db, admin_id)
         users = db.execute(
             """SELECT id, email, display_name, role, created_at, access_status
-               FROM hybrid_users ORDER BY created_at DESC"""
+               FROM hybrid_users WHERE access_status <> 'deleted'
+               ORDER BY created_at DESC"""
         ).fetchall()
         invites = db.execute(
             """SELECT i.token_hash, i.created_at, i.expires_at, i.used_at,
@@ -614,6 +626,76 @@ def change_password(
             (_password_hash(new_password), str(user_id)),
         )
         db.execute("DELETE FROM hybrid_sessions WHERE user_id = %s", (str(user_id),))
+        db.execute("DELETE FROM hybrid_login_limits WHERE limit_key = %s", (limit_key,))
+        db.commit()
+    finally:
+        db.close()
+
+
+def delete_account(
+    user_id: str, current_password: str, confirmation: str,
+    client_id: str = "unknown",
+) -> None:
+    """Erase personal data and retain only an anonymous audit tombstone."""
+    if confirmation != ACCOUNT_DELETE_CONFIRMATION:
+        raise ValueError(f'A megerősítéshez pontosan ezt írd be: {ACCOUNT_DELETE_CONFIRMATION}')
+    db = connect()
+    try:
+        initialize_auth(db)
+        row = db.execute(
+            """SELECT password_hash, email, role FROM hybrid_users
+               WHERE id = %s AND access_status = 'active' FOR UPDATE""",
+            (str(user_id),),
+        ).fetchone()
+        if not row:
+            raise ValueError("A jelenlegi jelszó nem megfelelő.")
+        password_hash, email, role = row
+        limit_key = _limit_key(email, f"account-delete:{client_id}")
+        _check_login_limit(db, limit_key)
+        if not _verify_password(current_password or "", password_hash):
+            _record_login_failure(db, limit_key)
+            raise ValueError("A jelenlegi jelszó nem megfelelő.")
+        if role == "admin":
+            other_admins = db.execute(
+                """SELECT COUNT(*) FROM hybrid_users
+                   WHERE role = 'admin' AND access_status = 'active' AND id <> %s""",
+                (str(user_id),),
+            ).fetchone()[0]
+            if not other_admins:
+                raise ValueError(
+                    "Az utolsó aktív adminisztrátori fiók nem törölhető. "
+                    "Előbb adj adminisztrátori hozzáférést egy másik fióknak."
+                )
+
+        # Table names are a closed, code-owned allowlist. Optional feature tables
+        # are skipped when they have not been migrated in the current environment.
+        for table in USER_DATA_TABLES:
+            exists = db.execute("SELECT to_regclass(%s)", (table,)).fetchone()
+            if exists and exists[0]:
+                db.execute(f"DELETE FROM {table} WHERE user_id = %s", (str(user_id),))
+
+        db.execute(
+            """UPDATE hybrid_invites SET revoked_at = COALESCE(revoked_at, NOW())
+               WHERE created_by = %s AND used_at IS NULL""",
+            (str(user_id),),
+        )
+        db.execute(
+            "UPDATE hybrid_admin_audit SET target_email = NULL WHERE LOWER(target_email) = LOWER(%s)",
+            (email,),
+        )
+        anonymous_email = f"deleted-{uuid.uuid4()}@invalid.local"
+        db.execute(
+            """UPDATE hybrid_users
+               SET email = %s, password_hash = %s, display_name = %s,
+                   email_verified_at = NULL, role = 'member', access_status = 'deleted'
+               WHERE id = %s""",
+            (
+                anonymous_email,
+                _password_hash(secrets.token_urlsafe(32)),
+                "Törölt felhasználó",
+                str(user_id),
+            ),
+        )
         db.execute("DELETE FROM hybrid_login_limits WHERE limit_key = %s", (limit_key,))
         db.commit()
     finally:
