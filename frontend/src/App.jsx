@@ -11,6 +11,7 @@ import {
   CircleHelp,
   ClipboardList,
   Dumbbell,
+  Database,
   Download,
   Filter,
   HelpCircle,
@@ -23,6 +24,7 @@ import {
   Plus,
   RefreshCw,
   Search,
+  ShieldCheck,
   Settings2,
   Sparkles,
   Target,
@@ -3862,6 +3864,11 @@ function GarminConnectionCard({ onStatus }) {
               Garmin leválasztása
             </button>
           </div>
+          <p className="connection-retention-note">
+            A leválasztás a titkosított Garmin-munkamenetet törli. A már
+            szinkronizált előzmények, összesítések és személyes modellek ettől
+            még megmaradnak a Hybrid Athlete-fiókodban.
+          </p>
         </>
       ) : status?.status === "mfa_required" ? (
         <form onSubmit={verifyMfa}>
@@ -3928,6 +3935,103 @@ function GarminConnectionCard({ onStatus }) {
           {error}
         </p>
       )}
+    </section>
+  );
+}
+
+function DataManagementOverview({ garminStatus }) {
+  const [dashboard, setDashboard] = useState(null),
+    [syncStatus, setSyncStatus] = useState(null),
+    [loading, setLoading] = useState(true);
+  useEffect(() => {
+    let activeRequest = true;
+    const readOptionalJson = (url) =>
+      fetch(url, { cache: "no-store", credentials: "same-origin" })
+        .then((response) => response.ok ? response.json() : null)
+        .catch(() => null);
+    Promise.all([
+      readOptionalJson("/api/dashboard"),
+      readOptionalJson("/api/sync"),
+    ]).then(([dashboardData, syncData]) => {
+      if (!activeRequest) return;
+      setDashboard(dashboardData);
+      setSyncStatus(syncData);
+      setLoading(false);
+    });
+    return () => { activeRequest = false; };
+  }, []);
+  const quality = dashboard?.dataQuality || {},
+    formatDate = (value, includeTime = false) => {
+      if (!value) return "nincs adat";
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return String(value);
+      return date.toLocaleString("hu-HU", includeTime
+        ? { dateStyle: "medium", timeStyle: "short" }
+        : { dateStyle: "medium" });
+    },
+    syncDate = syncStatus?.completed_at || syncStatus?.updated_at || dashboard?.generatedAt,
+    activityCount = Number(quality.activityCount || dashboard?.sessions?.length || 0),
+    hasHistory = activityCount > 0,
+    connectionState = garminStatus === null
+      ? "Kapcsolat ellenőrzése…"
+      : garminStatus?.status === "connected"
+        ? "Csatlakoztatva"
+        : "Nincs aktív kapcsolat",
+    connectionDetail = garminStatus === null
+      ? "A Garmin-kapcsolat állapotának lekérése folyamatban van."
+      : garminStatus?.status === "connected"
+        ? "Titkosított munkamenettoken; Garmin-jelszót nem tárolunk."
+        : "Új szinkron csak ismételt csatlakoztatás után indítható.";
+  return (
+    <section className="card data-management-card" aria-labelledby="data-management-title">
+      <span className="eyebrow">ADATKEZELÉSI ÁTTEKINTŐ</span>
+      <h2 id="data-management-title">Milyen adatok vannak a fiókodban?</h2>
+      <p>
+        Az összefoglaló elkülöníti a Garmin-kapcsolatot, a szinkronizált
+        sportelőzményeket és a saját beállításaidat. A Garmin leválasztása nem
+        jelenti automatikusan a korábban szinkronizált adatok törlését.
+      </p>
+      <div className="data-management-grid">
+        <article>
+          <Activity size={21} aria-hidden="true" />
+          <div>
+            <strong>Garmin-kapcsolat</strong>
+            <span>{connectionState}</span>
+            <small>{connectionDetail}</small>
+          </div>
+        </article>
+        <article>
+          <Database size={21} aria-hidden="true" />
+          <div>
+            <strong>Szinkronizált sportelőzmények</strong>
+            <span>{loading ? "Állapot betöltése…" : hasHistory ? `${activityCount.toLocaleString("hu-HU")} edzés` : "Még nincs szinkronizált edzés"}</span>
+            <small>{hasHistory ? `${formatDate(quality.activityDateFrom)} – ${formatDate(quality.activityDateTo)}` : "A hiányzó adatot nem helyettesítjük mintaértékkel."}</small>
+          </div>
+        </article>
+        <article>
+          <RefreshCw size={21} aria-hidden="true" />
+          <div>
+            <strong>Legutóbbi feldolgozás</strong>
+            <span>{loading ? "Állapot betöltése…" : formatDate(syncDate, true)}</span>
+            <small>{syncStatus?.status === "running" ? `Szinkronizálás folyamatban · ${Math.round(syncStatus.progress || 0)}%` : syncStatus?.status === "failed" ? "A legutóbbi szinkron megszakadt; az Áttekintés oldalon folytatható." : "A dashboard ennek az adatállapotnak az összesítését mutatja."}</small>
+          </div>
+        </article>
+        <article>
+          <ShieldCheck size={21} aria-hidden="true" />
+          <div>
+            <strong>Saját megadott adatok</strong>
+            <span>Profil, tervek, check-inek és edzésérzet</span>
+            <small>Ezek a Garmin leválasztása után is megmaradnak, és a saját adatexport részei.</small>
+          </div>
+        </article>
+      </div>
+      <div className="data-management-note">
+        <LockKeyhole size={18} aria-hidden="true" />
+        <span>
+          A teljes fiók- és adattörlés külön, jelszóval védett művelet a lap alján.
+          A letölthető exporttal előtte ellenőrizheted a rólad tárolt adatokat.
+        </span>
+      </div>
     </section>
   );
 }
@@ -4268,6 +4372,7 @@ function SettingsPage({
   onLogout,
   onPasswordChanged,
   onAccountDeleted,
+  garminStatus,
   onGarminStatus,
 }) {
   const [draft, setDraft] = useState(accent),
@@ -4279,6 +4384,7 @@ function SettingsPage({
       <PageHeader eyebrow="SZEMÉLYRE SZABÁS" title="Beállítások" />
       <main className="accent-page settings-stack">
         <GarminConnectionCard onStatus={onGarminStatus} />
+        <DataManagementOverview garminStatus={garminStatus} />
         <section className="card accent-card">
           <span className="eyebrow">PROFILKÉP</span>
           <h2>Személyes megjelenés</h2>
@@ -6037,6 +6143,7 @@ export function App() {
         onLogout={logout}
         onPasswordChanged={passwordChanged}
         onAccountDeleted={accountDeleted}
+        garminStatus={garminStatus}
         onGarminStatus={setGarminStatus}
       />
     ),

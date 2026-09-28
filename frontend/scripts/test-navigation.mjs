@@ -190,6 +190,13 @@ try {
       console.log("OK ütemezett személyes modellállapot, adatalkalmasság és közérthető pontosság");
     }
     if (label === "Beállítások") {
+      await act(async()=>new Promise(resolve=>setTimeout(resolve,5)));
+      const dataManagement=document.querySelector(".data-management-card");
+      if (!dataManagement?.textContent.includes("Milyen adatok vannak a fiókodban?")) throw new Error("Az adatkezelési áttekintő hiányzik a Beállításokból.");
+      if (!dataManagement.textContent.includes("461 edzés")||!dataManagement.textContent.includes("Profil, tervek, check-inek és edzésérzet")) throw new Error("Az adatkezelési áttekintő nem mutatja közérthetően a tárolt adatkategóriákat.");
+      if (!dataManagement.textContent.includes("Garmin leválasztása nem")||!dataManagement.textContent.includes("Titkosított munkamenettoken")) throw new Error("A Garmin-kapcsolat és a megőrzött adatok magyarázata hiányzik.");
+      const retentionNote=document.querySelector(".connection-retention-note");
+      if (!retentionNote?.textContent.includes("szinkronizált előzmények")||!retentionNote.textContent.includes("megmaradnak")) throw new Error("A Garmin leválasztás következménye nincs elmagyarázva.");
       const access=document.querySelector(".admin-access-card");
       if (!access?.textContent.includes("Zárt hozzáférés")) throw new Error("Az adminisztrátori hozzáférés-kezelés hiányzik.");
       const dataExport=document.querySelector(".data-export-card");
@@ -267,7 +274,7 @@ try {
       await act(async()=>saveAvatar.click());
       if (!cloudPatches.some(patch=>patch.profile?.avatarPreset==="strength")) throw new Error("A kiválasztott avatar nem mentődött a profilba.");
       if (!document.querySelector('.profile .user-avatar svg')) throw new Error("A mentett avatar nem jelent meg az oldalsávban.");
-      console.log("OK profilkép- és avatarbeállítás");
+      console.log("OK adatkezelési áttekintő, profilkép- és avatarbeállítás");
     }
     if (label === "Profil") {
       const saveProfile = [...document.querySelectorAll("button")].find(node => node.textContent.trim() === "Profil mentése");

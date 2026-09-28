@@ -16,6 +16,7 @@
 - elkészült: aktív munkamenetek megtekintése, jelenlegi eszköz jelölése és távoli visszavonása
 - elkészült: felhasználónkénti, Fernet-titkosított Garmin-kapcsolat; sikeres hitelesítés után a jelszó nem kerül tárolásra
 - elkészült: tartós, titkosított Garmin-tokenkezelés és SQL-ben folytatható, 10 perces MFA bootstrap próbálkozáskorlátozással
+- elkészült: csak olvasható adatkezelési áttekintő a Garmin-kapcsolat, a szinkronizált előzmények, az utolsó feldolgozás és a megőrzött felhasználói adatok közérthető szétválasztásával
 
 ## P0 – Vercel teljes történeti szinkron
 
