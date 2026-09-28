@@ -76,6 +76,7 @@
 - elkészült: 148 valós eszközválasz szerkezeti auditja és személyes értéket nem tartalmazó fixture-készlet; ötzónás lista, üres válasz, nested wrapper, névvel jelölt zóna, perces mezők és nullaalapú `zoneIndex` regressziós védelme
 - elkészült: valódi böngészős billentyűzet- és képernyőolvasó-audit; skip link, egységes fókuszjelzés, csökkentett mozgás, elnevezett grafikonok és modális vezérlők
 - elkészült: a generált napi ajánlások és heti összefoglalók külön historikus UI-ja, grafikonokkal és JSON-exporttal
+- elkészült: közérthető napi állapotfelmérés soronként megnevezett 1–5 skálavégpontokkal, hozzáférhető kiválasztási állapottal és a fájdalom-/betegségjelzés hatásának magyarázatával
 
 ## Elkészült P2 – Célok és tervezés
 

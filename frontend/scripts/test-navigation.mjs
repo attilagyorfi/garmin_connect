@@ -96,14 +96,24 @@ try {
   console.log("OK közérthető adatminőség és forráslefedettség");
   await act(async () => [...document.querySelectorAll("button")].find(node=>node.textContent.trim()==="Ma").click());
   if (!document.querySelector(".checkin-gate")) throw new Error("A Ma oldal nem az állapotfelméréssel kezdődik.");
-  for (const row of document.querySelectorAll(".checkin-gate .scale-row")) await act(async()=>row.querySelector("button").click());
+  if (!document.querySelector(".content header")?.textContent.includes("szeptember")) throw new Error("A napi állapotfelmérés dátuma nem magyar, közérthető formátumban jelenik meg.");
+  const scaleRows=[...document.querySelectorAll(".checkin-gate .scale-row")];
+  if (scaleRows.length!==4||!scaleRows[0].textContent.includes("1 · nincs")||!scaleRows[1].textContent.includes("5 · kimerült vagyok")||!scaleRows[2].textContent.includes("1 · nincs kedvem")||!scaleRows[3].textContent.includes("5 · nagyon feszült vagyok")) throw new Error("Az állapotfelmérés 1–5 skáláinak közérthető végpontjai hiányoznak.");
+  for (const row of scaleRows) {
+    const first=row.querySelector("button");
+    if(first.getAttribute("aria-pressed")!=="false"||!first.getAttribute("aria-label")?.includes("1 az 5-ből")) throw new Error("Az állapotfelmérés választógombjai nem hozzáférhetők.");
+    await act(async()=>first.click());
+    if(first.getAttribute("aria-pressed")!=="true") throw new Error("Az állapotfelmérés kiválasztott értéke nincs jelezve a segítő technológiáknak.");
+  }
   const illness = [...document.querySelectorAll("button")].find(node => node.textContent.trim() === "Betegségérzetem van");
+  if(illness.getAttribute("aria-pressed")!=="false"||!document.querySelector(".check-alert-help")?.textContent.includes("pihenőnapra")) throw new Error("A fájdalom- és betegségjelzés következménye vagy állapota nincs elmagyarázva.");
   await act(async () => illness.click());
+  if(illness.getAttribute("aria-pressed")!=="true") throw new Error("A betegségjelzés aktív állapota nem hozzáférhető.");
   const saveCheckin = [...document.querySelectorAll("button")].find(node => node.textContent.trim() === "Mentés és a javaslat kiszámítása");
   await act(async () => saveCheckin.click());
   if (!document.querySelector(".decision-copy")?.textContent.includes("Teljes pihenő")) throw new Error("A betegségérzet nem írta felül biztonságosan az ajánlást.");
   if (!cloudPatches.some(patch=>patch.checkin?.date===budapestToday())) throw new Error("A napi check-in nem a mai napra indított Neon-mentést.");
-  console.log("OK kötelező napi check-in és biztonsági felülírás");
+  console.log("OK közérthető és hozzáférhető napi check-in, biztonsági felülírással");
   await act(async () => new Promise(resolve=>setTimeout(resolve,5)));
   const explainedKpi=document.querySelector('.week-stats>div.explained-value');
   if (explainedKpi?.dataset.metric!=="Terhelés" || !explainedKpi.dataset.explanation?.includes("forrását mindig külön jelöljük")) throw new Error("A terhelés forrását tisztázó laikus magyarázat nem épült fel.");

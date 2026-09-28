@@ -1321,13 +1321,23 @@ function CheckIn({ value, onSave, required = false }) {
       if (["soreness", "fatigue", "motivation", "stress"].includes(key))
         setAnswered((current) => new Set([...current, key]));
     },
-    row = (key, label) => (
+    row = (key, label, lowLabel, highLabel) => (
       <div className="scale-row">
-        <span>{label}</span>
-        <div>
+        <div className="scale-row-head">
+          <span>{label}</span>
+          <small>{`1 · ${lowLabel}  —  5 · ${highLabel}`}</small>
+        </div>
+        <div
+          className="scale-buttons"
+          role="group"
+          aria-label={`${label}: 1 ${lowLabel}, 5 ${highLabel}`}
+        >
           {[1, 2, 3, 4, 5].map((n) => (
             <button
               key={n}
+              type="button"
+              aria-label={`${label}: ${n} az 5-ből`}
+              aria-pressed={answered.has(key) && values[key] === n}
               className={
                 answered.has(key) && values[key] === n ? "selected" : ""
               }
@@ -1360,25 +1370,33 @@ function CheckIn({ value, onSave, required = false }) {
         </small>
       </div>
       <div className="check-grid">
-        {row("soreness", "Izomláz")}
-        {row("fatigue", "Fáradtság")}
-        {row("motivation", "Motiváció")}
-        {row("stress", "Stressz")}
+        {row("soreness", "Izomláz", "nincs", "erős")}
+        {row("fatigue", "Fáradtság", "friss vagyok", "kimerült vagyok")}
+        {row("motivation", "Motiváció", "nincs kedvem", "nagyon motivált vagyok")}
+        {row("stress", "Stressz", "nyugodt vagyok", "nagyon feszült vagyok")}
       </div>
       <div className="check-alerts">
         <button
+          type="button"
+          aria-pressed={values.pain}
           className={values.pain ? "selected" : ""}
           onClick={() => set("pain", !values.pain)}
         >
           Fájdalmat érzek
         </button>
         <button
+          type="button"
+          aria-pressed={values.illness}
           className={values.illness ? "selected" : ""}
           onClick={() => set("illness", !values.illness)}
         >
           Betegségérzetem van
         </button>
       </div>
+      <p className="check-alert-help">
+        A fájdalom vagy betegségérzet biztonsági jelzés: csökkentheti vagy
+        pihenőnapra módosíthatja a mai javaslatot.
+      </p>
       <div className="check-footer">
         <input
           value={values.note}
@@ -1844,7 +1862,14 @@ function TodayLive({
       <>
         <header>
           <div>
-            <span className="eyebrow">{checkinKey}</span>
+            <span className="eyebrow">
+              {new Date(`${checkinKey}T12:00:00`).toLocaleDateString("hu-HU", {
+                year: "numeric",
+                month: "long",
+                day: "numeric",
+                weekday: "long",
+              })}
+            </span>
             <h1>Kezdjük a napi állapotfelméréssel</h1>
           </div>
           <div className="header-actions">
