@@ -9,6 +9,16 @@
 .overview-page .overview-kpis span {font-size:15px;letter-spacing:0;margin:0 0 12px;color:#dce2df}
 .overview-page .overview-kpis strong {font-size:32px;color:#fff}
 .overview-page .overview-kpis small {display:block;font-size:13px;color:#bac2be;margin-top:10px}
+.overview-kpi-summary {min-height:48px;margin:13px 0 0;color:#c6ccc9}
+.overview-kpi-details,.overview-chart-details {margin-top:16px;border-top:1px solid #343a37}
+.overview-kpi-details summary,.overview-chart-details summary {min-height:44px;display:flex;align-items:center;justify-content:space-between;gap:12px;color:var(--accent-text);font-weight:700;cursor:pointer;list-style:none}
+.overview-kpi-details summary::-webkit-details-marker,.overview-chart-details summary::-webkit-details-marker {display:none}
+.overview-kpi-details summary::after,.overview-chart-details summary::after {content:"+";font:700 19px/1 "Geist Mono",monospace;color:var(--accent)}
+.overview-kpi-details[open] summary::after,.overview-chart-details[open] summary::after {content:"−"}
+.overview-kpi-details summary:focus-visible,.overview-chart-details summary:focus-visible {outline:2px solid var(--accent);outline-offset:4px;border-radius:4px}
+.overview-kpi-details p {margin:0 0 4px;font-size:14px;line-height:1.6;color:#b9c1bd}
+.overview-chart-details {margin-top:14px}
+.overview-chart-details>p {margin:0 0 12px}
 .overview-quality {padding:26px;margin-bottom:16px}
 .overview-quality h2 {margin-top:8px;font-size:23px}
 .overview-quality-intro {max-width:920px;margin:12px 0 20px}

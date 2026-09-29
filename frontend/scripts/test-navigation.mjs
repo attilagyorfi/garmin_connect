@@ -91,6 +91,10 @@ try {
   if (!document.querySelector(".content")?.textContent.includes("FEJLŐDÉSTÖRTÉNET")) throw new Error("Az Áttekintés nem a kezdőképernyő.");
   if (!document.querySelector(".content")?.textContent.toLowerCase().includes("terhelési pont")) throw new Error("Az Áttekintés grafikon Y tengelyének neve vagy mértékegysége hiányzik.");
   if (!document.querySelector(".content")?.textContent.includes("X tengely: dátum")) throw new Error("Az Áttekintés grafikon X tengelyének magyarázata hiányzik.");
+  const kpiDetails=[...document.querySelectorAll('.overview-kpi-details')];
+  if(kpiDetails.length!==4||kpiDetails.some(item=>item.open||!item.textContent.includes('Mit jelent ez?'))) throw new Error("Az Áttekintés KPI-magyarázatai nem tömör, kibontható formában jelennek meg.");
+  const chartDetails=document.querySelector('.overview-chart-details');
+  if(chartDetails?.open||!chartDetails?.textContent.includes('Hybrid edzettség (CTL)')) throw new Error("A fejlődéstörténet közérthető, kibontható magyarázata hiányzik.");
   const quality=document.querySelector(".overview-quality");
   if (!quality?.textContent.includes("4 / 5 elérhető")||!quality.textContent.includes("100% Garmin-adat")||!quality.textContent.includes("461 edzés")) throw new Error("Az Áttekintés adatminőségi és lefedettségi magyarázata hiányos.");
   console.log("OK közérthető adatminőség és forráslefedettség");
@@ -201,6 +205,9 @@ try {
     }
     if (label === "Beállítások") {
       await act(async()=>new Promise(resolve=>setTimeout(resolve,5)));
+      const settingsNav=document.querySelector('.settings-section-nav');
+      const settingsTargets=settingsNav?[...settingsNav.querySelectorAll('a')].map(link=>link.getAttribute('href')):[];
+      if(!settingsNav||!settingsTargets.includes('#settings-data')||!settingsTargets.includes('#settings-personalization')||!settingsTargets.includes('#settings-account')||!settingsTargets.every(target=>document.querySelector(target))) throw new Error("A Beállítások szakasznavigációja hiányos.");
       const dataManagement=document.querySelector(".data-management-card");
       if (!dataManagement?.textContent.includes("Milyen adatok vannak a fiókodban?")) throw new Error("Az adatkezelési áttekintő hiányzik a Beállításokból.");
       if (!dataManagement.textContent.includes("461 edzés")||!dataManagement.textContent.includes("Profil, tervek, check-inek és edzésérzet")) throw new Error("Az adatkezelési áttekintő nem mutatja közérthetően a tárolt adatkategóriákat.");

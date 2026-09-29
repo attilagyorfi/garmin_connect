@@ -4408,9 +4408,21 @@ function SettingsPage({
     <>
       <PageHeader eyebrow="SZEMÉLYRE SZABÁS" title="Beállítások" />
       <main className="accent-page settings-stack">
-        <GarminConnectionCard onStatus={onGarminStatus} />
-        <DataManagementOverview garminStatus={garminStatus} />
-        <section className="card accent-card">
+        <nav className="settings-section-nav" aria-label="Beállítási csoportok">
+          <span>UGRÁS IDE</span>
+          <a href="#settings-data">Garmin és adatok</a>
+          <a href="#settings-personalization">Személyre szabás</a>
+          <a href="#settings-account">Fiók és biztonság</a>
+          {user?.role === "admin" && <a href="#settings-admin">Adminisztráció</a>}
+        </nav>
+        <section className="settings-group" id="settings-data" aria-labelledby="settings-data-title">
+          <div className="settings-group-heading"><span className="eyebrow">KAPCSOLAT ÉS ADATOK</span><h2 id="settings-data-title">Garmin és adatok</h2><p>Itt kezelheted a Garmin-kapcsolatot, és ellenőrizheted, milyen adatok állnak rendelkezésre.</p></div>
+          <GarminConnectionCard onStatus={onGarminStatus} />
+          <DataManagementOverview garminStatus={garminStatus} />
+        </section>
+        <section className="settings-group" id="settings-personalization" aria-labelledby="settings-personalization-title">
+          <div className="settings-group-heading"><span className="eyebrow">MEGJELENÉS</span><h2 id="settings-personalization-title">Személyre szabás</h2><p>A profilképed és az akcentusszín minden belépés után megmarad.</p></div>
+          <section className="card accent-card">
           <span className="eyebrow">PROFILKÉP</span>
           <h2>Személyes megjelenés</h2>
           <p>
@@ -4437,8 +4449,8 @@ function SettingsPage({
               {saved ? "Mentve" : "Profilkép mentése"}
             </button>
           </div>
-        </section>
-        <section className="card accent-card">
+          </section>
+          <section className="card accent-card">
           <span className="eyebrow">MEGJELENÉS</span>
           <h2>Akcentusszín</h2>
           <p>
@@ -4464,20 +4476,24 @@ function SettingsPage({
               {saved ? "Mentve" : "Választás mentése"}
             </button>
           </div>
+          </section>
         </section>
-        <section className="card account-card">
+        <section className="settings-group" id="settings-account" aria-labelledby="settings-account-title">
+          <div className="settings-group-heading"><span className="eyebrow">FIÓK</span><h2 id="settings-account-title">Fiók és biztonság</h2><p>A belépési adatok, aktív eszközök és saját adataid kezelése egy helyen.</p></div>
+          <section className="card account-card">
           <span className="eyebrow">FIÓK</span>
           <h2>{user?.name}</h2>
           <p>{user?.email}</p>
           <button className="logout-button" onClick={onLogout}>
             <LogOut size={17} /> Kijelentkezés
           </button>
+          </section>
+          <PasswordChangeCard onChanged={onPasswordChanged} />
+          <DataExportCard />
+          <ActiveSessionsCard />
+          <AccountDeletionCard onDeleted={onAccountDeleted} />
         </section>
-        <PasswordChangeCard onChanged={onPasswordChanged} />
-        <DataExportCard />
-        {user?.role === "admin" && <AdminAccessCard />}
-        <ActiveSessionsCard />
-        <AccountDeletionCard onDeleted={onAccountDeleted} />
+        {user?.role === "admin" && <section className="settings-group" id="settings-admin" aria-labelledby="settings-admin-title"><div className="settings-group-heading"><span className="eyebrow">ADMIN</span><h2 id="settings-admin-title">Adminisztráció</h2><p>A zárt rendszer felhasználóihoz és meghívóihoz kapcsolódó műveletek.</p></div><AdminAccessCard /></section>}
       </main>
     </>
   );

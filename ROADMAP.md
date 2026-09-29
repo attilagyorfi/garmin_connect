@@ -77,6 +77,7 @@
 - elkészült: valódi böngészős billentyűzet- és képernyőolvasó-audit; skip link, egységes fókuszjelzés, csökkentett mozgás, elnevezett grafikonok és modális vezérlők
 - elkészült: a generált napi ajánlások és heti összefoglalók külön historikus UI-ja, grafikonokkal és JSON-exporttal
 - elkészült: közérthető napi állapotfelmérés soronként megnevezett 1–5 skálavégpontokkal, hozzáférhető kiválasztási állapottal és a fájdalom-/betegségjelzés hatásának magyarázatával
+- elkészült: rétegzett Áttekintés rövid KPI-összefoglalókkal és billentyűzettel kibontható részletes értelmezésekkel; a Beállítások logikus, horgonylinkekkel elérhető szakaszokra bontva
 
 ## Elkészült P2 – Célok és tervezés
 
