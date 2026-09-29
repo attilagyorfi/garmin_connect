@@ -3008,7 +3008,7 @@ function PeriodizationPlanner({ profile, data, plans, onSave }) {
     </section>
   );
 }
-function GoalPage({ profile, onEdit, cloudState, onCloudPatch }) {
+function GoalPage({ profile, onEdit, cloudState, onCloudPatch, onNavigate }) {
   const data = useDashboardData(),
     readiness = buildGoalReadiness(data, profile),
     status =
@@ -3024,6 +3024,13 @@ function GoalPage({ profile, onEdit, cloudState, onCloudPatch }) {
           CÉL SZERKESZTÉSE
         </button>
       </PageHeader>
+      <PlanningFlow
+        active="Cél"
+        profile={profile}
+        plans={cloudState?.plans || []}
+        feedback={cloudState?.feedback || {}}
+        onNavigate={onNavigate}
+      />
       <main className="goal-layout">
         <section className="card goal-hero">
           <ScoreRing
@@ -3482,7 +3489,14 @@ function JournalPage() {
   );
 }
 
-function ActivityDetail({ activity, feedback, onSave, onClose }) {
+function ActivityDetail({
+  activity,
+  feedback,
+  plan,
+  comparison,
+  onSave,
+  onClose,
+}) {
   const [draft, setDraft] = useState(
       () => feedback || { rpe: 5, feeling: "rendben", note: "" },
     ),
@@ -3523,6 +3537,32 @@ function ActivityDetail({ activity, feedback, onSave, onClose }) {
             </span>
           ))}
         </div>
+        <section
+          className={`activity-plan-link ${plan ? "matched" : "unmatched"}`}
+        >
+          <span className="eyebrow">TERV ÉS TÉNY</span>
+          {plan ? (
+            <>
+              <div>
+                <b>{plan.title}</b>
+                <strong>{comparison.status}</strong>
+              </div>
+              <p>
+                Terv: {plan.duration} perc · tény: {activity.durationMin} perc ·
+                eltérés: {comparison.difference > 0 ? "+" : ""}
+                {comparison.difference} perc.
+                {comparison.method === "kézi"
+                  ? " Kézzel párosított Garmin-aktivitás."
+                  : " Automatikus párosítás a nap és az edzéstípus alapján."}
+              </p>
+            </>
+          ) : (
+            <p>
+              Ehhez a Garmin-edzéshez nem található párosított terv. Ettől még
+              az edzés és a visszajelzés beleszámít az elemzésekbe.
+            </p>
+          )}
+        </section>
         <div className="feedback-form">
           <span className="eyebrow">SAJÁT VISSZAJELZÉS</span>
           <div className="field">
@@ -3582,7 +3622,13 @@ function ActivityDetail({ activity, feedback, onSave, onClose }) {
     </div>
   );
 }
-function LiveJournalPage({ cloudState, onCloudPatch }) {
+function LiveJournalPage({
+  profile,
+  cloudState,
+  onCloudPatch,
+  initialActivityId,
+  onNavigate,
+}) {
   const data = useDashboardData(),
     [query, setQuery] = useState(""),
     [type, setType] = useState("Mind"),
@@ -3605,8 +3651,24 @@ function LiveJournalPage({ cloudState, onCloudPatch }) {
       );
     }
   }, [cloudState]);
-  const rows = data?.sessions || [];
-  const types = ["Mind", ...new Set(rows.map((x) => x.type))],
+  const rows = data?.sessions || [],
+    plans = cloudState?.plans || [];
+  useEffect(() => {
+    if (!initialActivityId || !rows.length) return;
+    const activity = rows.find(
+      (item) => String(item.id) === String(initialActivityId),
+    );
+    if (activity) setSelected(activity);
+  }, [initialActivityId, rows.length]);
+  const activityPlanLinks = buildActivityPlanLinks(
+      plans,
+      rows,
+      budapestToday(),
+    ),
+    selectedLink = selected
+      ? activityPlanLinks.get(String(selected.id))
+      : null,
+    types = ["Mind", ...new Set(rows.map((x) => x.type))],
     visible = rows.filter(
       (x) =>
         (type === "Mind" || x.type === type) &&
@@ -3634,6 +3696,13 @@ function LiveJournalPage({ cloudState, onCloudPatch }) {
           />
         </div>
       </PageHeader>
+      <PlanningFlow
+        active="Napló"
+        profile={profile}
+        plans={plans}
+        feedback={feedback}
+        onNavigate={onNavigate}
+      />
       <div className="journal-filters">
         <Filter size={14} />
         {types.map((x) => (
@@ -3658,6 +3727,7 @@ function LiveJournalPage({ cloudState, onCloudPatch }) {
                 "ÁTL. PULZUS",
                 "TÁV",
                 "TERHELÉS",
+                "TERVKAPCSOLAT",
                 "RPE",
                 "VISSZAJELZÉS",
               ].map((x) => (
@@ -3666,41 +3736,57 @@ function LiveJournalPage({ cloudState, onCloudPatch }) {
             </tr>
           </thead>
           <tbody>
-            {visible.map((row) => (
-              <tr
-                className="activity-row"
-                role="button"
-                tabIndex="0"
-                key={row.id}
-                onClick={() => setSelected(row)}
-                onKeyDown={(event) => event.key === "Enter" && setSelected(row)}
-              >
-                <td>{new Date(row.date).toLocaleDateString("hu-HU")}</td>
-                <td>
-                  <span className={`sport ${row.type}`}>
-                    {row.type === "Erő" ? (
-                      <Dumbbell size={13} />
-                    ) : (
-                      <Activity size={13} />
-                    )}{" "}
-                    {row.type}
-                  </span>
-                </td>
-                <td>{row.name}</td>
-                <td>{row.durationMin}p</td>
-                <td>{row.avgHr ? `${row.avgHr} bpm` : "—"}</td>
-                <td>{row.distanceKm ? `${row.distanceKm} km` : "—"}</td>
-                <td>{row.load}</td>
-                <td>{feedback[row.id]?.rpe || "—"}</td>
-                <td>
-                  <span
-                    className={`status ${feedback[row.id] ? "good" : "neutral"}`}
-                  >
-                    {feedback[row.id] ? "RÖGZÍTVE" : "MEGNYITÁS"}
-                  </span>
-                </td>
-              </tr>
-            ))}
+            {visible.map((row) => {
+              const linked = activityPlanLinks.get(String(row.id)),
+                linkedPlan = linked?.plan,
+                linkedComparison = linked?.comparison;
+              return (
+                <tr
+                  className="activity-row"
+                  role="button"
+                  tabIndex="0"
+                  key={row.id}
+                  onClick={() => setSelected(row)}
+                  onKeyDown={(event) =>
+                    event.key === "Enter" && setSelected(row)
+                  }
+                >
+                  <td>{new Date(row.date).toLocaleDateString("hu-HU")}</td>
+                  <td>
+                    <span className={`sport ${row.type}`}>
+                      {row.type === "Erő" ? (
+                        <Dumbbell size={13} />
+                      ) : (
+                        <Activity size={13} />
+                      )}{" "}
+                      {row.type}
+                    </span>
+                  </td>
+                  <td>{row.name}</td>
+                  <td>{row.durationMin}p</td>
+                  <td>{row.avgHr ? `${row.avgHr} bpm` : "—"}</td>
+                  <td>{row.distanceKm ? `${row.distanceKm} km` : "—"}</td>
+                  <td>{row.load}</td>
+                  <td>
+                    <span
+                      className={`plan-link ${linkedPlan ? "linked" : "unlinked"}`}
+                    >
+                      {linkedPlan
+                        ? linkedComparison.status.toUpperCase()
+                        : "NINCS TERV"}
+                    </span>
+                  </td>
+                  <td>{feedback[row.id]?.rpe || "—"}</td>
+                  <td>
+                    <span
+                      className={`status ${feedback[row.id] ? "good" : "neutral"}`}
+                    >
+                      {feedback[row.id] ? "RÖGZÍTVE" : "MEGNYITÁS"}
+                    </span>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
         {!visible.length && (
@@ -3711,6 +3797,8 @@ function LiveJournalPage({ cloudState, onCloudPatch }) {
         <ActivityDetail
           activity={selected}
           feedback={feedback[selected.id]}
+          plan={selectedLink?.plan}
+          comparison={selectedLink?.comparison}
           onSave={(value) => save(selected.id, value)}
           onClose={() => setSelected(null)}
         />
@@ -5441,6 +5529,160 @@ function evaluatePlan(plan, activities, today) {
     difference,
   };
 }
+function evaluatePlanSet(plans, activities, today) {
+  const usedActivityIds = new Set(),
+    results = new Map();
+  [...(plans || [])]
+    .sort((left, right) =>
+      Number(Boolean(right.matchedActivityId)) -
+      Number(Boolean(left.matchedActivityId)),
+    )
+    .forEach((plan) => {
+      const manual =
+          plan.matchedActivityId &&
+          activities.find(
+            (item) =>
+              String(item.id) === String(plan.matchedActivityId) &&
+              !usedActivityIds.has(String(item.id)),
+          ),
+        automatic = [...activities]
+          .filter(
+            (item) =>
+              !usedActivityIds.has(String(item.id)) &&
+              item.date === plan.date &&
+              activityMatchesType(plan, item),
+          )
+          .sort(
+            (left, right) =>
+              Math.abs(Number(left.durationMin || 0) - Number(plan.duration || 0)) -
+              Math.abs(Number(right.durationMin || 0) - Number(plan.duration || 0)),
+          )[0],
+        activity = manual || automatic;
+      if (!activity) {
+        results.set(plan.id, evaluatePlan(plan, [], today));
+        return;
+      }
+      usedActivityIds.add(String(activity.id));
+      results.set(plan.id, {
+        ...evaluatePlan(
+          { ...plan, matchedActivityId: activity.id },
+          [activity],
+          today,
+        ),
+        method: manual ? "kézi" : "automatikus",
+      });
+    });
+  return results;
+}
+function buildActivityPlanLinks(plans, activities, today) {
+  const links = new Map(),
+    evaluations = evaluatePlanSet(plans, activities, today);
+  (plans || []).forEach((plan) => {
+    const comparison = evaluations.get(plan.id);
+    if (comparison?.activity) {
+      links.set(String(comparison.activity.id), { plan, comparison });
+    }
+  });
+  return links;
+}
+function summarizePlanWeek(plans, activities, referenceDate, feedback = {}) {
+  const reference = new Date(`${referenceDate}T12:00:00`),
+    monday = new Date(reference),
+    dayOffset = (reference.getDay() + 6) % 7;
+  monday.setDate(reference.getDate() - dayOffset);
+  const sunday = new Date(monday);
+  sunday.setDate(monday.getDate() + 6);
+  const from = isoDate(monday),
+    to = isoDate(sunday),
+    weekPlans = (plans || []).filter(
+      (plan) => plan.date >= from && plan.date <= to,
+    ),
+    weekActivities = (activities || []).filter(
+      (activity) => activity.date >= from && activity.date <= to,
+    ),
+    evaluated = [...evaluatePlanSet(weekPlans, activities, referenceDate).values()],
+    completed = evaluated.filter((item) => item.activity).length,
+    plannedMinutes = weekPlans.reduce(
+      (sum, plan) => sum + Number(plan.duration || 0),
+      0,
+    ),
+    actualMinutes = evaluated.reduce(
+      (sum, item) => sum + Number(item.activity?.durationMin || 0),
+      0,
+    ),
+    feedbackCount = weekActivities.filter((item) => feedback[item.id]).length;
+  return {
+    from,
+    to,
+    weekPlans,
+    weekActivities,
+    completed,
+    plannedMinutes,
+    actualMinutes,
+    feedbackCount,
+    adherence: weekPlans.length
+      ? Math.round((completed / weekPlans.length) * 100)
+      : null,
+  };
+}
+function PlanningFlow({ active, profile, plans = [], feedback = {}, onNavigate }) {
+  const today = budapestToday(),
+    nextPlan = [...plans]
+      .filter((plan) => plan.date >= today)
+      .sort((a, b) => a.date.localeCompare(b.date))[0],
+    steps = [
+      {
+        id: "Cél",
+        Icon: Target,
+        label: "1. Cél",
+        detail: profile.eventName || profile.goal,
+      },
+      {
+        id: "Naptár",
+        Icon: CalendarDays,
+        label: "2. Terv",
+        detail: nextPlan
+          ? `Következő: ${new Date(`${nextPlan.date}T12:00:00`).toLocaleDateString("hu-HU", { month: "short", day: "numeric" })}`
+          : "Még nincs következő edzés",
+        context: nextPlan ? { calendarDate: nextPlan.date } : {},
+      },
+      {
+        id: "Napló",
+        Icon: ClipboardList,
+        label: "3. Visszajelzés",
+        detail: `${Object.keys(feedback || {}).length} értékelt edzés`,
+      },
+    ];
+  return (
+    <nav
+      className="planning-flow card"
+      aria-label="Cél, edzésterv és visszajelzés folyamata"
+    >
+      <div className="planning-flow-intro">
+        <span className="eyebrow">TERVEZÉSI FOLYAMAT</span>
+        <p>A célból heti terv, a teljesítésből pedig következő döntés lesz.</p>
+      </div>
+      <div className="planning-flow-steps">
+        {steps.map(({ id, Icon, label, detail, context }) => (
+          <button
+            type="button"
+            key={id}
+            className={active === id ? "active" : ""}
+            aria-current={active === id ? "step" : undefined}
+            onClick={() => onNavigate(id, context || {})}
+          >
+            <Icon size={19} aria-hidden="true" />
+            <span>
+              <b>{label}</b>
+              <small>{detail}</small>
+            </span>
+            {id !== "Napló" && <ChevronRight size={16} aria-hidden="true" />}
+          </button>
+        ))}
+      </div>
+    </nav>
+  );
+}
 function PlanEditor({ value, activities, onSave, onDelete, onClose }) {
   const [draft, setDraft] = useState(value),
     set = (key, next) => setDraft((current) => ({ ...current, [key]: next })),
@@ -5889,11 +6131,18 @@ function BatchMoveEditor({ plans, onSave, onClose }) {
   );
 }
 
-function PersistentCalendarPage({ profile, cloudState, onCloudPatch }) {
+function PersistentCalendarPage({
+  profile,
+  cloudState,
+  onCloudPatch,
+  initialDate,
+  onNavigate,
+}) {
   const data = useDashboardData(),
     activities = data?.sessions || [],
-    today = data?.today || isoDate(new Date()),
-    anchor = new Date(`${today}T12:00:00`),
+    today = budapestToday(),
+    anchorDate = initialDate || today,
+    anchor = new Date(`${anchorDate}T12:00:00`),
     [month, setMonth] = useState(
       () => new Date(anchor.getFullYear(), anchor.getMonth(), 1),
     ),
@@ -5920,12 +6169,6 @@ function PersistentCalendarPage({ profile, cloudState, onCloudPatch }) {
     selectedPlans = planned.get(selected) || [],
     selectedActuals = actual.get(selected) || [],
     selectedItems = [...selectedActuals, ...selectedPlans],
-    selectedPlan = selectedPlans[0],
-    selectedActual = selectedActuals[0],
-    selectedItem = selectedItems[0],
-    comparison = selectedPlan
-      ? evaluatePlan(selectedPlan, activities, today)
-      : null,
     selectedDate = new Date(`${selected}T12:00:00`),
     monthLabel = month.toLocaleDateString("hu-HU", {
       year: "numeric",
@@ -5955,7 +6198,14 @@ function PersistentCalendarPage({ profile, cloudState, onCloudPatch }) {
       onCloudPatch({ plans: items });
       setBatchEditor(false);
       if (items[0]) setSelected(items[0].date);
-    };
+    },
+    selectedPlanResults = evaluatePlanSet(selectedPlans, activities, today),
+    weekSummary = summarizePlanWeek(
+      plans,
+      activities,
+      selected,
+      cloudState?.feedback || {},
+    );
   return (
     <>
       <PageHeader eyebrow="SZEMÉLYES HETI TERV" title="Terv és tény">
@@ -5975,6 +6225,58 @@ function PersistentCalendarPage({ profile, cloudState, onCloudPatch }) {
           </button>
         </div>
       </PageHeader>
+      <PlanningFlow
+        active="Naptár"
+        profile={profile}
+        plans={plans}
+        feedback={cloudState?.feedback || {}}
+        onNavigate={onNavigate}
+      />
+      <section
+        className="calendar-week-summary card"
+        aria-label="A kiválasztott hét terv és tény összesítése"
+      >
+        <div>
+          <span className="eyebrow">KIVÁLASZTOTT HÉT</span>
+          <b>
+            {new Date(`${weekSummary.from}T12:00:00`).toLocaleDateString(
+              "hu-HU",
+              { month: "short", day: "numeric" },
+            )}{" "}
+            –{" "}
+            {new Date(`${weekSummary.to}T12:00:00`).toLocaleDateString(
+              "hu-HU",
+              { month: "short", day: "numeric" },
+            )}
+          </b>
+        </div>
+        <span>
+          <strong>{weekSummary.weekPlans.length}</strong>
+          <small>TERVEZETT EDZÉS</small>
+        </span>
+        <span>
+          <strong>{weekSummary.completed}</strong>
+          <small>TERVHEZ PÁROSÍTVA</small>
+        </span>
+        <span>
+          <strong>
+            {weekSummary.plannedMinutes} / {weekSummary.actualMinutes}p
+          </strong>
+          <small>TERV / TÉNY IDŐ</small>
+        </span>
+        <span>
+          <strong>
+            {weekSummary.adherence == null ? "—" : `${weekSummary.adherence}%`}
+          </strong>
+          <small>TERVKÖVETÉS</small>
+        </span>
+        <span>
+          <strong>
+            {weekSummary.feedbackCount} / {weekSummary.weekActivities.length}
+          </strong>
+          <small>VISSZAJELZÉS</small>
+        </span>
+      </section>
       <div className="calendar-toolbar">
         <div className="calendar-legend">
           <span>
@@ -6050,34 +6352,66 @@ function PersistentCalendarPage({ profile, cloudState, onCloudPatch }) {
         <div>
           <div className="selected-day-sessions">
             {selectedItems.length
-              ? selectedItems.map(item=><p key={item.id||`${item.title}-${item.duration}`}><b>{item.title}</b> · {item.duration} perc · {item.status==="done" ? "Garmin-adat" : "személyes terv"}</p>)
+              ? <>
+                  {selectedPlans.map((plan) => {
+                    const result = selectedPlanResults.get(plan.id);
+                    return (
+                      <article className="selected-plan" key={plan.id}>
+                        <div>
+                          <span>TERV</span>
+                          <b>{plan.title}</b>
+                          <small>
+                            {plan.duration} perc · {plan.intensity} · RPE {plan.rpe}/10
+                          </small>
+                        </div>
+                        <div
+                          className={`plan-comparison ${result.status.replaceAll(" ", "-")}`}
+                        >
+                          <b>{result.status.toUpperCase()}</b>
+                          {result.activity && (
+                            <span>
+                              {result.method} párosítás · tény{" "}
+                              {result.activity.durationMin} perc · eltérés{" "}
+                              {result.difference > 0 ? "+" : ""}
+                              {result.difference} perc
+                            </span>
+                          )}
+                        </div>
+                        <button onClick={() => setEditor(plan)}>
+                          <Pencil size={14} /> SZERKESZTÉS
+                        </button>
+                      </article>
+                    );
+                  })}
+                  {selectedActuals.map((activity) => (
+                    <article className="selected-actual" key={activity.id}>
+                      <div>
+                        <span>GARMIN</span>
+                        <b>{activity.title}</b>
+                        <small>
+                          {activity.duration} perc · terhelés:{" "}
+                          {activity.load ?? "nem ismert"}
+                        </small>
+                      </div>
+                      <button
+                        onClick={() =>
+                          onNavigate("Napló", {
+                            journalActivityId: activity.id,
+                          })
+                        }
+                      >
+                        <ClipboardList size={14} /> NAPLÓ MEGNYITÁSA
+                      </button>
+                    </article>
+                  ))}
+                </>
               : selectedDate.getDay() === 0 ||
                   dayCodes[selectedDate.getDay()] === profile.restDay
                 ? "Tervezett pihenőnap."
                 : "Nincs edzés erre a napra."}
           </div>
-          {comparison && (
-            <div
-              className={`plan-comparison ${comparison.status.replaceAll(" ", "-")}`}
-            >
-              <b>{comparison.status.toUpperCase()}</b>
-              {comparison.activity && (
-                <span>
-                  {comparison.method} párosítás · tény{" "}
-                  {comparison.activity.durationMin} perc · eltérés{" "}
-                  {comparison.difference > 0 ? "+" : ""}
-                  {comparison.difference} perc
-                </span>
-              )}
-            </div>
-          )}
         </div>
         <div className="calendar-detail-actions">
-          {selectedPlan && (
-            <button onClick={() => setEditor(selectedPlan)}>
-              <Pencil size={14} /> SZERKESZTÉS ÉS PÁROSÍTÁS
-            </button>
-          )}
           <button
             className="primary"
             onClick={() => setEditor(emptyPlan(selected))}
@@ -6172,7 +6506,12 @@ export function App() {
     [user, setUser] = useState(null),
     [authNotice, setAuthNotice] = useState(""),
     [authReady, setAuthReady] = useState(false),
-    [garminStatus, setGarminStatus] = useState(null);
+    [garminStatus, setGarminStatus] = useState(null),
+    [pageContext, setPageContext] = useState({});
+  const navigate = (page, context = {}) => {
+    setPageContext(context);
+    setActive(page);
+  };
   const applyAccent = (value) => {
     const option =
         accentOptions.find((x) => x.id === value) || accentOptions[0],
@@ -6295,6 +6634,8 @@ export function App() {
         profile={profile}
         cloudState={cloudState}
         onCloudPatch={saveCloudPatch}
+        initialDate={pageContext.calendarDate}
+        onNavigate={navigate}
       />
     ),
     Trendek: <LiveTrendsPage profile={profile} />,
@@ -6304,11 +6645,18 @@ export function App() {
         onEdit={() => setActive("Profil")}
         cloudState={cloudState}
         onCloudPatch={saveCloudPatch}
+        onNavigate={navigate}
       />
     ),
     Elemzések: <InsightsPage profile={profile} />,
     Napló: (
-      <LiveJournalPage cloudState={cloudState} onCloudPatch={saveCloudPatch} />
+      <LiveJournalPage
+        profile={profile}
+        cloudState={cloudState}
+        onCloudPatch={saveCloudPatch}
+        initialActivityId={pageContext.journalActivityId}
+        onNavigate={navigate}
+      />
     ),
     Profil: <ProfilePage profile={profile} onSave={saveProfileCloud} />,
     Beállítások: (
@@ -6356,7 +6704,7 @@ export function App() {
         collapsed={collapsed}
         onToggle={() => setCollapsed(!collapsed)}
         active={active}
-        onActive={setActive}
+        onActive={navigate}
         profile={profile}
         garminStatus={garminStatus}
       />

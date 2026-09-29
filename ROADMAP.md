@@ -93,6 +93,7 @@
 - több tervezett edzés együttes mozgatása előre vagy hátra, a heti ritmus megtartásával, dátum-előnézettel és napütközés-védelemmel
 - 4/8/12 hetes eseményspecifikus periodizáció alapozó, építő, tehermentesítő, csúcs- és esemény/levezető fázissal; szerkeszthető naptártervek és biztonságos dátumcsere
 - adaptív következő heti újratervezés Garmin-teljesítések, tervkövetés, readiness és check-in alapján, magyarázható volumen-/intenzitásváltozással és kihagyott edzések visszasűrítése nélkül
+- összekapcsolt „Cél → Terv → Visszajelzés” útvonal, heti terv–tény összesítéssel, több napi edzés külön értékelésével és közvetlen Naptár–Napló átjárással
 
 ## Elkészült P2 finomítások
 

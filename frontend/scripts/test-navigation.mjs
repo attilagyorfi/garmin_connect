@@ -183,6 +183,21 @@ try {
       const patchesBeforeMove=cloudPatches.length;
       await act(async()=>batchSave.click());
       if (cloudPatches.length<=patchesBeforeMove||!cloudPatches.at(-1)?.plans?.every(item=>item.date)) throw new Error("A csoportos dátummódosítás nem mentődött.");
+      const addJournalPlan=[...document.querySelectorAll("button")].find(node=>node.textContent.includes("EDZÉS HOZZÁADÁSA"));
+      await act(async()=>addJournalPlan.click());
+      await act(async()=>[...document.querySelectorAll(".plan-editor button")].find(node=>node.textContent.trim()==="Edzésterv mentése").click());
+      await act(async()=>new Promise(resolve=>setTimeout(resolve,2)));
+      await act(async()=>[...document.querySelectorAll("button")].find(node=>node.textContent.includes("EDZÉS HOZZÁADÁSA")).click());
+      await act(async()=>[...document.querySelectorAll(".plan-editor button")].find(node=>node.textContent.trim()==="Edzésterv mentése").click());
+      const pairedSummary=[...document.querySelectorAll(".calendar-week-summary>span")].find(node=>node.textContent.includes("TERVHEZ PÁROSÍTVA"));
+      if(!pairedSummary||pairedSummary.querySelector("strong")?.textContent.trim()!=="1"||!document.querySelector(".selected-actual")) throw new Error("A heti terv–tény összesítés nem kezeli külön a napi több edzést.");
+      if(!document.querySelector('.planning-flow')?.textContent.includes('Cél')||!document.querySelector('.planning-flow')?.textContent.includes('Visszajelzés')) throw new Error("A Cél–Terv–Visszajelzés navigáció hiányzik a Naptárból.");
+      await act(async()=>[...document.querySelectorAll("button")].find(node=>node.textContent.includes("NAPLÓ MEGNYITÁSA")).click());
+      await act(async()=>new Promise(resolve=>setTimeout(resolve,5)));
+      if(!document.querySelector('.activity-modal')?.textContent.includes('Teszt Zone 2 futás')) throw new Error("A Naptárból nem nyílik meg közvetlenül a Garmin-edzés naplóbejegyzése.");
+      await act(async()=>document.querySelector('.activity-modal .close').click());
+      await act(async()=>[...document.querySelectorAll('.planning-flow button')].find(node=>node.textContent.includes('2. Terv')).click());
+      if(!document.querySelector('.content')?.textContent.includes('Terv és tény')) throw new Error("A tervezési folyamatból nem lehet visszatérni a Naptárba.");
       console.log("OK edzésterv CRUD, heti sablon és csoportos mozgatás");
     }
     if (label === "Trendek") {
@@ -244,6 +259,7 @@ try {
       console.log("OK zárt adminisztrátori meghívás, hozzáférés-kezelés és biztonsági napló");
     }
     if (label === "Cél") {
+      if(!document.querySelector('.planning-flow')?.querySelector('[aria-current="step"]')?.textContent.includes('Cél')) throw new Error("A tervezési folyamat nem jelöli a Cél lépést.");
       const goalScore=document.querySelector(".goal-score");
       const goalValue=Number(goalScore?.querySelector("strong")?.textContent||0);
       if (!goalScore||Number(goalScore.dataset.score)!==goalValue||!goalScore.querySelector(".recharts-responsive-container")) throw new Error("A felkészültségi kör nem a Mai döntés 0–100-as kördiagram-komponensét használja.");
@@ -268,6 +284,9 @@ try {
       await act(async()=>saveAdaptive.click());
       if (!cloudPatches.some(patch=>patch.plans?.some(item=>item.note?.includes("Adaptív heti módosítás")))) throw new Error("Az adaptált következő hét nem mentődött.");
       console.log("OK Garmin/readiness/check-in alapú heti újratervezés");
+      await act(async()=>[...document.querySelectorAll('.planning-flow button')].find(node=>node.textContent.includes('2. Terv')).click());
+      if(!document.querySelector('.content')?.textContent.includes('Terv és tény')) throw new Error("A Cél oldalról nem nyitható meg a kapcsolódó edzésterv.");
+      await act(async()=>[...document.querySelectorAll('.planning-flow button')].find(node=>node.textContent.includes('1. Cél')).click());
       const edit = [...document.querySelectorAll("button")].find(node => node.textContent.trim() === "CÉL SZERKESZTÉSE");
       await act(async () => edit.click());
       if (!document.querySelector(".content")?.textContent.includes("Profil")) throw new Error("A Cél oldalról nem nyitható meg a Profil.");
@@ -275,12 +294,15 @@ try {
     }
     if (label === "Napló") {
       await act(async () => new Promise(resolve=>setTimeout(resolve,5)));
+      if(!document.querySelector('.planning-flow')?.querySelector('[aria-current="step"]')?.textContent.includes('Visszajelzés')) throw new Error("A tervezési folyamat nem jelöli a Napló lépést.");
       if (document.querySelectorAll('.table-wrap th.metric-header-explanation').length<5) throw new Error("A Napló számoszlopainak magyarázata hiányzik.");
       const activity = document.querySelector(".activity-row");
       if (!activity) throw new Error("A Garmin-edzés nem jelent meg a naplóban.");
+      if(!activity.querySelector('.plan-link.linked')?.textContent.includes('TELJESÜLT')) throw new Error("A Garmin-edzéshez kapcsolt terv állapota nem jelent meg a Naplóban.");
       await act(async () => activity.click());
       const modal = document.querySelector(".activity-modal");
       if (!modal?.textContent.includes("Teszt Zone 2 futás")) throw new Error("Az edzésrészlet nem nyílt meg.");
+      if(!modal.querySelector('.activity-plan-link.matched')?.textContent.includes('Automatikus párosítás')) throw new Error("A naplóbejegyzés terv–tény magyarázata hiányzik.");
       const rpe = [...modal.querySelectorAll(".rpe-picker button")].find(node => node.textContent.trim() === "8");
       await act(async () => rpe.click());
       const save = [...modal.querySelectorAll("button")].find(node => node.textContent.trim() === "Visszajelzés mentése");
