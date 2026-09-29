@@ -78,6 +78,7 @@
 - elkészült: a generált napi ajánlások és heti összefoglalók külön historikus UI-ja, grafikonokkal és JSON-exporttal
 - elkészült: közérthető napi állapotfelmérés soronként megnevezett 1–5 skálavégpontokkal, hozzáférhető kiválasztási állapottal és a fájdalom-/betegségjelzés hatásának magyarázatával
 - elkészült: rétegzett Áttekintés rövid KPI-összefoglalókkal és billentyűzettel kibontható részletes értelmezésekkel; a Beállítások logikus, horgonylinkekkel elérhető szakaszokra bontva
+- elkészült: azonos hosszúságú időszakokat összevető Trendek- és heti Elemzések-értelmezés „Mi változott? – Mi állhat mögötte? – Mit tehetsz?” szerkezetben, 60 napos szűrővel és a Garmin-terhelési lefedettség jelölésével
 
 ## Elkészült P2 – Célok és tervezés
 

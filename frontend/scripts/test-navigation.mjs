@@ -187,6 +187,11 @@ try {
     }
     if (label === "Trendek") {
       await act(async () => new Promise(resolve=>setTimeout(resolve,5)));
+      const translation=document.querySelector('.decision-translation');
+      if(!translation?.textContent.includes('Mi változott?')||!translation.textContent.includes('Mi állhat mögötte?')||!translation.textContent.includes('Mit tehetsz?')||!translation.textContent.includes('előző 90 napból')) throw new Error("A Trendek döntéstámogató időszak-összehasonlítása hiányzik.");
+      const sixtyDays=[...document.querySelectorAll('.segmented button')].find(node=>node.textContent.trim()==='60 nap');
+      await act(async()=>sixtyDays.click());
+      if(!document.querySelector('.decision-translation')?.textContent.includes('előző 60 napból')) throw new Error("A 60 napos időszak összehasonlítása nem frissült.");
       if (!document.querySelector('.chart-card .metric-header-explanation')?.dataset.explanation?.includes("hosszú távú edzettség")) throw new Error("A CTL/ATL/TSB grafikon laikus magyarázata hiányzik.");
       const range = [...document.querySelectorAll(".segmented button")].find(node => node.textContent.trim() === "30 nap");
       await act(async () => range.click());
@@ -196,6 +201,8 @@ try {
     }
     if (label === "Elemzések") {
       await act(async () => new Promise(resolve=>setTimeout(resolve,5)));
+      const weeklyTranslation=document.querySelector('.decision-translation');
+      if(!weeklyTranslation?.textContent.includes('A heti adatok jelentése röviden')||!weeklyTranslation.textContent.includes('Mi változott?')||!weeklyTranslation.textContent.includes('előző 7 napból')) throw new Error("Az Elemzések heti, közérthető értelmezése hiányzik.");
       const modelStatus=document.querySelector('.model-status');
       if (!modelStatus?.textContent.includes("Aktív személyes regenerációs modell")) throw new Error("Az automatikus személyes modell állapota nem jelent meg.");
       if (!modelStatus.textContent.includes("átlagos abszolút hiba 0,42")||!modelStatus.textContent.includes("nem terhelhetőségi pontszám")) throw new Error("A modell pontosságának laikus magyarázata hiányzik.");
