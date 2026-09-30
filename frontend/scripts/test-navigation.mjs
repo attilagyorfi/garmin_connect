@@ -69,7 +69,12 @@ globalThis.fetch = async (input,options={}) => {
       if(patch.checkin)mockedCloudState.checkins[patch.checkin.date]=patch.checkin.value;
       if(patch.feedback)mockedCloudState.feedback[patch.feedback.activityId]=patch.feedback.value;
       if(patch.plan)mockedCloudState.plans=[...mockedCloudState.plans.filter(item=>item.id!==patch.plan.id),patch.plan];
-      if(patch.plans){const replaceDates=new Set(patch.replacePlanDates||[]);mockedCloudState.plans=[...mockedCloudState.plans.filter(item=>!replaceDates.has(item.date)),...patch.plans];}
+      if(patch.plans){
+        const replaceDates=new Set(patch.replacePlanDates||[]);
+        const byId=new Map(mockedCloudState.plans.filter(item=>!replaceDates.has(item.date)).map(item=>[item.id,item]));
+        patch.plans.forEach(item=>byId.set(item.id,item));
+        mockedCloudState.plans=[...byId.values()];
+      }
       if(patch.deletePlan)mockedCloudState.plans=mockedCloudState.plans.filter(item=>item.id!==patch.deletePlan);
     }
     return {ok:true,status:200,json:async()=>mockedCloudState,text:async()=>JSON.stringify(mockedCloudState)};
@@ -183,6 +188,10 @@ try {
       const patchesBeforeMove=cloudPatches.length;
       await act(async()=>batchSave.click());
       if (cloudPatches.length<=patchesBeforeMove||!cloudPatches.at(-1)?.plans?.every(item=>item.date)) throw new Error("A csoportos dátummódosítás nem mentődött.");
+      const todayNumber=String(new Date(`${budapestToday()}T12:00:00`).getDate());
+      const todayCell=[...document.querySelectorAll('.calendar-grid>button')].find(node=>!node.classList.contains('outside')&&node.querySelector(':scope > span')?.textContent.trim()===todayNumber);
+      if(!todayCell) throw new Error("A mai nap nem választható ki a Naptárban.");
+      await act(async()=>todayCell.click());
       const addJournalPlan=[...document.querySelectorAll("button")].find(node=>node.textContent.includes("EDZÉS HOZZÁADÁSA"));
       await act(async()=>addJournalPlan.click());
       await act(async()=>[...document.querySelectorAll(".plan-editor button")].find(node=>node.textContent.trim()==="Edzésterv mentése").click());
@@ -190,7 +199,7 @@ try {
       await act(async()=>[...document.querySelectorAll("button")].find(node=>node.textContent.includes("EDZÉS HOZZÁADÁSA")).click());
       await act(async()=>[...document.querySelectorAll(".plan-editor button")].find(node=>node.textContent.trim()==="Edzésterv mentése").click());
       const pairedSummary=[...document.querySelectorAll(".calendar-week-summary>span")].find(node=>node.textContent.includes("TERVHEZ PÁROSÍTVA"));
-      if(!pairedSummary||pairedSummary.querySelector("strong")?.textContent.trim()!=="1"||!document.querySelector(".selected-actual")) throw new Error("A heti terv–tény összesítés nem kezeli külön a napi több edzést.");
+      if(!pairedSummary||pairedSummary.querySelector("strong")?.textContent.trim()!=="1"||!document.querySelector(".selected-actual")) throw new Error(`A heti terv–tény összesítés nem kezeli külön a napi több edzést. Párosítva: ${pairedSummary?.querySelector("strong")?.textContent.trim()||"hiányzik"}; Garmin-kártya: ${Boolean(document.querySelector(".selected-actual"))}; kiválasztott nap: ${document.querySelector(".calendar-detail h2")?.textContent.trim()||"hiányzik"}; nap tartalma: ${document.querySelector(".selected-day-sessions")?.textContent.replace(/\s+/g," ").trim()||"hiányzik"}.`);
       if(!document.querySelector('.planning-flow')?.textContent.includes('Cél')||!document.querySelector('.planning-flow')?.textContent.includes('Visszajelzés')) throw new Error("A Cél–Terv–Visszajelzés navigáció hiányzik a Naptárból.");
       await act(async()=>[...document.querySelectorAll("button")].find(node=>node.textContent.includes("NAPLÓ MEGNYITÁSA")).click());
       await act(async()=>new Promise(resolve=>setTimeout(resolve,5)));
@@ -295,6 +304,9 @@ try {
     if (label === "Napló") {
       await act(async () => new Promise(resolve=>setTimeout(resolve,5)));
       if(!document.querySelector('.planning-flow')?.querySelector('[aria-current="step"]')?.textContent.includes('Visszajelzés')) throw new Error("A tervezési folyamat nem jelöli a Napló lépést.");
+      const weeklyClosure=document.querySelector('.weekly-closure');
+      if(!weeklyClosure?.textContent.includes('Mi teljesült?')||!weeklyClosure.textContent.includes('Mit jelez?')||!weeklyClosure.textContent.includes('Következő döntés')) throw new Error("A Napló heti lezárása vagy döntési magyarázata hiányzik.");
+      if(!weeklyClosure.textContent.includes('1 edzés')||!weeklyClosure.textContent.includes('0 / 1')) throw new Error("A heti lezárás nem a külön Garmin-aktivitásokat és visszajelzéseket összesíti.");
       if (document.querySelectorAll('.table-wrap th.metric-header-explanation').length<5) throw new Error("A Napló számoszlopainak magyarázata hiányzik.");
       const activity = document.querySelector(".activity-row");
       if (!activity) throw new Error("A Garmin-edzés nem jelent meg a naplóban.");
@@ -310,6 +322,7 @@ try {
       const stored = JSON.parse(localStorage.getItem("hybrid-activity-feedback") || "{}");
       if (stored["test-activity"]?.rpe !== 8) throw new Error("Az edzés-visszajelzés nem mentődött el.");
       if (!cloudPatches.some(patch=>patch.feedback?.activityId==="test-activity"&&patch.feedback.value.rpe===8)) throw new Error("Az RPE nem indított Neon-mentést.");
+      if(!document.querySelector('.weekly-closure')?.textContent.includes('1 / 1')||!document.querySelector('.weekly-closure')?.textContent.includes('8 / 10')) throw new Error("A heti lezárás nem frissült a mentett RPE-visszajelzéssel.");
       console.log("OK edzésrészlet és RPE-visszajelzés");
     }
     if (label === "Beállítások") {

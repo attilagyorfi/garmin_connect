@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { OverviewPage } from "./OverviewPage.jsx";
 import { budapestToday, overviewData } from "./overviewData.js";
 import {
@@ -3703,6 +3703,13 @@ function LiveJournalPage({
         feedback={feedback}
         onNavigate={onNavigate}
       />
+      <WeeklyClosureCard
+        plans={plans}
+        activities={rows}
+        feedback={feedback}
+        loading={!data}
+        onNavigate={onNavigate}
+      />
       <div className="journal-filters">
         <Filter size={14} />
         {types.map((x) => (
@@ -5624,6 +5631,232 @@ function summarizePlanWeek(plans, activities, referenceDate, feedback = {}) {
       ? Math.round((completed / weekPlans.length) * 100)
       : null,
   };
+}
+function buildWeeklyClosure(plans, activities, feedback, today) {
+  const shiftDate = (date, days) => {
+      const shifted = new Date(`${date}T12:00:00`);
+      shifted.setDate(shifted.getDate() + days);
+      return isoDate(shifted);
+    },
+    formatDay = (date) =>
+      new Date(`${date}T12:00:00`).toLocaleDateString("hu-HU", {
+        month: "short",
+        day: "numeric",
+      });
+  let week = null;
+  for (let offset = 0; offset < 16; offset += 1) {
+    const candidate = summarizePlanWeek(
+      plans,
+      activities,
+      shiftDate(today, offset * -7),
+      feedback,
+    );
+    if (candidate.weekPlans.length || candidate.weekActivities.length) {
+      week = candidate;
+      break;
+    }
+  }
+  if (!week) return null;
+
+  const evaluations = [
+      ...evaluatePlanSet(week.weekPlans, week.weekActivities, today).values(),
+    ],
+    matchedActivityIds = new Set(
+      evaluations
+        .filter((item) => item.activity)
+        .map((item) => String(item.activity.id)),
+    ),
+    extraActivities = week.weekActivities.filter(
+      (item) => !matchedActivityIds.has(String(item.id)),
+    ),
+    missed = evaluations.filter(
+      (item) => !item.activity && item.status === "elmaradt",
+    ).length,
+    actualMinutes = week.weekActivities.reduce(
+      (sum, item) => sum + Number(item.durationMin || 0),
+      0,
+    ),
+    rpeValues = week.weekActivities
+      .map((item) => Number(feedback?.[item.id]?.rpe))
+      .filter((value) => Number.isFinite(value) && value > 0),
+    averageRpe = rpeValues.length
+      ? rpeValues.reduce((sum, value) => sum + value, 0) / rpeValues.length
+      : null,
+    feedbackCoverage = week.weekActivities.length
+      ? Math.round((week.feedbackCount / week.weekActivities.length) * 100)
+      : null,
+    durationRatio = week.plannedMinutes
+      ? actualMinutes / week.plannedMinutes
+      : null,
+    isCurrent = week.from <= today && week.to >= today,
+    periodLabel = `${formatDay(week.from)} – ${formatDay(week.to)}`;
+
+  let completedText;
+  if (!week.weekPlans.length) {
+    completedText = `${week.weekActivities.length} edzés került a Naplóba, összesen ${formatMinutes(actualMinutes)} időtartammal. Előzetes terv nélkül a tervkövetés nem számítható.`;
+  } else {
+    completedText = `${week.completed} / ${week.weekPlans.length} tervezett edzéshez találtunk teljesítést. ${missed ? `${missed} edzés elmaradt.` : "Nincs lezárt, elmaradt edzés."}${extraActivities.length ? ` Emellett ${extraActivities.length} nem tervezett edzés is bekerült.` : ""}`;
+  }
+
+  let signalText;
+  if (!week.weekActivities.length) {
+    signalText = "A héten még nincs Garmin-aktivitás, ezért a terv tényleges terhelése nem értékelhető.";
+  } else if (feedbackCoverage === 0) {
+    signalText = "Az edzésadatok megvannak, de saját visszajelzés még nincs. Az RPE hiánya nem nulla terhelést jelent, hanem alacsonyabb bizonyosságot.";
+  } else if (feedbackCoverage < 60) {
+    signalText = `Az edzések ${feedbackCoverage}%-ához van saját visszajelzés. Ez már ad támpontot, de a heti terhelés szubjektív hatása még csak részben látható.`;
+  } else if (averageRpe >= 8) {
+    signalText = `Az átlagos rögzített RPE ${averageRpe.toLocaleString("hu-HU", { maximumFractionDigits: 1 })} / 10, vagyis a hét többnyire nehéznek érződött. A következő emelés előtt érdemes stabilizálni.`;
+  } else {
+    signalText = `A visszajelzések ${feedbackCoverage}%-os lefedettsége alapján az átlagos RPE ${averageRpe.toLocaleString("hu-HU", { maximumFractionDigits: 1 })} / 10. Ez használható alap a következő heti finomhangoláshoz.`;
+  }
+
+  let nextDecision;
+  if (!week.weekPlans.length) {
+    nextDecision = "Rögzítsd előre legalább a következő hét fő edzéseit a Naptárban. Így a rendszer már nemcsak az elvégzett munkát, hanem a tervtől való eltérést is értékelni tudja.";
+  } else if (feedbackCoverage === null || feedbackCoverage < 50) {
+    nextDecision = "A következő héten minden fő edzés után adj RPE-visszajelzést. Enélkül nem indokolt csak a Garmin-adatok alapján emelni vagy csökkenteni a terhelést.";
+  } else if (week.adherence < 70) {
+    nextDecision = "Ne sűrítsd be automatikusan az elmaradt edzéseket. Előbb egyszerűsítsd a következő hetet kevesebb, biztosan teljesíthető fő alkalomra.";
+  } else if ((durationRatio && durationRatio > 1.2) || averageRpe >= 8) {
+    nextDecision = "Tartsd vagy enyhén csökkentsd a következő hét volumenét; új terhelést csak akkor adj hozzá, ha a regenerációs jelek is támogatják.";
+  } else {
+    nextDecision = "A heti szerkezet tartható. A következő héten csak egy elemen változtass, és az időtartamot legfeljebb kis lépésben emeld.";
+  }
+
+  return {
+    ...week,
+    actualMinutes,
+    averageRpe,
+    feedbackCoverage,
+    extraCount: extraActivities.length,
+    missed,
+    isCurrent,
+    periodLabel,
+    completedText,
+    signalText,
+    nextDecision,
+  };
+}
+function WeeklyClosureCard({
+  plans = [],
+  activities = [],
+  feedback = {},
+  loading = false,
+  onNavigate,
+}) {
+  const today = budapestToday(),
+    closure = useMemo(
+      () => buildWeeklyClosure(plans, activities, feedback, today),
+      [plans, activities, feedback, today],
+    );
+  if (loading) {
+    return (
+      <section className="weekly-closure card" aria-live="polite">
+        <span className="eyebrow">HETI LEZÁRÁS</span>
+        <p className="weekly-closure-empty">A heti adatok betöltése folyamatban…</p>
+      </section>
+    );
+  }
+  if (!closure) {
+    return (
+      <section className="weekly-closure card">
+        <span className="eyebrow">HETI LEZÁRÁS</span>
+        <h2>Még nincs értékelhető hét</h2>
+        <p className="weekly-closure-empty">
+          Az első edzés vagy heti terv után itt jelenik meg a teljesítés,
+          a visszajelzés lefedettsége és a következő heti döntés.
+        </p>
+        <button className="weekly-closure-action" onClick={() => onNavigate("Naptár")}>
+          ELSŐ HÉT MEGTERVEZÉSE <ChevronRight size={16} />
+        </button>
+      </section>
+    );
+  }
+  return (
+    <section className="weekly-closure card" aria-labelledby="weekly-closure-title">
+      <header className="weekly-closure-head">
+        <div>
+          <span className="eyebrow">
+            HETI LEZÁRÁS · {closure.isCurrent ? "FUTÓ HÉT" : "LEZÁRT HÉT"}
+          </span>
+          <h2 id="weekly-closure-title">{closure.periodLabel}</h2>
+          <p>
+            A legutóbbi adatokból összefoglaljuk, mi történt és mi legyen a
+            következő, biztonságosan indokolható lépés.
+          </p>
+        </div>
+        <button className="weekly-closure-action" onClick={() => onNavigate("Cél")}>
+          KÖVETKEZŐ HÉT TERVEZÉSE <ChevronRight size={16} />
+        </button>
+      </header>
+      <div className="weekly-closure-metrics" aria-label="A hét fő mutatói">
+        <span>
+          <strong>{closure.weekActivities.length}</strong>
+          <b>EDZÉS</b>
+          <small>Ennyi külön Garmin-aktivitás került a hétbe.</small>
+        </span>
+        <span>
+          <strong>{formatMinutes(closure.actualMinutes)}</strong>
+          <b>EDZÉSIDŐ</b>
+          <small>
+            {closure.plannedMinutes
+              ? `${formatMinutes(closure.plannedMinutes)} volt betervezve.`
+              : "Nem volt előre rögzített heti időterv."}
+          </small>
+        </span>
+        <span>
+          <strong>
+            {closure.adherence === null ? "—" : `${closure.adherence}%`}
+          </strong>
+          <b>TERVKÖVETÉS</b>
+          <small>
+            {closure.weekPlans.length
+              ? `${closure.completed} / ${closure.weekPlans.length} tervhez találtunk edzést.`
+              : "Terv nélkül ez az arány nem számítható."}
+          </small>
+        </span>
+        <span>
+          <strong>
+            {closure.feedbackCount} / {closure.weekActivities.length}
+          </strong>
+          <b>VISSZAJELZÉS</b>
+          <small>
+            {closure.averageRpe === null
+              ? "Nincs rögzített RPE; ez nem nulla terhelést jelent."
+              : `Átlagos rögzített RPE: ${closure.averageRpe.toLocaleString("hu-HU", { maximumFractionDigits: 1 })} / 10.`}
+          </small>
+        </span>
+      </div>
+      <div className="weekly-closure-insights">
+        <article>
+          <span>1</span>
+          <div>
+            <h3>Mi teljesült?</h3>
+            <p>{closure.completedText}</p>
+          </div>
+        </article>
+        <article>
+          <span>2</span>
+          <div>
+            <h3>Mit jelez?</h3>
+            <p>{closure.signalText}</p>
+          </div>
+        </article>
+        <article className="next-step">
+          <span>3</span>
+          <div>
+            <h3>Következő döntés</h3>
+            <p>{closure.nextDecision}</p>
+          </div>
+        </article>
+      </div>
+      <p className="weekly-closure-note">
+        Ez döntéstámogatás, nem orvosi minősítés. A hiányzó tervet vagy
+        visszajelzést a rendszer nem kezeli nulla értékként.
+      </p>
+    </section>
+  );
 }
 function PlanningFlow({ active, profile, plans = [], feedback = {}, onNavigate }) {
   const today = budapestToday(),
