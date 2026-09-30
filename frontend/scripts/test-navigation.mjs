@@ -284,15 +284,26 @@ try {
       await act(async()=>saveCycle.click());
       if (!cloudPatches.some(patch=>patch.replacePlanDates?.length&&patch.plans?.every(item=>item.id.startsWith("period-")))) throw new Error("A periodizált ciklus nem mentődött a Naptárba.");
       console.log("OK 4–12 hetes eseményspecifikus periodizáció");
-      const adaptivePreview=[...document.querySelectorAll("button")].find(node=>node.textContent.trim()==="MÓDOSÍTÁSOK ÁTTEKINTÉSE");
+      const adaptivePreview=[...document.querySelectorAll("button")].find(node=>node.textContent.trim()==="TERVJAVASLAT SZERKESZTÉSE");
       await act(async()=>adaptivePreview.click());
       const adaptiveModal=document.querySelector('.adaptive-modal');
       if (!adaptiveModal?.textContent.includes("Mi változik a következő héten?")) throw new Error("Az adaptív heti előnézet nem nyílt meg.");
       if (!adaptiveModal.querySelector('.adaptive-reasons')||!adaptiveModal.querySelector('.adaptive-comparison')) throw new Error("Az adaptív hét indoklása vagy tervösszevetése hiányzik.");
+      if (!adaptiveModal.textContent.includes("Szerkeszthető heti terv")||!adaptiveModal.textContent.includes("A napi több edzés is megengedett")) throw new Error("A következő heti javaslat nem szerkeszthető vagy nem jelzi a napi több edzés lehetőségét.");
+      const firstAdaptiveName=adaptiveModal.querySelector('input[aria-label="1. javasolt edzés neve"]');
+      if (!firstAdaptiveName||firstAdaptiveName.disabled) throw new Error("Az adaptív terv edzésneve nem szerkeszthető.");
+      const adaptiveRowsBefore=adaptiveModal.querySelectorAll('.adaptive-edit-row').length;
+      const firstAdaptiveToggle=adaptiveModal.querySelector('.adaptive-toggle input');
+      await act(async()=>firstAdaptiveToggle.click());
+      if (firstAdaptiveToggle.checked||!adaptiveModal.querySelector('.adaptive-edit-row')?.textContent.includes("Kihagyva")) throw new Error("Az adaptív terv edzése nem hagyható ki.");
+      const addAdaptive=[...adaptiveModal.querySelectorAll("button")].find(node=>node.textContent.includes("EDZÉS HOZZÁADÁSA"));
+      await act(async()=>addAdaptive.click());
+      if (adaptiveModal.querySelectorAll('.adaptive-edit-row').length!==adaptiveRowsBefore+1||!adaptiveModal.textContent.includes("Saját hozzáadás")) throw new Error("Az adaptív tervhez nem adható új edzés.");
       const saveAdaptive=[...adaptiveModal.querySelectorAll("button")].find(node=>node.textContent.trim()==="Adaptált hét mentése");
       await act(async()=>saveAdaptive.click());
-      if (!cloudPatches.some(patch=>patch.plans?.some(item=>item.note?.includes("Adaptív heti módosítás")))) throw new Error("Az adaptált következő hét nem mentődött.");
-      console.log("OK Garmin/readiness/check-in alapú heti újratervezés");
+      if (!cloudPatches.some(patch=>patch.replacePlanDates?.length===7&&patch.plans?.length===adaptiveRowsBefore&&patch.plans?.some(item=>item.note?.includes("Saját módosítás")))) throw new Error("A szerkesztett, bővített következő hét nem mentődött.");
+      if (!document.querySelector('.content')?.textContent.includes('Terv és tény')) throw new Error("A mentett heti terv után nem nyílt meg a Naptár.");
+      console.log("OK heti lezárás/readiness/check-in alapú, szerkeszthető heti újratervezés");
       await act(async()=>[...document.querySelectorAll('.planning-flow button')].find(node=>node.textContent.includes('2. Terv')).click());
       if(!document.querySelector('.content')?.textContent.includes('Terv és tény')) throw new Error("A Cél oldalról nem nyitható meg a kapcsolódó edzésterv.");
       await act(async()=>[...document.querySelectorAll('.planning-flow button')].find(node=>node.textContent.includes('1. Cél')).click());
@@ -323,6 +334,10 @@ try {
       if (stored["test-activity"]?.rpe !== 8) throw new Error("Az edzés-visszajelzés nem mentődött el.");
       if (!cloudPatches.some(patch=>patch.feedback?.activityId==="test-activity"&&patch.feedback.value.rpe===8)) throw new Error("Az RPE nem indított Neon-mentést.");
       if(!document.querySelector('.weekly-closure')?.textContent.includes('1 / 1')||!document.querySelector('.weekly-closure')?.textContent.includes('8 / 10')) throw new Error("A heti lezárás nem frissült a mentett RPE-visszajelzéssel.");
+      const planNextWeek=[...document.querySelectorAll('.weekly-closure button')].find(node=>node.textContent.includes('KÖVETKEZŐ HÉT TERVEZÉSE'));
+      await act(async()=>planNextWeek.click());
+      if (!document.querySelector('.adaptive-modal')?.textContent.includes('Szerkeszthető heti terv')) throw new Error("A heti lezárásból nem nyílik meg közvetlenül a következő heti tervjavaslat.");
+      await act(async()=>document.querySelector('.adaptive-modal .close').click());
       console.log("OK edzésrészlet és RPE-visszajelzés");
     }
     if (label === "Beállítások") {

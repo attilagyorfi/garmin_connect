@@ -95,6 +95,7 @@
 - adaptív következő heti újratervezés Garmin-teljesítések, tervkövetés, readiness és check-in alapján, magyarázható volumen-/intenzitásváltozással és kihagyott edzések visszasűrítése nélkül
 - összekapcsolt „Cél → Terv → Visszajelzés” útvonal, heti terv–tény összesítéssel, több napi edzés külön értékelésével és közvetlen Naptár–Napló átjárással
 - közérthető heti lezárás a Naplóban: teljes edzésidő, tervkövetés, visszajelzés-lefedettség és következő heti döntés
+- a heti lezárásból, terhelhetőségből és check-inből készülő következő heti tervjavaslat teljes szerkesztéssel, kihagyással, új edzés hozzáadásával és jóváhagyás utáni naptármentéssel
 
 ## Elkészült P2 finomítások
 

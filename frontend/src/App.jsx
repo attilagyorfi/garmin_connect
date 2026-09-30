@@ -947,22 +947,11 @@ function buildAdaptiveWeek(profile, data, cloudState) {
     base = nextPlans.length
       ? nextPlans
       : buildPeriodizedCycle(profile, data, 4)[0].sessions,
-    pastStart = new Date(today);
-  pastStart.setDate(today.getDate() - 6);
-  const recentPlans = plans.filter(
-      (item) => item.date >= isoDate(pastStart) && item.date <= todayValue,
-    ),
     activities = data?.sessions || [],
-    evaluated = recentPlans.map((plan) =>
-      evaluatePlan(plan, activities, todayValue),
-    ),
-    completed = evaluated.filter((item) =>
-      ["teljesült", "túlteljesült", "részben teljesült"].includes(item.status),
-    ).length,
-    missed = evaluated.filter((item) => item.status === "elmaradt").length,
-    adherence = recentPlans.length
-      ? Math.round((completed / recentPlans.length) * 100)
-      : null,
+    feedback = cloudState?.feedback || {},
+    closure = buildWeeklyClosure(plans, activities, feedback, todayValue),
+    missed = closure?.missed || 0,
+    adherence = closure?.adherence ?? null,
     checkinEntries = Object.entries(cloudState?.checkins || {})
       .filter(([date]) => date <= todayValue)
       .sort(([a], [b]) => b.localeCompare(a)),
@@ -998,6 +987,18 @@ function buildAdaptiveWeek(profile, data, cloudState) {
       "A magas fáradtság vagy stressz indokolja a terhelés mérséklését.",
     );
   }
+  if (closure?.averageRpe !== null && closure?.averageRpe >= 8) {
+    adjustment -= 10;
+    reasons.push(
+      `A legutóbbi értékelhető hét átlagos RPE-je ${closure.averageRpe.toLocaleString("hu-HU", { maximumFractionDigits: 1 })}/10 volt, ezért most nem emelünk terhelést.`,
+    );
+  }
+  if (closure?.plannedMinutes && closure.actualMinutes > closure.plannedMinutes * 1.2) {
+    adjustment -= 10;
+    reasons.push(
+      "A legutóbbi hét edzésideje több mint 20%-kal meghaladta a tervet, ezért a következő hét volumene óvatosabb.",
+    );
+  }
   if (missed >= 2) {
     adjustment -= 10;
     reasons.push(
@@ -1007,6 +1008,17 @@ function buildAdaptiveWeek(profile, data, cloudState) {
     adjustment += 5;
     reasons.push(
       `A ${adherence}%-os tervkövetés és a jó terhelhetőség kis, fokozatos emelést tesz lehetővé.`,
+    );
+  }
+  if (!closure?.weekPlans.length) {
+    adjustment = Math.min(adjustment, 0);
+    reasons.push(
+      "A legutóbbi értékelhető héthez nem volt előzetes terv, ezért a javaslat nem emeli automatikusan a terhelést.",
+    );
+  } else if (closure.feedbackCoverage === null || closure.feedbackCoverage < 50) {
+    adjustment = Math.min(adjustment, 0);
+    reasons.push(
+      "A saját edzésérzet kevesebb mint az edzések felénél ismert, ezért a javaslat bizonyossága korlátozott és nem emel automatikusan.",
     );
   }
   adjustment = Math.max(-35, Math.min(5, adjustment));
@@ -1035,7 +1047,7 @@ function buildAdaptiveWeek(profile, data, cloudState) {
           : adjustment < 0
             ? Math.min(6, Number(item.rpe || 6))
             : item.rpe,
-      note: `${item.note || ""}${item.note ? " · " : ""}Adaptív heti módosítás: ${adjustment > 0 ? "+" : ""}${adjustment}%`,
+      note: `${item.note || ""}${item.note ? " · " : ""}Heti lezárás alapján: ${adjustment > 0 ? "+" : ""}${adjustment}%`,
       status: "planned",
     }));
   return {
@@ -1046,6 +1058,7 @@ function buildAdaptiveWeek(profile, data, cloudState) {
     adherence,
     missed,
     readiness,
+    closure,
     checkinDate: checkinEntries[0]?.[0] || null,
     start: isoDate(nextMonday),
     end: isoDate(nextEnd),
@@ -2726,20 +2739,103 @@ function LiveTrendsPage({ profile }) {
   );
 }
 
-function AdaptiveWeekPlanner({ profile, data, cloudState, onSave }) {
-  const [open, setOpen] = useState(false),
+function AdaptiveWeekPlanner({
+  profile,
+  data,
+  cloudState,
+  onSave,
+  onNavigate,
+  initialOpen = false,
+}) {
+  const result = useMemo(
+      () => buildAdaptiveWeek(profile, data, cloudState),
+      [profile, data, cloudState],
+    ),
+    makeDrafts = () =>
+      result.adapted.map((item) => ({ ...item, enabled: true })),
+    [open, setOpen] = useState(Boolean(initialOpen)),
     [saved, setSaved] = useState(false),
-    result = buildAdaptiveWeek(profile, data, cloudState),
-    dates = result.adapted.map((item) => item.date),
+    [drafts, setDrafts] = useState(makeDrafts),
+    [draftDirty, setDraftDirty] = useState(false),
+    weekDates = useMemo(() => {
+      const start = new Date(`${result.start}T12:00:00`);
+      return Array.from({ length: 7 }, (_, index) => {
+        const date = new Date(start);
+        date.setDate(start.getDate() + index);
+        return isoDate(date);
+      });
+    }, [result.start]),
+    activeDrafts = drafts.filter((item) => item.enabled),
+    totalMinutes = activeDrafts.reduce(
+      (sum, item) => sum + Number(item.duration || 0),
+      0,
+    ),
+    valid =
+      activeDrafts.length > 0 &&
+      activeDrafts.every(
+        (item) =>
+          item.date >= result.start &&
+          item.date <= result.end &&
+          item.title.trim() &&
+          Number(item.duration) >= (item.type === "Pihenő" ? 0 : 10) &&
+          Number(item.rpe) >= 1 &&
+          Number(item.rpe) <= 10,
+      ),
+    update = (id, key, value) => {
+      setDraftDirty(true);
+      setDrafts((current) =>
+        current.map((item) =>
+          item.id === id ? { ...item, [key]: value } : item,
+        ),
+      );
+    },
+    openEditor = () => {
+      setDrafts(makeDrafts());
+      setDraftDirty(false);
+      setSaved(false);
+      setOpen(true);
+    },
+    addSession = () => {
+      const date =
+        weekDates.find(
+          (candidate) =>
+            !drafts.some((item) => item.enabled && item.date === candidate),
+        ) || result.start;
+      setDraftDirty(true);
+      setDrafts((current) => [
+        ...current,
+        {
+          id: `adaptive-custom-${Date.now()}-${current.length}`,
+          date,
+          type: "Mobilitás",
+          title: "Könnyű kiegészítő edzés",
+          duration: 30,
+          intensity: "könnyű",
+          rpe: 3,
+          purpose: profile.goal,
+          note: "Saját módosítás a heti tervjavaslatban",
+          status: "planned",
+          enabled: true,
+        },
+      ]);
+    },
     save = () => {
-      onSave({ plans: result.adapted, replacePlanDates: dates });
+      const plans = activeDrafts.map(({ enabled, ...item }) => item);
+      onSave({ plans, replacePlanDates: weekDates });
       setSaved(true);
       setOpen(false);
-    };
+      onNavigate?.("Naptár", { calendarDate: result.start });
+    },
+    closure = result.closure;
+  useEffect(() => {
+    if (!draftDirty) {
+      setDrafts(result.adapted.map((item) => ({ ...item, enabled: true })));
+    }
+  }, [result, draftDirty]);
   return (
     <section className="card adaptive-card">
       <div>
-        <span className="eyebrow">ADAPTÍV KÖVETKEZŐ HÉT</span>
+        <span className="eyebrow">SZERKESZTHETŐ TERVJAVASLAT</span>
         <h2>
           {result.adjustment === 0
             ? "A terv tartható"
@@ -2750,7 +2846,10 @@ function AdaptiveWeekPlanner({ profile, data, cloudState, onSave }) {
         <p>{result.reasons[0]}</p>
         <div className="adaptive-signals">
           <span>
-            Terhelhetőség <b>{result.readiness}/100</b>
+            Terhelhetőség{" "}
+            <b>
+              {result.readiness === null ? "nincs adat" : `${result.readiness}/100`}
+            </b>
           </span>
           <span>
             Tervkövetés{" "}
@@ -2761,7 +2860,12 @@ function AdaptiveWeekPlanner({ profile, data, cloudState, onSave }) {
             </b>
           </span>
           <span>
-            Elmaradt <b>{result.missed}</b>
+            Edzésérzet{" "}
+            <b>
+              {closure?.averageRpe === null || !closure
+                ? "nincs adat"
+                : `${closure.averageRpe.toLocaleString("hu-HU", { maximumFractionDigits: 1 })}/10`}
+            </b>
           </span>
           <span>
             Volumen{" "}
@@ -2772,8 +2876,8 @@ function AdaptiveWeekPlanner({ profile, data, cloudState, onSave }) {
           </span>
         </div>
       </div>
-      <button className="adaptive-open" onClick={() => setOpen(true)}>
-        MÓDOSÍTÁSOK ÁTTEKINTÉSE
+      <button className="adaptive-open" onClick={openEditor}>
+        TERVJAVASLAT SZERKESZTÉSE
       </button>
       {saved && (
         <span className="adaptive-saved">
@@ -2804,6 +2908,31 @@ function AdaptiveWeekPlanner({ profile, data, cloudState, onSave }) {
               })}
             </span>
             <h2>Mi változik a következő héten?</h2>
+            <p className="adaptive-intro">
+              A heti lezárás, a terhelhetőség és a legutóbbi állapotfelmérés
+              alapján készült kiindulópont. Mentés előtt minden edzés szabadon
+              módosítható, kihagyható, és új alkalom is hozzáadható.
+            </p>
+            <div className="adaptive-source" aria-label="A tervjavaslat alapadatai">
+              <span>
+                <small>ÉRTÉKELT HÉT</small>
+                <b>{closure?.periodLabel || "nincs heti előzmény"}</b>
+              </span>
+              <span>
+                <small>VISSZAJELZÉS</small>
+                <b>
+                  {closure?.feedbackCoverage === null || !closure
+                    ? "nincs adat"
+                    : `${closure.feedbackCoverage}%`}
+                </b>
+              </span>
+              <span>
+                <small>TERVJAVASLAT</small>
+                <b>
+                  {activeDrafts.length} edzés · {formatMinutes(totalMinutes)}
+                </b>
+              </span>
+            </div>
             <div className="adaptive-reasons">
               {result.reasons.map((reason) => (
                 <p key={reason}>
@@ -2812,31 +2941,106 @@ function AdaptiveWeekPlanner({ profile, data, cloudState, onSave }) {
                 </p>
               ))}
             </div>
-            <div className="adaptive-comparison">
-              {result.adapted.map((item, index) => {
+            <div className="adaptive-editor-head">
+              <div>
+                <h3>Szerkeszthető heti terv</h3>
+                <p>A napi több edzés is megengedett.</p>
+              </div>
+              <button type="button" onClick={addSession}>
+                <Plus size={15} /> EDZÉS HOZZÁADÁSA
+              </button>
+            </div>
+            <div className="adaptive-comparison adaptive-editor-list">
+              {drafts.map((item, index) => {
                 const before = result.base[index];
                 return (
-                  <div key={item.id}>
-                    <time>
-                      {new Date(`${item.date}T12:00:00`).toLocaleDateString(
-                        "hu-HU",
-                        { weekday: "short", month: "short", day: "numeric" },
+                  <div
+                    className={`adaptive-edit-row ${item.enabled ? "" : "disabled"}`}
+                    key={item.id}
+                  >
+                    <label className="adaptive-toggle">
+                      <input
+                        type="checkbox"
+                        checked={item.enabled}
+                        onChange={(event) =>
+                          update(item.id, "enabled", event.target.checked)
+                        }
+                      />
+                      <span>{item.enabled ? "Aktív" : "Kihagyva"}</span>
+                    </label>
+                    <input
+                      aria-label={`${index + 1}. javasolt edzés napja`}
+                      type="date"
+                      min={result.start}
+                      max={result.end}
+                      value={item.date}
+                      disabled={!item.enabled}
+                      onChange={(event) => update(item.id, "date", event.target.value)}
+                    />
+                    <select
+                      aria-label={`${index + 1}. javasolt edzés típusa`}
+                      value={item.type}
+                      disabled={!item.enabled}
+                      onChange={(event) => update(item.id, "type", event.target.value)}
+                    >
+                      {["Kardió", "Erő", "Futás", "Túrázás", "Kerékpár", "Mobilitás", "Pihenő"].map(
+                        (type) => <option key={type}>{type}</option>,
                       )}
-                    </time>
-                    <span>
-                      <b>{item.title}</b>
-                      <small>
-                        {before.duration}p · RPE {before.rpe} ·{" "}
-                        {before.intensity}
-                      </small>
-                    </span>
-                    <ChevronRight size={16} />
-                    <span className="after">
-                      <b>{item.duration} perc</b>
-                      <small>
-                        RPE {item.rpe} · {item.intensity}
-                      </small>
-                    </span>
+                    </select>
+                    <input
+                      className="adaptive-title"
+                      aria-label={`${index + 1}. javasolt edzés neve`}
+                      value={item.title}
+                      disabled={!item.enabled}
+                      maxLength="160"
+                      onChange={(event) => update(item.id, "title", event.target.value)}
+                    />
+                    <label className="adaptive-number">
+                      <span>Idő</span>
+                      <input
+                        aria-label={`${index + 1}. javasolt edzés időtartama percben`}
+                        type="number"
+                        min={item.type === "Pihenő" ? 0 : 10}
+                        max="600"
+                        step="5"
+                        value={item.duration}
+                        disabled={!item.enabled}
+                        onChange={(event) =>
+                          update(item.id, "duration", Number(event.target.value))
+                        }
+                      />
+                    </label>
+                    <select
+                      aria-label={`${index + 1}. javasolt edzés intenzitása`}
+                      value={item.intensity}
+                      disabled={!item.enabled}
+                      onChange={(event) =>
+                        update(item.id, "intensity", event.target.value)
+                      }
+                    >
+                      {["regeneráló", "könnyű", "könnyű–közepes", "közepes", "közepes–magas", "magas"].map(
+                        (level) => <option key={level}>{level}</option>,
+                      )}
+                    </select>
+                    <label className="adaptive-number">
+                      <span>RPE</span>
+                      <input
+                        aria-label={`${index + 1}. javasolt edzés cél RPE-je`}
+                        type="number"
+                        min="1"
+                        max="10"
+                        value={item.rpe}
+                        disabled={!item.enabled}
+                        onChange={(event) =>
+                          update(item.id, "rpe", Number(event.target.value))
+                        }
+                      />
+                    </label>
+                    <small className="adaptive-baseline">
+                      {before
+                        ? `Kiindulás: ${before.duration} perc · RPE ${before.rpe} · ${before.intensity}`
+                        : "Saját hozzáadás"}
+                    </small>
                   </div>
                 );
               })}
@@ -2848,7 +3052,7 @@ function AdaptiveWeekPlanner({ profile, data, cloudState, onSave }) {
             </p>
             <div className="template-editor-actions">
               <button onClick={() => setOpen(false)}>Mégse</button>
-              <button className="primary" onClick={save}>
+              <button className="primary" disabled={!valid} onClick={save}>
                 Adaptált hét mentése
               </button>
             </div>
@@ -3008,7 +3212,14 @@ function PeriodizationPlanner({ profile, data, plans, onSave }) {
     </section>
   );
 }
-function GoalPage({ profile, onEdit, cloudState, onCloudPatch, onNavigate }) {
+function GoalPage({
+  profile,
+  onEdit,
+  cloudState,
+  onCloudPatch,
+  onNavigate,
+  initialAdaptiveOpen = false,
+}) {
   const data = useDashboardData(),
     readiness = buildGoalReadiness(data, profile),
     status =
@@ -3068,6 +3279,8 @@ function GoalPage({ profile, onEdit, cloudState, onCloudPatch, onNavigate }) {
           data={data}
           cloudState={cloudState}
           onSave={onCloudPatch}
+          onNavigate={onNavigate}
+          initialOpen={initialAdaptiveOpen}
         />
         <section className="card goal-components">
           <div className="section-head">
@@ -5786,7 +5999,10 @@ function WeeklyClosureCard({
             következő, biztonságosan indokolható lépés.
           </p>
         </div>
-        <button className="weekly-closure-action" onClick={() => onNavigate("Cél")}>
+        <button
+          className="weekly-closure-action"
+          onClick={() => onNavigate("Cél", { openAdaptive: true })}
+        >
           KÖVETKEZŐ HÉT TERVEZÉSE <ChevronRight size={16} />
         </button>
       </header>
@@ -6879,6 +7095,7 @@ export function App() {
         cloudState={cloudState}
         onCloudPatch={saveCloudPatch}
         onNavigate={navigate}
+        initialAdaptiveOpen={Boolean(pageContext.openAdaptive)}
       />
     ),
     Elemzések: <InsightsPage profile={profile} />,
