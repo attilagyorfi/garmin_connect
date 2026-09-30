@@ -290,6 +290,8 @@ try {
       if (!adaptiveModal?.textContent.includes("Mi változik a következő héten?")) throw new Error("Az adaptív heti előnézet nem nyílt meg.");
       if (!adaptiveModal.querySelector('.adaptive-reasons')||!adaptiveModal.querySelector('.adaptive-comparison')) throw new Error("Az adaptív hét indoklása vagy tervösszevetése hiányzik.");
       if (!adaptiveModal.textContent.includes("Szerkeszthető heti terv")||!adaptiveModal.textContent.includes("A napi több edzés is megengedett")) throw new Error("A következő heti javaslat nem szerkeszthető vagy nem jelzi a napi több edzés lehetőségét.");
+      const adaptiveDates=[...adaptiveModal.querySelectorAll('input[type="date"]')];
+      if (!adaptiveDates.length||adaptiveDates.some(input=>input.value<input.min||input.value>input.max)) throw new Error("Az eseménydátum miatt a heti tervjavaslat a következő héten kívülre került.");
       const firstAdaptiveName=adaptiveModal.querySelector('input[aria-label="1. javasolt edzés neve"]');
       if (!firstAdaptiveName||firstAdaptiveName.disabled) throw new Error("Az adaptív terv edzésneve nem szerkeszthető.");
       const adaptiveRowsBefore=adaptiveModal.querySelectorAll('.adaptive-edit-row').length;

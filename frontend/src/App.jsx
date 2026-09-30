@@ -944,9 +944,20 @@ function buildAdaptiveWeek(profile, data, cloudState) {
       (item) =>
         item.date >= isoDate(nextMonday) && item.date <= isoDate(nextEnd),
     ),
+    generatedBase = buildPeriodizedCycle(profile, data, 4)[0].sessions,
     base = nextPlans.length
       ? nextPlans
-      : buildPeriodizedCycle(profile, data, 4)[0].sessions,
+      : generatedBase.map((item, index) => {
+          const sourceDate = new Date(`${item.date}T12:00:00`),
+            dayOffset = (sourceDate.getDay() + 6) % 7,
+            date = new Date(nextMonday);
+          date.setDate(nextMonday.getDate() + dayOffset);
+          return {
+            ...item,
+            id: `adaptive-${isoDate(date)}-${index}`,
+            date: isoDate(date),
+          };
+        }),
     activities = data?.sessions || [],
     feedback = cloudState?.feedback || {},
     closure = buildWeeklyClosure(plans, activities, feedback, todayValue),
