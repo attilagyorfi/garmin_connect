@@ -105,7 +105,8 @@ try {
   console.log("OK közérthető adatminőség és forráslefedettség");
   await act(async () => [...document.querySelectorAll("button")].find(node=>node.textContent.trim()==="Ma").click());
   if (!document.querySelector(".checkin-gate")) throw new Error("A Ma oldal nem az állapotfelméréssel kezdődik.");
-  if (!document.querySelector(".content header")?.textContent.includes("szeptember")) throw new Error("A napi állapotfelmérés dátuma nem magyar, közérthető formátumban jelenik meg.");
+  const currentMonth=new Date(`${budapestToday()}T12:00:00`).toLocaleDateString("hu-HU",{month:"long"});
+  if (!document.querySelector(".content header")?.textContent.toLowerCase().includes(currentMonth.toLowerCase())) throw new Error("A napi állapotfelmérés dátuma nem magyar, közérthető formátumban jelenik meg.");
   const scaleRows=[...document.querySelectorAll(".checkin-gate .scale-row")];
   if (scaleRows.length!==4||!scaleRows[0].textContent.includes("1 · nincs")||!scaleRows[1].textContent.includes("5 · kimerült vagyok")||!scaleRows[2].textContent.includes("1 · nincs kedvem")||!scaleRows[3].textContent.includes("5 · nagyon feszült vagyok")) throw new Error("Az állapotfelmérés 1–5 skáláinak közérthető végpontjai hiányoznak.");
   for (const row of scaleRows) {
@@ -319,7 +320,17 @@ try {
       if(!document.querySelector('.planning-flow')?.querySelector('[aria-current="step"]')?.textContent.includes('Visszajelzés')) throw new Error("A tervezési folyamat nem jelöli a Napló lépést.");
       const weeklyClosure=document.querySelector('.weekly-closure');
       if(!weeklyClosure?.textContent.includes('Mi teljesült?')||!weeklyClosure.textContent.includes('Mit jelez?')||!weeklyClosure.textContent.includes('Következő döntés')) throw new Error("A Napló heti lezárása vagy döntési magyarázata hiányzik.");
-      if(!weeklyClosure.textContent.includes('1 edzés')||!weeklyClosure.textContent.includes('0 / 1')) throw new Error("A heti lezárás nem a külön Garmin-aktivitásokat és visszajelzéseket összesíti.");
+      const closureMetrics=[...weeklyClosure.querySelectorAll('.weekly-closure-metrics>span')];
+      if(closureMetrics[0]?.querySelector('strong')?.textContent.trim()!=='1'||closureMetrics[3]?.querySelector('strong')?.textContent.trim()!=='0 / 1') throw new Error("A heti lezárás nem a külön Garmin-aktivitásokat és visszajelzéseket összesíti.");
+      const planHistory=document.querySelector('.plan-outcome-history');
+      if(!planHistory?.textContent.includes('Terv és tény alakulása')||!planHistory.textContent.includes('Mit tanulhatunk az eddigi hetekből?')) throw new Error("A többhetes terv–tény fejlődéstörténet hiányzik.");
+      const planHistoryText=planHistory.textContent.toLowerCase();
+      if(!planHistoryText.includes('x tengely:')||!planHistoryText.includes('y tengely:')||!planHistoryText.includes('edzésidő (perc)')) throw new Error("A terv–tény grafikon tengelyei vagy mértékegysége hiányzik.");
+      const historyRanges=[...planHistory.querySelectorAll('.plan-history-range button')];
+      if(historyRanges.map(node=>node.textContent.trim()).join('|')!=='4 HÉT|8 HÉT|12 HÉT'||!historyRanges[1].getAttribute('aria-pressed')?.includes('true')) throw new Error("A fejlődéstörténet 4/8/12 hetes szűrője hibás.");
+      await act(async()=>historyRanges[0].click());
+      if(historyRanges[0].getAttribute('aria-pressed')!=='true'||!planHistory.querySelector('.plan-history-table tbody tr')) throw new Error("A fejlődéstörténet időszakváltása vagy heti részletezése nem működik.");
+      if(!planHistory.textContent.includes('nem bizonyít ok-okozati kapcsolatot')||!planHistory.textContent.includes('hiányzó adatokat nem tekintjük nullának')) throw new Error("A terv–tény értelmezés bizonytalansági magyarázata hiányzik.");
       if (document.querySelectorAll('.table-wrap th.metric-header-explanation').length<5) throw new Error("A Napló számoszlopainak magyarázata hiányzik.");
       const activity = document.querySelector(".activity-row");
       if (!activity) throw new Error("A Garmin-edzés nem jelent meg a naplóban.");

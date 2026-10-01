@@ -3934,6 +3934,12 @@ function LiveJournalPage({
         loading={!data}
         onNavigate={onNavigate}
       />
+      <PlanOutcomeHistory
+        plans={plans}
+        activities={rows}
+        feedback={feedback}
+        loading={!data}
+      />
       <div className="journal-filters">
         <Filter size={14} />
         {types.map((x) => (
@@ -5961,6 +5967,435 @@ function buildWeeklyClosure(plans, activities, feedback, today) {
     signalText,
     nextDecision,
   };
+}
+function buildPlanOutcomeHistory(
+  plans,
+  activities,
+  feedback,
+  today,
+  weekCount = 8,
+) {
+  const reference = new Date(`${today}T12:00:00`),
+    currentMonday = new Date(reference),
+    currentDayOffset = (reference.getDay() + 6) % 7;
+  currentMonday.setDate(reference.getDate() - currentDayOffset);
+  const formatDay = (date) =>
+      new Date(`${date}T12:00:00`).toLocaleDateString("hu-HU", {
+        month: "short",
+        day: "numeric",
+      }),
+    weeks = Array.from({ length: weekCount }, (_, index) => {
+      const monday = new Date(currentMonday);
+      monday.setDate(currentMonday.getDate() - (weekCount - 1 - index) * 7);
+      const summary = summarizePlanWeek(
+          plans,
+          activities,
+          isoDate(monday),
+          feedback,
+        ),
+        actualMinutes = summary.weekActivities.reduce(
+          (sum, item) => sum + Number(item.durationMin || 0),
+          0,
+        ),
+        rpeValues = summary.weekActivities
+          .map((item) => Number(feedback?.[item.id]?.rpe))
+          .filter((value) => Number.isFinite(value) && value > 0),
+        averageRpe = rpeValues.length
+          ? rpeValues.reduce((sum, value) => sum + value, 0) /
+            rpeValues.length
+          : null,
+        feedbackCoverage = summary.weekActivities.length
+          ? Math.round(
+              (summary.feedbackCount / summary.weekActivities.length) * 100,
+            )
+          : null,
+        durationRatio = summary.plannedMinutes
+          ? actualMinutes / summary.plannedMinutes
+          : null,
+        adjustmentValues = summary.weekPlans
+          .map((plan) =>
+            String(plan.note || "").match(
+              /Heti lezárás alapján:\s*([+-]?\d+(?:[.,]\d+)?)%/i,
+            ),
+          )
+          .filter(Boolean)
+          .map((match) => Number(match[1].replace(",", ".")))
+          .filter(Number.isFinite),
+        adjustment = adjustmentValues.length
+          ? adjustmentValues.reduce((sum, value) => sum + value, 0) /
+            adjustmentValues.length
+          : null,
+        isCurrent = summary.from <= today && summary.to >= today,
+        hasData = Boolean(
+          summary.weekPlans.length || summary.weekActivities.length,
+        );
+
+      let status = "Nincs adat",
+        statusTone = "neutral";
+      if (isCurrent && hasData) {
+        status = "Folyamatban";
+        statusTone = "current";
+      } else if (!summary.weekPlans.length && summary.weekActivities.length) {
+        status = "Terv nélkül";
+        statusTone = "neutral";
+      } else if (summary.weekPlans.length && !summary.weekActivities.length) {
+        status = "Nincs teljesítés";
+        statusTone = "risk";
+      } else if (feedbackCoverage !== null && feedbackCoverage < 50) {
+        status = "Kevés visszajelzés";
+        statusTone = "warn";
+      } else if (summary.adherence !== null && summary.adherence < 70) {
+        status = "Nehezen tartható";
+        statusTone = "risk";
+      } else if (
+        (durationRatio !== null && durationRatio > 1.2) ||
+        (averageRpe !== null && averageRpe >= 8)
+      ) {
+        status = "Megterhelő";
+        statusTone = "warn";
+      } else if (
+        summary.adherence !== null &&
+        summary.adherence >= 80 &&
+        durationRatio !== null &&
+        durationRatio >= 0.8 &&
+        durationRatio <= 1.2 &&
+        averageRpe !== null &&
+        averageRpe <= 7.5
+      ) {
+        status = "Jól tartható";
+        statusTone = "good";
+      } else if (hasData) {
+        status = "Vegyes eredmény";
+        statusTone = "neutral";
+      }
+
+      return {
+        ...summary,
+        actualMinutes,
+        averageRpe,
+        feedbackCoverage,
+        durationRatio,
+        adjustment,
+        isCurrent,
+        hasData,
+        status,
+        statusTone,
+        label: formatDay(summary.from),
+        periodLabel: `${formatDay(summary.from)} – ${formatDay(summary.to)}`,
+      };
+    }),
+    dataWeeks = weeks.filter((week) => week.hasData),
+    comparableWeeks = dataWeeks.filter(
+      (week) =>
+        !week.isCurrent &&
+        week.weekPlans.length > 0 &&
+        week.weekActivities.length > 0,
+    ),
+    plannedTotal = dataWeeks.reduce(
+      (sum, week) => sum + week.plannedMinutes,
+      0,
+    ),
+    actualTotal = dataWeeks.reduce(
+      (sum, week) => sum + week.actualMinutes,
+      0,
+    ),
+    averageAdherence = comparableWeeks.length
+      ? Math.round(
+          comparableWeeks.reduce(
+            (sum, week) => sum + Number(week.adherence || 0),
+            0,
+          ) / comparableWeeks.length,
+        )
+      : null,
+    activityCount = dataWeeks.reduce(
+      (sum, week) => sum + week.weekActivities.length,
+      0,
+    ),
+    feedbackCount = dataWeeks.reduce(
+      (sum, week) => sum + week.feedbackCount,
+      0,
+    ),
+    feedbackCoverage = activityCount
+      ? Math.round((feedbackCount / activityCount) * 100)
+      : null,
+    sustainableWeeks = comparableWeeks.filter(
+      (week) =>
+        week.feedbackCoverage >= 50 &&
+        week.adherence >= 70 &&
+        week.durationRatio >= 0.75 &&
+        week.durationRatio <= 1.2 &&
+        week.averageRpe !== null &&
+        week.averageRpe <= 7.5,
+    ),
+    bestWeek = [...sustainableWeeks].sort((a, b) => {
+      const aDistance = Math.abs(100 - a.adherence),
+        bDistance = Math.abs(100 - b.adherence);
+      if (aDistance !== bDistance) return aDistance - bDistance;
+      return (a.averageRpe || 10) - (b.averageRpe || 10);
+    })[0];
+
+  let insight;
+  if (comparableWeeks.length < 2) {
+    insight =
+      "Legalább két lezárt, előre megtervezett hét szükséges ahhoz, hogy a terv tarthatóságáról mintázatot mutassunk. A futó hetet nem minősítjük végleges eredményként.";
+  } else if (!bestWeek) {
+    insight =
+      "Még nincs olyan lezárt hét, ahol egyszerre lenne megfelelő tervkövetés, edzésidő és elegendő RPE-visszajelzés. Előbb javítsd a naplózási lefedettséget, majd csak egy tervváltozót módosíts.";
+  } else {
+    const adjustmentText =
+      bestWeek.adjustment === null
+        ? "rögzített volumenmódosítás nélkül"
+        : `${bestWeek.adjustment > 0 ? "+" : ""}${bestWeek.adjustment.toLocaleString("hu-HU", { maximumFractionDigits: 1 })}%-os tervmódosítás mellett`;
+    insight = `${bestWeek.periodLabel} mutatta a leginkább tartható végrehajtást: ${bestWeek.adherence}% tervkövetés, ${bestWeek.averageRpe.toLocaleString("hu-HU", { maximumFractionDigits: 1 })} / 10 átlagos RPE, ${adjustmentText}. Ez együttjárás a saját előzményeidben, nem bizonyított ok-okozati kapcsolat.`;
+  }
+
+  return {
+    weeks,
+    dataWeeks,
+    comparableWeeks,
+    plannedTotal,
+    actualTotal,
+    averageAdherence,
+    feedbackCoverage,
+    insight,
+  };
+}
+function PlanOutcomeHistory({
+  plans = [],
+  activities = [],
+  feedback = {},
+  loading = false,
+}) {
+  const [weekCount, setWeekCount] = useState(8),
+    history = useMemo(
+      () =>
+        buildPlanOutcomeHistory(
+          plans,
+          activities,
+          feedback,
+          budapestToday(),
+          weekCount,
+        ),
+      [plans, activities, feedback, weekCount],
+    );
+  return (
+    <section
+      className="plan-outcome-history card"
+      aria-labelledby="plan-outcome-title"
+    >
+      <header className="plan-outcome-head">
+        <div>
+          <span className="eyebrow">FEJLŐDÉSTÖRTÉNET</span>
+          <h2 id="plan-outcome-title">Terv és tény alakulása</h2>
+          <p>
+            A tervezett munkát, a tényleges Garmin-edzéseket és a saját
+            terhelésérzetedet hetenként, azonos logika szerint vetjük össze.
+          </p>
+        </div>
+        <div className="plan-history-range" aria-label="Vizsgált időszak">
+          {[4, 8, 12].map((count) => (
+            <button
+              key={count}
+              className={weekCount === count ? "active" : ""}
+              aria-pressed={weekCount === count}
+              onClick={() => setWeekCount(count)}
+            >
+              {count} HÉT
+            </button>
+          ))}
+        </div>
+      </header>
+      {loading ? (
+        <p className="plan-history-empty">A fejlődéstörténet betöltése…</p>
+      ) : !history.dataWeeks.length ? (
+        <p className="plan-history-empty">
+          Még nincs terv vagy edzés ebben az időszakban. A többhetes
+          összevetés az első rögzített hét után jelenik meg.
+        </p>
+      ) : (
+        <>
+          <div className="plan-history-metrics">
+            <article>
+              <strong>{formatMinutes(history.plannedTotal)}</strong>
+              <MetricHelp
+                term="Tervezett edzésidő"
+                text="A kiválasztott időszakban előre rögzített edzéspercek összege. Ez a vállalás, nem az elvégzett munka."
+              >
+                <b>TERVEZETT IDŐ</b>
+              </MetricHelp>
+              <small>A kiválasztott {weekCount} hét vállalása.</small>
+            </article>
+            <article>
+              <strong>{formatMinutes(history.actualTotal)}</strong>
+              <MetricHelp
+                term="Tényleges edzésidő"
+                text="A Garminból érkezett összes aktivitás ideje az adott hetekben, a nem tervezett edzéseket is beleértve."
+              >
+                <b>TÉNYLEGES IDŐ</b>
+              </MetricHelp>
+              <small>Minden szinkronizált aktivitással együtt.</small>
+            </article>
+            <article>
+              <strong>
+                {history.averageAdherence === null
+                  ? "—"
+                  : `${history.averageAdherence}%`}
+              </strong>
+              <MetricHelp
+                term="Átlagos tervkövetés"
+                text="A lezárt, tervezett hetekben teljesített edzések aránya. A futó hetet és a terv nélküli heteket nem számítjuk bele."
+              >
+                <b>ÁTLAGOS TERVKÖVETÉS</b>
+              </MetricHelp>
+              <small>
+                {history.comparableWeeks.length
+                  ? `${history.comparableWeeks.length} összevethető lezárt hét alapján.`
+                  : "Még nincs lezárt, összevethető hét."}
+              </small>
+            </article>
+            <article>
+              <strong>
+                {history.feedbackCoverage === null
+                  ? "—"
+                  : `${history.feedbackCoverage}%`}
+              </strong>
+              <MetricHelp
+                term="RPE-lefedettség"
+                text="Megmutatja, az aktivitások mekkora részéhez rögzítettél szubjektív nehézséget. A hiányzó RPE nem nulla terhelést jelent."
+              >
+                <b>RPE-LEFEDETTSÉG</b>
+              </MetricHelp>
+              <small>Minél teljesebb, annál biztosabb az értelmezés.</small>
+            </article>
+          </div>
+          <div
+            className="plan-history-chart"
+            role="img"
+            aria-label="Heti tervezett és tényleges edzésidő oszlopdiagramja percben"
+          >
+            <ResponsiveContainer width="100%" height={290}>
+              <BarChart
+                data={history.weeks}
+                margin={{ top: 12, right: 18, left: 12, bottom: 28 }}
+              >
+                <CartesianGrid stroke="#303231" strokeDasharray="3 4" />
+                <XAxis
+                  dataKey="label"
+                  stroke="#8d9490"
+                  tick={{ fontSize: 11 }}
+                  label={{
+                    value: "Hét kezdete",
+                    position: "insideBottom",
+                    offset: -18,
+                    fill: "#9da39f",
+                    fontSize: 11,
+                  }}
+                />
+                <YAxis
+                  stroke="#8d9490"
+                  tick={{ fontSize: 11 }}
+                  width={58}
+                  label={{
+                    value: "Edzésidő (perc)",
+                    angle: -90,
+                    position: "insideLeft",
+                    fill: "#9da39f",
+                    fontSize: 11,
+                  }}
+                />
+                <Tooltip
+                  cursor={{ fill: "rgba(255,255,255,.035)" }}
+                  formatter={(value, name) => [
+                    `${Number(value).toLocaleString("hu-HU")} perc`,
+                    name,
+                  ]}
+                  labelFormatter={(label) => `Hét kezdete: ${label}`}
+                  contentStyle={{
+                    background: "#171918",
+                    border: "1px solid #3a3d3b",
+                    borderRadius: 8,
+                    color: "#f2f4f3",
+                  }}
+                />
+                <Bar
+                  dataKey="plannedMinutes"
+                  name="Tervezett idő"
+                  fill="#737977"
+                  radius={[4, 4, 0, 0]}
+                />
+                <Bar
+                  dataKey="actualMinutes"
+                  name="Tényleges idő"
+                  fill="var(--accent)"
+                  radius={[4, 4, 0, 0]}
+                />
+              </BarChart>
+            </ResponsiveContainer>
+            <p>
+              <b>X tengely:</b> hét kezdete · <b>Y tengely:</b> edzésidő
+              (perc). A szürke oszlop a terv, az akcentusszínű a Garminból
+              érkezett tényadat.
+            </p>
+          </div>
+          <article className="plan-history-insight">
+            <Sparkles size={20} aria-hidden="true" />
+            <div>
+              <h3>Mit tanulhatunk az eddigi hetekből?</h3>
+              <p>{history.insight}</p>
+            </div>
+          </article>
+          <div className="plan-history-table-wrap">
+            <table className="plan-history-table">
+              <thead>
+                <tr>
+                  <th>HÉT</th>
+                  <th>TERV / TÉNY IDŐ</th>
+                  <th>TERVKÖVETÉS</th>
+                  <th>ÁTLAGOS RPE</th>
+                  <th>TERVMÓDOSÍTÁS</th>
+                  <th>ÉRTELMEZÉS</th>
+                </tr>
+              </thead>
+              <tbody>
+                {[...history.dataWeeks].reverse().map((week) => (
+                  <tr key={week.from}>
+                    <td>{week.periodLabel}</td>
+                    <td>
+                      {formatMinutes(week.plannedMinutes)} /{" "}
+                      {formatMinutes(week.actualMinutes)}
+                    </td>
+                    <td>
+                      {week.adherence === null ? "Nincs terv" : `${week.adherence}%`}
+                    </td>
+                    <td>
+                      {week.averageRpe === null
+                        ? "Nincs adat"
+                        : `${week.averageRpe.toLocaleString("hu-HU", { maximumFractionDigits: 1 })} / 10`}
+                    </td>
+                    <td>
+                      {week.adjustment === null
+                        ? "Nincs rögzített adaptáció"
+                        : `${week.adjustment > 0 ? "+" : ""}${week.adjustment.toLocaleString("hu-HU", { maximumFractionDigits: 1 })}% volumen`}
+                    </td>
+                    <td>
+                      <span className={`plan-history-status ${week.statusTone}`}>
+                        {week.status}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="plan-history-note">
+            Az összegzés a saját előzményeidben látható együttjárást mutatja,
+            nem bizonyít ok-okozati kapcsolatot és nem helyettesít szakmai vagy
+            orvosi döntést. A hiányzó adatokat nem tekintjük nullának.
+          </p>
+        </>
+      )}
+    </section>
+  );
 }
 function WeeklyClosureCard({
   plans = [],

@@ -96,6 +96,7 @@
 - összekapcsolt „Cél → Terv → Visszajelzés” útvonal, heti terv–tény összesítéssel, több napi edzés külön értékelésével és közvetlen Naptár–Napló átjárással
 - közérthető heti lezárás a Naplóban: teljes edzésidő, tervkövetés, visszajelzés-lefedettség és következő heti döntés
 - a heti lezárásból, terhelhetőségből és check-inből készülő következő heti tervjavaslat teljes szerkesztéssel, kihagyással, új edzés hozzáadásával és jóváhagyás utáni naptármentéssel
+- 4/8/12 hetes terv–tény fejlődéstörténet a tervezett és tényleges edzésidővel, tervkövetéssel, RPE-lefedettséggel és a fenntartható végrehajtással együtt járó tervmódosítások közérthető értelmezésével
 
 ## Elkészült P2 finomítások
 
