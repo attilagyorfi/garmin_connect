@@ -6072,6 +6072,12 @@ function buildPlanOutcomeHistory(
       return {
         ...summary,
         actualMinutes,
+        plannedMinutesChart: summary.weekPlans.length
+          ? summary.plannedMinutes
+          : null,
+        actualMinutesChart: summary.weekActivities.length
+          ? actualMinutes
+          : null,
         averageRpe,
         feedbackCoverage,
         durationRatio,
@@ -6095,6 +6101,9 @@ function buildPlanOutcomeHistory(
       (sum, week) => sum + week.plannedMinutes,
       0,
     ),
+    plannedWeekCount = dataWeeks.filter(
+      (week) => week.weekPlans.length > 0,
+    ).length,
     actualTotal = dataWeeks.reduce(
       (sum, week) => sum + week.actualMinutes,
       0,
@@ -6154,6 +6163,7 @@ function buildPlanOutcomeHistory(
     dataWeeks,
     comparableWeeks,
     plannedTotal,
+    plannedWeekCount,
     actualTotal,
     averageAdherence,
     feedbackCoverage,
@@ -6216,14 +6226,22 @@ function PlanOutcomeHistory({
         <>
           <div className="plan-history-metrics">
             <article>
-              <strong>{formatMinutes(history.plannedTotal)}</strong>
+              <strong>
+                {history.plannedWeekCount
+                  ? formatMinutes(history.plannedTotal)
+                  : "—"}
+              </strong>
               <MetricHelp
                 term="Tervezett edzésidő"
                 text="A kiválasztott időszakban előre rögzített edzéspercek összege. Ez a vállalás, nem az elvégzett munka."
               >
                 <b>TERVEZETT IDŐ</b>
               </MetricHelp>
-              <small>A kiválasztott {weekCount} hét vállalása.</small>
+              <small>
+                {history.plannedWeekCount
+                  ? `${history.plannedWeekCount} tervezett hét vállalása.`
+                  : "Ebben az időszakban nincs rögzített tervadat."}
+              </small>
             </article>
             <article>
               <strong>{formatMinutes(history.actualTotal)}</strong>
@@ -6318,13 +6336,13 @@ function PlanOutcomeHistory({
                   }}
                 />
                 <Bar
-                  dataKey="plannedMinutes"
+                  dataKey="plannedMinutesChart"
                   name="Tervezett idő"
                   fill="#737977"
                   radius={[4, 4, 0, 0]}
                 />
                 <Bar
-                  dataKey="actualMinutes"
+                  dataKey="actualMinutesChart"
                   name="Tényleges idő"
                   fill="var(--accent)"
                   radius={[4, 4, 0, 0]}
@@ -6334,7 +6352,8 @@ function PlanOutcomeHistory({
             <p>
               <b>X tengely:</b> hét kezdete · <b>Y tengely:</b> edzésidő
               (perc). A szürke oszlop a terv, az akcentusszínű a Garminból
-              érkezett tényadat.
+              érkezett tényadat. A hiányzó oszlop nem nulla értéket, hanem
+              hiányzó terv- vagy tényadatot jelent.
             </p>
           </div>
           <article className="plan-history-insight">
@@ -6361,8 +6380,13 @@ function PlanOutcomeHistory({
                   <tr key={week.from}>
                     <td>{week.periodLabel}</td>
                     <td>
-                      {formatMinutes(week.plannedMinutes)} /{" "}
-                      {formatMinutes(week.actualMinutes)}
+                      {week.weekPlans.length
+                        ? formatMinutes(week.plannedMinutes)
+                        : "Nincs terv"}{" "}
+                      /{" "}
+                      {week.weekActivities.length
+                        ? formatMinutes(week.actualMinutes)
+                        : "Nincs tényadat"}
                     </td>
                     <td>
                       {week.adherence === null ? "Nincs terv" : `${week.adherence}%`}
