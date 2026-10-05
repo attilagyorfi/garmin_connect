@@ -19,3 +19,20 @@ def test_full_sync_is_requested(monkeypatch, tmp_path):
     monkeypatch.setattr("dashboard_api.build_dashboard_payload", lambda cache_dir: {"source": "garmin"})
     assert sync_dashboard(tmp_path)["source"] == "garmin"
     assert calls == [None]
+
+
+def test_metric_scores_come_from_readiness_components(tmp_path):
+    from analytics import build_daily_frames, explainable_readiness
+    from garmin_sync import demo_data
+
+    payload = build_dashboard_payload(tmp_path)
+    demo = demo_data(365)
+    wellness, _ = build_daily_frames(demo, demo["demo_feedback"])
+    result = explainable_readiness(wellness, demo["demo_checkins"].get(payload["today"]))
+    scores = {item["name"]: item["score"] for item in result.components}
+    metrics = {item["name"]: item for item in payload["metrics"]}
+    assert metrics["HRV (éjszakai)"]["score"] == scores["HRV"]
+    assert metrics["Nyugalmi pulzus"]["score"] == scores["RHR"]
+    assert metrics["Alvás"]["score"] == scores["Alvás"]
+    assert metrics["Hibrid TSB"]["score"] == scores["Terhelés / TSB"]
+    assert all(item["tone"] in {"good", "warn", "bad"} for item in payload["metrics"])

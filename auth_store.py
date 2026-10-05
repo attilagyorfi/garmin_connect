@@ -12,7 +12,7 @@ from datetime import datetime, timedelta, timezone
 from http.cookies import SimpleCookie
 from typing import Any
 
-from cloud_cache import connect
+from cloud_cache import SCHEMA_READY, connect
 
 
 SESSION_COOKIE = "hybrid_session"
@@ -21,6 +21,8 @@ EMAIL_PATTERN = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
 
 
 def initialize_auth(db: Any) -> None:
+    if "auth" in SCHEMA_READY:
+        return
     db.execute("""
         CREATE TABLE IF NOT EXISTS hybrid_users (
             id UUID PRIMARY KEY,
@@ -40,6 +42,7 @@ def initialize_auth(db: Any) -> None:
     """)
     db.execute("CREATE INDEX IF NOT EXISTS hybrid_sessions_user_idx ON hybrid_sessions(user_id)")
     db.commit()
+    SCHEMA_READY.add("auth")
 
 
 def _password_hash(password: str, salt: bytes | None = None) -> str:

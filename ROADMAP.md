@@ -8,7 +8,8 @@
 - elkészült: felhasználónkénti szinkronzár
 - következő: e-mail-megerősítés, jelszó-visszaállítás és belépési próbálkozások korlátozása
 - elkészült: felhasználónkénti, Fernet-titkosított Garmin-kapcsolat; a jelszó nem kerül vissza a klienshez
-- következő: tartós Garmin-tokenkezelés és MFA bootstrap; addig az MFA-s többfelhasználós Garmin-szinkron nem tekinthető késznek
+- elkészült: tartós, Fernet-titkosított Garmin-session tokenek; a szinkronlépések tokennel lépnek be, jelszót csak elutasított token esetén használnak
+- következő: MFA bootstrap; addig az MFA-s többfelhasználós Garmin-szinkron nem tekinthető késznek
 
 ## P0 – Vercel teljes történeti szinkron
 
@@ -16,7 +17,8 @@
 - elkészült: tartós Neon job-állapot, fázis, százalék, aktivitás-/pulzuszóna-/wellness számlálók és részleges hibák
 - elkészült: böngészőből vezérelt folytatás és automatikus újracsatlakozás oldal-újratöltés után
 - elkészült: asztali szinkronfolyamat-panel a futó Hybrid Athlete logóval
-- következő: Garmin-tokenek titkosított, tartós tárolása és MFA bootstrap folyamat
+- elkészült: a lekért rekordok tételenkénti staging táblába kerülnek (`hybrid_sync_items`), a job-állapot nem hordozza a teljes nyers payloadot
+- következő: MFA bootstrap folyamat
 - következő: valós fiókos, többéves backfill terhelés- és rate-limit teszt Vercelen
 
 ## P5 – Személyes AI-asszisztens

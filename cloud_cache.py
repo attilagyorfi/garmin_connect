@@ -9,6 +9,10 @@ from typing import Any, Iterator
 import psycopg
 
 
+# Schema DDL only needs to run once per warm serverless process, not on every request.
+SCHEMA_READY: set[str] = set()
+
+
 def _database_url() -> str:
     value = os.getenv("DATABASE_URL") or os.getenv("POSTGRES_URL")
     if not value:
@@ -21,6 +25,8 @@ def connect() -> psycopg.Connection[Any]:
 
 
 def initialize(connection: psycopg.Connection[Any]) -> None:
+    if "app_state" in SCHEMA_READY:
+        return
     connection.execute(
         """
         CREATE TABLE IF NOT EXISTS hybrid_app_state (
@@ -31,6 +37,7 @@ def initialize(connection: psycopg.Connection[Any]) -> None:
         """
     )
     connection.commit()
+    SCHEMA_READY.add("app_state")
 
 
 def load_json(state_key: str, connection: psycopg.Connection[Any] | None = None) -> dict[str, Any] | None:
@@ -68,6 +75,8 @@ def save_json(state_key: str, payload: dict[str, Any], connection: psycopg.Conne
 
 
 def initialize_user_state(connection: psycopg.Connection[Any]) -> None:
+    if "user_state" in SCHEMA_READY:
+        return
     connection.execute("""
         CREATE TABLE IF NOT EXISTS hybrid_user_state (
             user_id UUID NOT NULL,
@@ -78,6 +87,7 @@ def initialize_user_state(connection: psycopg.Connection[Any]) -> None:
         )
     """)
     connection.commit()
+    SCHEMA_READY.add("user_state")
 
 
 def load_user_json(user_id: str, state_key: str, connection: psycopg.Connection[Any] | None = None) -> dict[str, Any] | None:

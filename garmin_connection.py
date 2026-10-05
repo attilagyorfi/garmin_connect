@@ -1,7 +1,8 @@
 """Encrypted per-user Garmin Connect credentials.
 
-Credentials are decrypted only inside server-side sync calls and are never returned
-to the browser. A later token bootstrap can replace long-term password storage.
+Credentials and Garmin session tokens are decrypted only inside server-side sync calls
+and are never returned to the browser. Sync steps reuse the stored tokens and fall back
+to a password login only when Garmin rejects them.
 """
 from __future__ import annotations
 
@@ -12,7 +13,7 @@ from typing import Any
 
 from cryptography.fernet import Fernet, InvalidToken
 
-from cloud_cache import connect
+from cloud_cache import SCHEMA_READY, connect
 
 
 def _cipher() -> Fernet:
@@ -26,6 +27,8 @@ def _cipher() -> Fernet:
 
 
 def initialize_connections(db: Any) -> None:
+    if "garmin_connections" in SCHEMA_READY:
+        return
     db.execute("""
         CREATE TABLE IF NOT EXISTS hybrid_garmin_connections (
             user_id UUID PRIMARY KEY REFERENCES hybrid_users(id) ON DELETE CASCADE,
@@ -35,7 +38,9 @@ def initialize_connections(db: Any) -> None:
             updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         )
     """)
+    db.execute("ALTER TABLE hybrid_garmin_connections ADD COLUMN IF NOT EXISTS encrypted_tokens BYTEA")
     db.commit()
+    SCHEMA_READY.add("garmin_connections")
 
 
 def _hint(email: str) -> str:
@@ -59,6 +64,7 @@ def save_connection(user_id: str, email: str, password: str) -> dict[str, str]:
             ON CONFLICT (user_id) DO UPDATE SET
                 encrypted_credentials = EXCLUDED.encrypted_credentials,
                 email_hint = EXCLUDED.email_hint,
+                encrypted_tokens = NULL,
                 status = 'connected', updated_at = NOW()
         """, (user_id, encrypted, _hint(email)))
         db.commit()
@@ -91,6 +97,35 @@ def load_credentials(user_id: str) -> tuple[str, str]:
         return payload["email"], payload["password"]
     except (InvalidToken, KeyError, TypeError, json.JSONDecodeError) as exc:
         raise RuntimeError("A Garmin-kapcsolat nem fejthető vissza. Csatlakoztasd újra a fiókot.") from exc
+
+
+def load_tokens(user_id: str) -> str | None:
+    """Return the decrypted Garmin session tokens, or None when a password login is needed."""
+    db = connect()
+    try:
+        initialize_connections(db)
+        row = db.execute("SELECT encrypted_tokens FROM hybrid_garmin_connections WHERE user_id = %s", (user_id,)).fetchone()
+    finally:
+        db.close()
+    if not row or row[0] is None:
+        return None
+    try:
+        return _cipher().decrypt(bytes(row[0])).decode()
+    except (InvalidToken, UnicodeDecodeError):
+        return None
+
+
+def save_tokens(user_id: str, tokens: str) -> None:
+    db = connect()
+    try:
+        initialize_connections(db)
+        db.execute(
+            "UPDATE hybrid_garmin_connections SET encrypted_tokens = %s WHERE user_id = %s",
+            (_cipher().encrypt(tokens.encode()), user_id),
+        )
+        db.commit()
+    finally:
+        db.close()
 
 
 def delete_connection(user_id: str) -> None:

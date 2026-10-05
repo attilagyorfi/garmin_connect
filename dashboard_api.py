@@ -8,14 +8,17 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 
-from dotenv import load_dotenv
-
 from analytics import build_daily_frames, explainable_readiness, red_flags, training_decision, weekly_summary
 from garmin_sync import GarminSync, GarminSyncError, demo_data
 from storage import Database
 
-load_dotenv(Path(__file__).with_name(".env.local"), override=False)
-load_dotenv(Path(__file__).with_name(".env.garmin.local"), override=True)
+try:  # Local-only convenience; Vercel injects environment variables and omits python-dotenv.
+    from dotenv import load_dotenv
+except ImportError:
+    pass
+else:
+    load_dotenv(Path(__file__).with_name(".env.local"), override=False)
+    load_dotenv(Path(__file__).with_name(".env.garmin.local"), override=True)
 
 
 def _number(value: Any, default: float = 0.0) -> float:
@@ -41,6 +44,14 @@ def _sport_name(kind: Any) -> str:
     return "Egyéb"
 
 
+def _metric(name: str, raw: Any, template: str, component: dict[str, Any] | None) -> dict[str, Any]:
+    """Display value plus the readiness engine's own component score (None when it was not computed)."""
+    value = _number(raw, float("nan"))
+    score = round(_number(component["score"])) if component else None
+    tone = None if score is None else "good" if score >= 70 else "warn" if score >= 50 else "bad"
+    return {"name": name, "value": template.format(value) if value == value else "nincs adat", "score": score, "tone": tone}
+
+
 def build_dashboard_payload(cache_dir: str | Path = "data") -> dict[str, Any]:
     cache_dir = Path(cache_dir)
     payload = GarminSync(cache_dir).load_cache()
@@ -59,6 +70,7 @@ def build_dashboard_payload(cache_dir: str | Path = "data") -> dict[str, Any]:
     decision = training_decision(result, wellness, checkins.get(today), flags)
     summary = weekly_summary(wellness, activities, flags)
     latest = wellness.iloc[-1]
+    components = {item["name"]: item for item in result.components}
     recent_load = wellness["hybrid_load"].tail(84).fillna(0)
     peak = max(1.0, _number(recent_load.max(), 1.0))
     heat = [min(3, round(_number(value) / peak * 3)) for value in recent_load]
@@ -99,10 +111,10 @@ def build_dashboard_payload(cache_dir: str | Path = "data") -> dict[str, Any]:
             "rationale": decision.get("rationale", "A regenerációs jelek alapján."),
         },
         "metrics": [
-            {"name": "HRV (éjszakai)", "value": f"{_number(latest.get('hrv')):.0f} ms", "score": 68},
-            {"name": "Alvás", "value": f"{_number(latest.get('sleep_hours')):.1f} ó", "score": round(_number(latest.get('sleep_score')))},
-            {"name": "Nyugalmi pulzus", "value": f"{_number(latest.get('resting_hr')):.0f} bpm", "score": 82},
-            {"name": "Hibrid TSB", "value": f"{_number(latest.get('tsb')):+.1f}", "score": round(max(5, min(100, 50 + _number(latest.get('tsb')) * 3)))},
+            _metric("HRV (éjszakai)", latest.get("hrv"), "{:.0f} ms", components.get("HRV")),
+            _metric("Alvás", latest.get("sleep_hours"), "{:.1f} ó", components.get("Alvás")),
+            _metric("Nyugalmi pulzus", latest.get("resting_hr"), "{:.0f} bpm", components.get("RHR")),
+            _metric("Hibrid TSB", latest.get("tsb"), "{:+.1f}", components.get("Terhelés / TSB")),
         ],
         "heat": heat,
         "week": summary,
