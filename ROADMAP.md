@@ -131,6 +131,8 @@
 
 ## Ismert korlátok
 
+- 2026-10-05: kompatibilis npm biztonsági frissítések, Vite 6.4.3 és undici 7.30.0; a szervercsomag auditja 0 találat. A frontendben 7 magas súlyosságú tranzitív jelzés marad a shadcn → fast-glob/micromatch → braces eszközláncban (GHSA-vfj7-8cjw-p6xm); kompatibilis upstream javítás vagy az eszközlánc kiváltása szükséges. Az npm által ajánlott shadcn 1.0.0 visszalépést nem alkalmaztuk. A navigációs és szerverregresszió, valamint a production build sikeres.
+
 - A régi, helyi Streamlit/SQLite futtatás továbbra is csak egyszemélyes fejlesztői mód; a production webalkalmazás PostgreSQL-alapú fiók- és adatszigetelést használ.
 - A Garmin nem hivatalos web API-ja változhat; nincs élő accountos CI.
 - A pulzuszóna-részletek külön Garmin-lekéréssel érkeznek, de az eszköz- és library-verziók közötti payload-eltérések miatt további anonim fixture-validáció szükséges.
