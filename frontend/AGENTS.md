@@ -19,3 +19,5 @@ The product is intended to translate professional training data for non-experts.
 Do not add hover tooltips to rows or controls that already reveal the same explanation through an expandable/collapsible interaction. For those elements, the explicit expansion is the single source of detail and must remain keyboard accessible.
 
 Personalization includes a persistent profile identity. Keep the avatar or uploaded profile photo visible in the sidebar and profile summary, and preserve it with the cloud-saved profile. Uploaded photos must be resized and compressed client-side before persistence.
+
+Do not show question-mark icons or "?" badges for explanations. Explanations appear only as hover/focus tooltips on dashed-underlined text or values, which must stay keyboard focusable.
