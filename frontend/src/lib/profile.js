@@ -1,0 +1,2 @@
+export const defaultProfile={name:"Attila",experience:"középhaladó",goal:"Hibrid teljesítmény",eventName:"",eventDate:"",weeklyHours:8,strengthRatio:30,trainingDays:["H","K","Sze","Cs","P","Szo"],restDay:"V",limitations:"",preference:"kiegyensúlyozott",avatarPreset:"athlete",avatarImage:""};
+export function readProfile(){try{return {...defaultProfile,...JSON.parse(localStorage.getItem("hybrid-profile")||"{}")}}catch{return defaultProfile}}

@@ -1,0 +1,2 @@
+const viewArtwork={"Terv és tény":"naptar","Terhelés és forma":"trendek","Mi működik nálam":"insights","Edzések":"naplo","Profil":"profil","Beállítások":"profil","Felkészültség":"trendek"};
+export function PageHeader({eyebrow,title,children}){const artwork=viewArtwork[title]||"ma";return <header className={`page-header page-header-${artwork}`}><div><span className="eyebrow">{eyebrow}</span><h1>{title}</h1></div>{children}</header>}
