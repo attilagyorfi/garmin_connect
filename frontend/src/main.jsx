@@ -15,6 +15,8 @@ import "./readability.css";
 import "./explainability.css";
 import "./auth.css";
 import "./garmin-connection.css";
+import "./sync.css";
+import "./sync-gate.css";
 
 createRoot(document.getElementById("root")).render(
   <React.StrictMode>

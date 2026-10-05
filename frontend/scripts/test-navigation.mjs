@@ -17,9 +17,11 @@ const dashboardFixture={
   sessions:[{id:"test-activity",date:"2026-08-18",type:"Futás",name:"Teszt Zone 2 futás",durationMin:48,avgHr:137,distanceKm:8.2,load:64}],heat:[],metrics:[],trends:[],zones:[0,48,0,0,0]
 };
 const cloudPatches=[];
+let dashboardAvailable=false;
 let mockedCloudState={version:2,profile:null,accent:"teal",checkins:{},feedback:{},plans:[]};
 globalThis.fetch = async (input,options={}) => {
   const url=String(input);
+  if(url.endsWith("/api/dashboard")&&!dashboardAvailable)return {ok:false,status:503,json:async()=>({error:"Még nincs feltöltött Garmin-adat."}),text:async()=>JSON.stringify({error:"Még nincs feltöltött Garmin-adat."})};
   if(url.endsWith("/api/auth"))return {ok:true,status:200,json:async()=>({user:{id:"test-user",email:"attilla@example.com",name:"Attila"}}),text:async()=>""};
   if(url.endsWith("/api/garmin"))return {ok:true,status:200,json:async()=>({status:"connected",email_hint:"at••••@example.com"}),text:async()=>""};
   if(url.endsWith("/api/sync"))return {ok:false,status:404,text:async()=>"The page could not be found"};
@@ -44,6 +46,17 @@ localStorage.setItem("hybrid-onboarding-version", "2");
 const vite = await createServer({ server: { middlewareMode: true }, appType: "custom", optimizeDeps: { noDiscovery: true } });
 try {
   const { App } = await vite.ssrLoadModule("/src/App.jsx");
+  const gateRoot = createRoot(document.getElementById("root"));
+  await act(async () => gateRoot.render(React.createElement(App)));
+  await act(async () => new Promise(resolve=>setTimeout(resolve,5)));
+  if (!document.querySelector(".content")?.textContent.includes("Első Garmin-szinkron")) throw new Error("Szinkronizált adat nélkül nem a szinkronkapu jelent meg.");
+  const lockedNav=[...document.querySelectorAll(".sidebar nav button.locked")];
+  if (lockedNav.map(node=>node.textContent.trim()).join(",")!=="Naptár,Trendek,Cél,Insights,Napló"||!lockedNav.every(node=>node.disabled)) throw new Error("Hibás zárolt menüpontok: "+lockedNav.map(node=>node.textContent.trim()).join(","));
+  if (document.querySelector(".sync-gate-action .primary")?.disabled) throw new Error("Csatlakoztatott Garmin-fióknál a szinkron gomb nem indítható.");
+  if (!document.querySelector(".sidebar .profile")?.textContent.includes("Garmin csatlakoztatva")) throw new Error("Az oldalsáv nem a valós Garmin-állapotot mutatja.");
+  await act(async () => gateRoot.unmount());
+  dashboardAvailable=true;
+  console.log("OK adatfüggő oldalak zárolása az első szinkronig");
   const root = createRoot(document.getElementById("root"));
   await act(async () => root.render(React.createElement(App)));
   const bundledLogo=document.querySelector('.brand-logo img');
