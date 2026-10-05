@@ -51,6 +51,24 @@ streamlit run app.py
 
 Hitelesítő adatok nélkül az app automatikusan demo módban indul. A demo 90+ nap konzisztens cardio, strength és trekking adatot, check-int, RPE-t, fáradási és betegségpéldát tartalmaz.
 
+### A React-app helyben (többfelhasználós felület)
+
+A `scripts/dev_api.py` ugyanazokat az `api/*.py` handlereket szolgálja ki a `127.0.0.1:8765` címen, mint a Vercel; a Vite dev szerver ide proxyzza az `/api` kéréseket. Kell hozzá egy helyi PostgreSQL és egy Gitből kizárt `.env.local`:
+
+```text
+DATABASE_URL=postgresql://postgres@127.0.0.1:55432/postgres
+GARMIN_CREDENTIALS_KEY=<python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())">
+```
+
+```bash
+initdb -D .local/pgdata -U postgres -A trust -E UTF8      # egyszer; a .local/ Gitből kizárt
+postgres -D .local/pgdata -p 55432 -c listen_addresses=127.0.0.1
+python scripts/dev_api.py
+npm --prefix frontend run dev
+```
+
+Regisztráció után Garmin-fiók nélkül is kipróbálható: `python scripts/dev_api.py --seed-demo <e-mail>` demó dashboardot ment a fiókhoz.
+
 ## Környezeti változók
 
 Másold a `.env.example` tartalmát saját, Gitből kizárt `.env` fájlba vagy állítsd be a platformon:
