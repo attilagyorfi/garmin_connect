@@ -53,6 +53,7 @@ class GarminSync:
     ttl_hours: float | None = None
     email: str | None = None
     password: str | None = None
+    tokens: str | None = None
 
     def __post_init__(self) -> None:
         self.cache_dir = Path(self.cache_dir or os.getenv("CACHE_DIR", "data"))
@@ -72,7 +73,8 @@ class GarminSync:
             raise GarminSyncError("Hiányzik a GARMIN_EMAIL vagy GARMIN_PASSWORD. Használd a demo módot, vagy állítsd be mindkettőt.")
         try:
             client = Garmin(email, password)
-            client.login(str(self.token_dir))
+            # Serialized session tokens (cloud sync) take precedence over the on-disk token store.
+            client.login(self.tokens or str(self.token_dir))
         except Exception as exc:
             message = str(exc).lower()
             if "429" in message or "rate" in message:
@@ -84,6 +86,13 @@ class GarminSync:
             raise GarminSyncError(reason) from exc
         self.client = client
         return client
+
+    def export_tokens(self) -> str | None:
+        """Serialized session tokens of the authenticated client, for encrypted reuse."""
+        try:
+            return self.client.client.dumps() if self.client else None
+        except Exception:
+            return None
 
     def load_cache(self) -> dict[str, Any] | None:
         try:

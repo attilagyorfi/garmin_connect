@@ -15,7 +15,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.11", "3.13"]
+        python-version: ["3.12", "3.13"]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -23,6 +23,10 @@ jobs:
           python-version: ${{ matrix.python-version }}
           cache: pip
       - run: python -m pip install --upgrade pip
-      - run: python -m pip install -r requirements.txt
+      - run: python -m pip install -r requirements-dev.txt
       - run: python -m pytest -q
       - run: python -m py_compile app.py analytics.py storage.py garmin_sync.py
+      - name: Vercel functions import with production dependencies only
+        run: |
+          python -m venv /tmp/prod && /tmp/prod/bin/pip install -q -r requirements.txt
+          /tmp/prod/bin/python -c "import api.auth, api.dashboard, api.garmin, api.state, api.sync"
