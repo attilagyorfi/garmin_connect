@@ -115,7 +115,7 @@ def build_dashboard_payload(cache_dir: str | Path = "data") -> dict[str, Any]:
         "band": "terhelhető" if _number(result.score) >= 70 else "óvatosan" if _number(result.score) >= 45 else "regeneráció",
         "confidence": result.confidence,
         "decision": {
-            "title": decision.get("title") or decision.get("recommendation") or "Regeneráló edzés",
+            "title": decision.get("type") or decision.get("title") or "Regeneráló edzés",
             "duration": decision.get("duration") or decision.get("duration_min") or "30–45 perc",
             "intensity": decision.get("intensity") or decision.get("max_intensity") or "könnyű",
             "rationale": decision.get("rationale", "A regenerációs jelek alapján."),

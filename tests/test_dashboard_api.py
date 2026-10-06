@@ -36,3 +36,13 @@ def test_metric_scores_come_from_readiness_components(tmp_path):
     assert metrics["Alvás"]["score"] == scores["Alvás"]
     assert metrics["Hibrid TSB"]["score"] == scores["Terhelés / TSB"]
     assert all(item["tone"] in {"good", "warn", "bad"} for item in payload["metrics"])
+
+
+def test_decision_title_comes_from_the_engine_choice(tmp_path, monkeypatch):
+    # The engine returns its choice under "type"; a missing mapping silently turned every day into "Regeneráló edzés".
+    import dashboard_api
+
+    monkeypatch.setattr(dashboard_api, "training_decision", lambda *args, **kwargs: {"type": "Minőségi hibrid edzés", "duration": "45–75 perc", "max_intensity": "kemény, kontrollált", "rationale": "teszt"})
+    payload = build_dashboard_payload(tmp_path)
+    assert payload["decision"]["title"] == "Minőségi hibrid edzés"
+    assert payload["decision"]["intensity"] == "kemény, kontrollált"
