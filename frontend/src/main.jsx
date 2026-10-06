@@ -18,6 +18,7 @@ import "./garmin-connection.css";
 import "./sync.css";
 import "./sync-gate.css";
 import "./benchmarks.css";
+import "./coaching.css";
 
 createRoot(document.getElementById("root")).render(
   <React.StrictMode>
