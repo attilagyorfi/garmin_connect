@@ -2,11 +2,9 @@
 
     python evals/assistant/run_eval.py --dry-run     # cases and rough cost, no API calls
     python evals/assistant/run_eval.py               # Claude Sonnet 5.5 vs Haiku 4.5, judged by Opus 5.5 (ANTHROPIC_API_KEY)
-    python evals/assistant/run_eval.py --providers   # Claude vs OpenAI per price tier, cross-judged (also OPENAI_API_KEY)
     python evals/assistant/run_eval.py --prompts     # frozen v1 prompt vs current prompt, both on Sonnet 5.5
 
-Every answer pair is graded blind (random A/B order, no model names). With --providers one judge from
-each provider grades, so a judge's preference for its own family shows up as disagreement.
+Every answer pair is graded blind (random A/B order, no model names) by Claude Opus 5.5.
 """
 from __future__ import annotations
 
@@ -42,21 +40,15 @@ from evals.assistant.prompts import v1 as prompt_v1  # noqa: E402
 HERE = Path(__file__).resolve().parent
 MAX_USD = 8.0
 MAX_OUTPUT = 2500
-# USD per 1M tokens (input, output) — Claude: Anthropic API reference (2026-09-25); OpenAI: developers.openai.com/api/docs/pricing (2026-10-06).
-PRICES = {"claude-opus-5-5": (4.0, 20.0), "claude-sonnet-5-5": (2.0, 10.0), "claude-haiku-4-5": (1.0, 5.0), "gpt-6.1-sol": (2.0, 10.0), "gpt-5.4-mini": (0.75, 4.5)}
+# USD per 1M tokens (input, output) — Anthropic API reference (2026-09-25).
+PRICES = {"claude-opus-5-5": (4.0, 20.0), "claude-sonnet-5-5": (2.0, 10.0), "claude-haiku-4-5": (1.0, 5.0)}
 # Each comparison: two models answering the same cases (None = every case kind).
 CLAUDE_ONLY = {"comparisons": {"Sonnet 5.5 vs Haiku 4.5": ("claude-sonnet-5-5", "claude-haiku-4-5", None)}, "judges": ["claude-opus-5-5"]}
-PROVIDERS = {"comparisons": {"közép": ("claude-sonnet-5-5", "gpt-6.1-sol", None), "kicsi": ("claude-haiku-4-5", "gpt-5.4-mini", {"summary", "memory"})},
-             "judges": ["claude-sonnet-5-5", "gpt-6.1-sol"]}
 PROMPTS = {"comparisons": {"Prompt v1 vs v3 (Sonnet 5.5)": (
     {"label": "v1", "model": "claude-sonnet-5-5", "system": prompt_v1.SYSTEM_PROMPT, "summary_task": prompt_v1.SUMMARY_TASK},
     {"label": "v3", "model": "claude-sonnet-5-5", "system": SYSTEM_PROMPT, "summary_task": SUMMARY_TASK}, None)},
     "judges": ["claude-opus-5-5"]}
 APP_PROFILE = {"goal": "Hibrid teljesítmény", "weeklyHours": 8, "strengthRatio": 30, "experience": "középhaladó"}
-
-
-def provider_of(model: str) -> str:
-    return "openai" if model.startswith("gpt") else "claude"
 
 
 def contestant(entry: str | dict[str, Any]) -> dict[str, Any]:
@@ -170,31 +162,6 @@ def call_claude(client: Any, model: str, message: str, schema: type[BaseModel] |
     }
 
 
-def call_openai(client: Any, model: str, message: str, schema: type[BaseModel] | None, system: str) -> dict[str, Any]:
-    import openai
-
-    kwargs: dict[str, Any] = {"model": model, "instructions": system, "input": message, "max_output_tokens": MAX_OUTPUT, "store": False, "reasoning": {"effort": "low"}}
-    started = time.perf_counter()
-    for attempt in range(2):
-        try:
-            response = client.responses.parse(text_format=schema, **kwargs) if schema else client.responses.create(**kwargs)
-            break
-        except openai.BadRequestError as exc:
-            if attempt == 0 and "reasoning" in str(exc).lower():
-                kwargs.pop("reasoning")  # model without reasoning controls
-                continue
-            return {"error": f"BadRequestError: {exc}", "latency": time.perf_counter() - started}
-        except openai.APIStatusError as exc:
-            return {"error": f"{type(exc).__name__}: {exc}", "latency": time.perf_counter() - started}
-    parsed = response.output_parsed.model_dump() if schema and getattr(response, "output_parsed", None) else None
-    return {
-        "text": json.dumps(parsed, ensure_ascii=False) if parsed else response.output_text,
-        "parsed": parsed, "stop_reason": response.status, "input_tokens": response.usage.input_tokens,
-        "output_tokens": response.usage.output_tokens, "latency": time.perf_counter() - started,
-    }
-
-
-CALLERS = {"claude": call_claude, "openai": call_openai}
 
 # ---------------------------------------------------------------- checks and judging
 
@@ -233,12 +200,11 @@ def judge_message(case: dict[str, Any], prompt: str, answer_a: str, answer_b: st
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--dry-run", action="store_true")
-    parser.add_argument("--providers", action="store_true", help="Claude vs OpenAI (needs OPENAI_API_KEY)")
     parser.add_argument("--prompts", action="store_true", help="frozen v1 prompt vs current prompt on Sonnet 5.5")
     parser.add_argument("--limit", type=int, default=None)
     parser.add_argument("--seed", type=int, default=7)
     args = parser.parse_args()
-    setup = PROVIDERS if args.providers else PROMPTS if args.prompts else CLAUDE_ONLY
+    setup = PROMPTS if args.prompts else CLAUDE_ONLY
     cases = json.loads((HERE / "cases.json").read_text(encoding="utf-8"))[: args.limit]
     context = base_context()
     jobs = [(name, case) for name, (_, _, kinds) in setup["comparisons"].items() for case in cases if kinds is None or case["kind"] in kinds]
@@ -250,14 +216,9 @@ def main() -> None:
               f"Becsült költség: kb. {estimate:.2f} USD (felső becslés), korlát: {MAX_USD} USD.")
         return
 
-    needed = {provider_of(contestant(entry)["model"]) for a, b, _ in setup["comparisons"].values() for entry in (a, b)} | {provider_of(model) for model in setup["judges"]}
-    clients: dict[str, Any] = {}
-    if "claude" in needed:
-        import anthropic
-        clients["claude"] = anthropic.Anthropic()
-    if "openai" in needed:
-        import openai
-        clients["openai"] = openai.OpenAI()
+    import anthropic
+
+    client = anthropic.Anthropic()
     budget, rng = Budget(MAX_USD), random.Random(args.seed)
     out_dir = HERE / "results" / datetime.now().strftime("%Y%m%d-%H%M%S")
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -272,7 +233,7 @@ def main() -> None:
         for player in (first, second):
             model = player["model"]
             player_prompt = user_message(case, ctx, player["summary_task"])
-            result = CALLERS[provider_of(model)](clients[provider_of(model)], model, player_prompt, schema, player["system"])
+            result = call_claude(client, model, player_prompt, schema, player["system"])
             if "error" not in result:
                 result["cost"] = budget.add(model, result["input_tokens"], result["output_tokens"])
                 result["words"] = len(result["text"].split())
@@ -285,7 +246,7 @@ def main() -> None:
             rng.shuffle(order)
             message = judge_message(case, prompt, answers[order[0]]["text"], answers[order[1]]["text"])
             for judge in setup["judges"]:
-                result = CALLERS[provider_of(judge)](clients[provider_of(judge)], judge, message, Verdict, JUDGE_SYSTEM)
+                result = call_claude(client, judge, message, Verdict, JUDGE_SYSTEM)
                 if "error" in result or not result.get("parsed"):
                     verdicts[judge] = {"error": result.get("error", "nincs értelmezhető ítélet")}
                     continue

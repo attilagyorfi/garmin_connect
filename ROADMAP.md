@@ -33,8 +33,9 @@
 - olvasási műveletek alapból engedélyezettek; terv- vagy profilváltoztatás csak előnézet és kifejezett jóváhagyás után
 - orvosi diagnózis, sérüléskezelés és indokolatlan kauzális állítás tiltása; piros zászlóknál szakemberhez irányítás
 - adatminimalizálás: nyers Garmin payload helyett célzott, összesített kontextus; hitelesítő és token soha nem kerül modellpromptba
-- következő: asszisztens API-szerződés, kontextusépítő és jobb oldali desktop chat shell
-- következő: modell/provider és költségkorlát kiválasztása, naplózási és adatmegőrzési beállításokkal
+- elkészült: Edzőtárs chat (Claude Sonnet 5.5, Anthropic API) összesített kontextussal, hozzájárulással, napi 15 kérdéssel és tokenkerettel, törölhető memóriával
+- elkészült: modellválasztás méréssel (30 esetes magyar teszt, Sonnet 5.5 vs Haiku 4.5, promptváltozatok)
+- következő: jóváhagyásos tervmódosító műveletek és admin-oldali AI-használatkövetés
 
 ## Elkészült üzemi megerősítés
 
