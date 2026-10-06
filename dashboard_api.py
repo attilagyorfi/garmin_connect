@@ -9,7 +9,8 @@ from pathlib import Path
 from typing import Any
 
 from analytics import build_daily_frames, explainable_readiness, red_flags, training_decision, weekly_summary
-from garmin_profile import athlete_summary
+from benchmarks import athlete_benchmarks
+from garmin_profile import athlete_summary, is_strength_activity
 from garmin_sync import GarminSync, GarminSyncError, demo_data
 from storage import Database
 
@@ -92,6 +93,7 @@ def build_dashboard_payload(cache_dir: str | Path = "data") -> dict[str, Any]:
         }
         for _, row in recent_sessions.iterrows()
     ]
+    athlete = athlete_summary(payload.get("profile"), payload.get("activities", []), wellness.index[-1].date())
     zone_totals = [0.0] * 5
     week_activities = activities[activities["date"] >= wellness.index[-1] - timedelta(days=6)]
     for values in week_activities["hr_zone_minutes"].dropna():
@@ -122,7 +124,13 @@ def build_dashboard_payload(cache_dir: str | Path = "data") -> dict[str, Any]:
         "trends": trends,
         "sessions": sessions,
         "zones": [round(value) for value in zone_totals],
-        "athlete": athlete_summary(payload.get("profile"), payload.get("activities", []), wellness.index[-1].date()),
+        "athlete": athlete,
+        "benchmarks": athlete_benchmarks(
+            athlete, payload.get("activities", []),
+            [_number(value) for value in wellness["resting_hr"].tail(7).dropna()],
+            [_number(value) for value in wellness["sleep_hours"].tail(14).dropna()],
+            wellness.index[-1].date(), is_strength_activity,
+        ),
     }
 
 

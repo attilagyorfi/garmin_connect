@@ -14,7 +14,8 @@ dom.window.HTMLElement.prototype.attachEvent = () => {};
 globalThis.ResizeObserver = class { observe() {} unobserve() {} disconnect() {} };
 const dashboardFixture={
   today:"2026-08-19",readiness:78,confidence:"magas",decision:{title:"Zone 2 alapozás",duration:"45–70 perc",intensity:"közepes",rationale:"Teszt regenerációs indoklás."},week:{total_load:420,change_pct:4,recommendations:["Tartsd a kiegyensúlyozott struktúrát."]},
-  sessions:[{id:"test-activity",date:"2026-08-18",type:"Futás",name:"Teszt Zone 2 futás",durationMin:48,avgHr:137,distanceKm:8.2,load:64}],heat:[],metrics:[],trends:[],zones:[0,48,0,0,0]
+  sessions:[{id:"test-activity",date:"2026-08-18",type:"Futás",name:"Teszt Zone 2 futás",durationMin:48,avgHr:137,distanceKm:8.2,load:64}],heat:[],metrics:[],trends:[],zones:[0,48,0,0,0],
+  benchmarks:{profile:{sex:"male",age:35},demo:false,sources:[{key:"hunt2013",label:"HUNT 3 Fitness Study",citation:"Loe H et al. PLoS ONE 2013",url:"https://doi.org/10.1371/journal.pone.0064319",license:"CC BY 4.0"}],cards:[{key:"vo2max",title:"VO2max – aerob kapacitás",status:"ok",value:51,valueText:"51,0 ml/kg/perc",percentile:60,atLeast:false,level:2,category:"jó",cohort:"30–39 éves férfiak",headline:"Jobb, mint a veled egykorú férfiak kb. 60%-áé.",detail:"Referencia.",trend:null,nextGoal:"+4,4 ml/kg/perc kell a „kiváló” szinthez (80. percentilis).",confidence:"közepes",caveat:"Becsült érték.",sources:["hunt2013"]},{key:"steps",title:"Napi lépésszám",status:"missing",headline:"Nincs napi lépésszám adat.",valueText:"—",percentile:null,level:null,category:null,confidence:null,sources:["hunt2013"]}]}
 };
 const cloudPatches=[];
 let dashboardAvailable=false;
@@ -51,7 +52,7 @@ try {
   await act(async () => new Promise(resolve=>setTimeout(resolve,5)));
   if (!document.querySelector(".content")?.textContent.includes("Első Garmin-szinkron")) throw new Error("Szinkronizált adat nélkül nem a szinkronkapu jelent meg.");
   const lockedNav=[...document.querySelectorAll(".sidebar nav button.locked")];
-  if (lockedNav.map(node=>node.textContent.trim()).join(",")!=="Naptár,Trendek,Cél,Insights,Napló"||!lockedNav.every(node=>node.disabled)) throw new Error("Hibás zárolt menüpontok: "+lockedNav.map(node=>node.textContent.trim()).join(","));
+  if (lockedNav.map(node=>node.textContent.trim()).join(",")!=="Naptár,Trendek,Cél,Insights,Hol tartasz?,Napló"||!lockedNav.every(node=>node.disabled)) throw new Error("Hibás zárolt menüpontok: "+lockedNav.map(node=>node.textContent.trim()).join(","));
   if (document.querySelector(".sync-gate-action .primary")?.disabled) throw new Error("Csatlakoztatott Garmin-fióknál a szinkron gomb nem indítható.");
   if (!document.querySelector(".sidebar .profile")?.textContent.includes("Garmin csatlakoztatva")) throw new Error("Az oldalsáv nem a valós Garmin-állapotot mutatja.");
   await act(async () => gateRoot.unmount());
@@ -87,12 +88,12 @@ try {
   if (![...Array(localStorage.length).keys()].map(index=>localStorage.key(index)).some(key=>key?.startsWith("hybrid-checkin-"))) throw new Error("A napi check-in nem mentődött el.");
   if (!cloudPatches.some(patch=>patch.checkin?.date==="2026-08-19")) throw new Error("A napi check-in nem indított Neon-mentést.");
   console.log("OK napi check-in és biztonsági felülírás");
-  for (const label of ["Naptár", "Trendek", "Cél", "Insights", "Napló", "Profil", "Beállítások"]) {
+  for (const label of ["Naptár", "Trendek", "Cél", "Insights", "Hol tartasz?", "Napló", "Profil", "Beállítások"]) {
     const button = [...document.querySelectorAll("button")].find(node => node.textContent.trim() === label);
     if (!button) throw new Error(`Hiányzó navigációs gomb: ${label}`);
     await act(async () => button.click());
     const content = document.querySelector(".content")?.textContent || "";
-    if (!content.includes(label === "Insights" ? "Mi működik nálam" : label === "Cél" ? "Felkészültség" : label === "Napló" ? "Edzések" : label === "Naptár" ? "Terv és tény" : label === "Trendek" ? "Terhelés és forma" : label)) {
+    if (!content.includes(label === "Insights" ? "Mi működik nálam" : label === "Cél" ? "Felkészültség" : label === "Napló" ? "Edzések" : label === "Naptár" ? "Terv és tény" : label === "Trendek" ? "Terhelés és forma" : label === "Hol tartasz?" ? "Kivel hasonlítunk?" : label)) {
       throw new Error(`A(z) ${label} oldal nem renderelődött.`);
     }
     if (label === "Naptár") {
@@ -166,6 +167,15 @@ try {
       await act(async () => edit.click());
       if (!document.querySelector(".content")?.textContent.includes("Profil")) throw new Error("A Cél oldalról nem nyitható meg a Profil.");
       console.log("OK célfelkészültség és profilszerkesztés");
+    }
+    if (label === "Hol tartasz?") {
+      await act(async () => new Promise(resolve=>setTimeout(resolve,5)));
+      const cards=[...document.querySelectorAll(".benchmark-card")];
+      if (cards.length!==2||!cards[0].textContent.includes("≈ 60. percentilis")||!cards[0].querySelector(".level-chip.level-2")) throw new Error("A VO2max összevetés kártyája hiányos.");
+      if (!cards[1].classList.contains("missing")||!cards[1].textContent.includes("Nincs napi lépésszám adat.")) throw new Error("A hiányzó adat nem jelenik meg érthetően.");
+      if (!document.querySelector("#forras-hunt2013")?.textContent.includes("CC BY 4.0")) throw new Error("A forráslista hiányzik.");
+      if (document.querySelector(".content svg.lucide-circle-help")) throw new Error("Kérdőjel-ikon került az összevetés oldalra.");
+      console.log("OK forrásolt korcsoportos összevetés");
     }
     if (label === "Napló") {
       await act(async () => new Promise(resolve=>setTimeout(resolve,5)));

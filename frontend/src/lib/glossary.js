@@ -17,5 +17,10 @@ export const metricGlossary={
   "Táv":"Az edzés során megtett távolság. Önmagában nem mutatja a nehézséget: a tempóval, szintemelkedéssel és pulzussal együtt értelmezendő.",
   "Edzésgyakoriság":"Az egy hétre jutó edzések átlagos száma. A következetességet jelzi, de a több alkalom nem feltétlenül jobb, ha a regeneráció nem elég.",
   "Felkészültség":"A célodhoz szükséges következetesség, terhelés, egyensúly, regeneráció és célspecifikusság 0–100-as összesítése. Az alacsonyabb részpontszámok jelölik a fejlesztendő területeket.",
+  "VO2max":"A szervezet maximális oxigénfelvevő képessége testsúlykilogrammonként (ml/kg/perc). Az állóképesség egyik legjobb mutatója; magasabb érték jobb aerob teljesítőképességet jelez. A Garmin pulzusból és tempóból becsüli.",
+  "Percentilis":"Megmutatja, a hasonló korú és nemű emberek hány százaléka ér el nálad gyengébb eredményt. A 80. percentilis azt jelenti, hogy jobb vagy a csoport kb. 80%-ánál.",
+  "Szint":"A percentilisből képzett, motiváló skála: építkező (25. alatt), átlagos (25–59.), jó (60–79.), kiváló (80–94.), elit (95. felett). Percentilis nélküli mutatóknál az ajánláshoz mért teljesülés adja.",
+  "Fittségi kor":"A Garmin becslése arról, hogy edzettséged alapján hány éves átlagembernek felelsz meg. Ha alacsonyabb a naptári korodnál, az az átlagnál jobb állapotot jelez.",
+  "Napi lépésszám":"Az átlagos napi lépések száma az elmúlt 4 hétben. A rendszeres, napi mozgás mennyiségét mutatja az edzéseken kívül is.",
   "Időkeret":"A vállalt heti edzésidő teljesülési aránya. A tartós elmaradás túl feszes tervet, a tartós túllépés túlzott terhelést jelezhet.",
 };
