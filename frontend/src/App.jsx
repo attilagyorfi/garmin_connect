@@ -8,6 +8,7 @@ import { accentOptions } from "./lib/accents.js";
 import { fetchCloudState, mergeCloudState, patchCloudState } from "./lib/api.js";
 import { defaultProfile, readProfile } from "./lib/profile.js";
 import { AuthScreen } from "./pages/AuthScreen.jsx";
+import { BenchmarksPage } from "./pages/BenchmarksPage.jsx";
 import { GoalPage } from "./pages/GoalPage.jsx";
 import { InsightsPage } from "./pages/InsightsPage.jsx";
 import { LiveJournalPage } from "./pages/LiveJournalPage.jsx";
@@ -32,7 +33,7 @@ export function App(){
   const checkData=()=>fetch("/api/dashboard").then(response=>setDataReady(response.ok)).catch(()=>setDataReady(false));
   useEffect(()=>{if(!user)return;setDataReady(null);checkData();fetch("/api/garmin").then(response=>response.ok?response.json():null).then(setGarminStatus).catch(()=>{})},[user?.id]);
   const logout=async()=>{await fetch("/api/auth",{method:"DELETE"}).catch(()=>{});setUser(null);setCloudState(null);setDataReady(null);setGarminStatus(null)};
-  const pages={"Ma":<TodayLive profile={profile} cloudState={cloudState} onCloudPatch={saveCloudPatch} onDataChanged={checkData}/>,"Naptár":<PersistentCalendarPage profile={profile} cloudState={cloudState} onCloudPatch={saveCloudPatch}/>,"Trendek":<LiveTrendsPage profile={profile}/>,"Cél":<GoalPage profile={profile} onEdit={()=>setActive("Profil")} cloudState={cloudState} onCloudPatch={saveCloudPatch}/>,"Insights":<InsightsPage profile={profile}/>,"Napló":<LiveJournalPage cloudState={cloudState} onCloudPatch={saveCloudPatch}/>,"Profil":<ProfilePage profile={profile} onSave={saveProfileCloud}/>,"Beállítások":<SettingsPage accent={accent} onAccent={applyAccentCloud} profile={profile} onProfileSave={saveProfileCloud} user={user} onLogout={logout} onGarminStatus={setGarminStatus}/>};
+  const pages={"Ma":<TodayLive profile={profile} cloudState={cloudState} onCloudPatch={saveCloudPatch} onDataChanged={checkData}/>,"Naptár":<PersistentCalendarPage profile={profile} cloudState={cloudState} onCloudPatch={saveCloudPatch}/>,"Trendek":<LiveTrendsPage profile={profile}/>,"Cél":<GoalPage profile={profile} onEdit={()=>setActive("Profil")} cloudState={cloudState} onCloudPatch={saveCloudPatch}/>,"Insights":<InsightsPage profile={profile}/>,"Hol tartasz?":<BenchmarksPage/>,"Napló":<LiveJournalPage cloudState={cloudState} onCloudPatch={saveCloudPatch}/>,"Profil":<ProfilePage profile={profile} onSave={saveProfileCloud}/>,"Beállítások":<SettingsPage accent={accent} onAccent={applyAccentCloud} profile={profile} onProfileSave={saveProfileCloud} user={user} onLogout={logout} onGarminStatus={setGarminStatus}/>};
   const gated=dataReady!==true&&DATA_PAGES.includes(active),gate=dataReady===null?<p className="sync-gate-loading">Adatok ellenőrzése…</p>:<SyncGate garminStatus={garminStatus} onGarminStatus={setGarminStatus} onDataChanged={checkData}/>;
   const finishSplash=()=>{globalThis.sessionStorage?.setItem("hybrid-splash-shown","1");setShowSplash(false)};
   if(!authReady)return <div className="auth-loading"><img src={brandMarkUrl} alt=""/><span>Biztonságos munkamenet ellenőrzése…</span></div>;
