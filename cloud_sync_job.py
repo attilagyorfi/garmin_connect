@@ -16,6 +16,7 @@ from typing import Any
 from cloud_cache import SCHEMA_READY, load_user_json, save_user_json, sync_lock
 from cloud_dashboard import DASHBOARD_KEY, RAW_CACHE_KEY
 from dashboard_api import build_dashboard_payload
+from garmin_profile import fetch_profile_metrics, strength_set_candidates, summarize_exercise_sets
 from garmin_sync import GarminSync, GarminSyncError, _first_number, _sleep_score
 from garmin_connection import load_credentials, load_tokens, save_tokens
 
@@ -23,6 +24,7 @@ from garmin_connection import load_credentials, load_tokens, save_tokens
 SYNC_JOB_KEY = "garmin_sync_job_v2"
 ACTIVITY_PAGE_SIZE = 100
 HR_ZONE_CHUNK = 8
+STRENGTH_SET_CHUNK = 8
 WELLNESS_CHUNK = 5
 
 
@@ -103,7 +105,7 @@ def _public(job: dict[str, Any] | None) -> dict[str, Any]:
         return {"status": "idle", "phase": "idle", "progress": 0, "message": "Még nem indult szinkron."}
     return {key: job.get(key) for key in (
         "run_id", "status", "phase", "progress", "message", "activities_fetched",
-        "activity_offset", "hr_zones_done", "hr_zones_total", "wellness_done",
+        "activity_offset", "hr_zones_done", "hr_zones_total", "strength_sets_done", "strength_sets_total", "wellness_done",
         "wellness_total", "started_at", "updated_at", "completed_at", "partial_errors",
     ) if job.get(key) is not None}
 
@@ -196,9 +198,36 @@ def _advance_hr_zones(job: dict[str, Any], sync: GarminSync, store: SyncStore) -
     done = min(len(ids), start + HR_ZONE_CHUNK)
     job["hr_zones_done"] = done
     if done < len(ids):
-        job.update(progress=32 + round(18 * done / max(1, len(ids))), message=f"Pulzuszónák: {done}/{len(ids)} aktivitás.")
+        job.update(progress=32 + round(12 * done / max(1, len(ids))), message=f"Pulzuszónák: {done}/{len(ids)} aktivitás.")
         return
     job.pop("hr_zone_ids", None)
+    candidates = strength_set_candidates(_merged_activities(store))
+    job.update(phase="strength_sets", strength_set_ids=candidates, strength_sets_total=len(candidates), strength_sets_done=0, progress=44, message="Erőedzés-sorozatok betöltése…")
+
+
+def _advance_strength_sets(job: dict[str, Any], sync: GarminSync, store: SyncStore) -> None:
+    client = sync.client
+    assert client is not None
+    ids = job.get("strength_set_ids", [])
+    start = int(job.get("strength_sets_done", 0))
+    errors = job.setdefault("partial_errors", [])
+    store.stage("activity", {
+        activity_id: {"exercise_sets": summarize_exercise_sets(sync._safe_call(lambda value=activity_id: client.get_activity_exercise_sets(value), {}, errors, f"exercise-sets:{activity_id}"))}
+        for activity_id in ids[start:start + STRENGTH_SET_CHUNK]
+    })
+    done = min(len(ids), start + STRENGTH_SET_CHUNK)
+    job["strength_sets_done"] = done
+    if done < len(ids):
+        job.update(progress=44 + round(6 * done / max(1, len(ids))), message=f"Erőedzés-sorozatok: {done}/{len(ids)} edzés.")
+        return
+    job.pop("strength_set_ids", None)
+    job.update(phase="profile", progress=50, message="VO2max, testösszetétel és sportprofil lekérése…")
+
+
+def _advance_profile(job: dict[str, Any], sync: GarminSync, store: SyncStore) -> None:
+    client = sync.client
+    assert client is not None
+    store.stage("profile", {"latest": fetch_profile_metrics(client, sync._safe_call, job.setdefault("partial_errors", []))})
     start_date = date.fromisoformat(job["earliest_date"])
     total = (date.today() - start_date).days + 1
     job.update(phase="wellness", wellness_cursor=start_date.isoformat(), wellness_total=total, wellness_done=0, progress=52, message="Napi HRV-, alvás- és pulzusadatok visszatöltése…")
@@ -239,6 +268,9 @@ def _finalize(job: dict[str, Any], store: SyncStore) -> None:
     raw = store.base_raw()
     wellness = {str(item.get("date")): item for item in raw.get("wellness", []) if item.get("date")}
     wellness.update(store.staged("wellness"))
+    profile = store.staged("profile").get("latest")
+    if profile:
+        raw["profile"] = profile
     raw.update(
         activities=_merged_activities(store, raw),
         wellness=sorted(wellness.values(), key=lambda item: item["date"]),
@@ -289,6 +321,10 @@ def advance_sync(user_id: str, run_id: str | None = None) -> tuple[dict[str, Any
                     _advance_activities(job, sync, store)
                 elif job["phase"] == "hr_zones":
                     _advance_hr_zones(job, sync, store)
+                elif job["phase"] == "strength_sets":
+                    _advance_strength_sets(job, sync, store)
+                elif job["phase"] == "profile":
+                    _advance_profile(job, sync, store)
                 elif job["phase"] == "wellness":
                     _advance_wellness(job, sync, store)
                 job["updated_at"] = _now()
