@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import brandMarkUrl from "./assets/hybrid-athlete-mark-on-dark.svg";
+import { AssistantPanel } from "./components/AssistantPanel.jsx";
 import { BrandSplash, forceSplashPreview, splashWasShown } from "./components/Brand.jsx";
 import { ExplainabilityLayer, MetricHeaderLayer } from "./components/Explainability.jsx";
 import { Sidebar } from "./components/Sidebar.jsx";
@@ -38,5 +39,5 @@ export function App(){
   const finishSplash=()=>{globalThis.sessionStorage?.setItem("hybrid-splash-shown","1");setShowSplash(false)};
   if(!authReady)return <div className="auth-loading"><img src={brandMarkUrl} alt=""/><span>Biztonságos munkamenet ellenőrzése…</span></div>;
   if(!user)return <AuthScreen onAuthenticated={setUser}/>;
-  return <div className="app"><Sidebar collapsed={collapsed} onToggle={()=>setCollapsed(!collapsed)} active={active} onActive={setActive} profile={profile} locked={dataReady===true?[]:DATA_PAGES.filter(page=>page!=="Ma")} garminStatus={garminStatus}/><div className="content">{gated?gate:pages[active]||<Placeholder page={active}/>}</div><ExplainabilityLayer page={gated?`${active}:gate`:active}/><MetricHeaderLayer page={gated?`${active}:gate`:active}/>{showSplash&&onboarded&&<BrandSplash onDone={finishSplash}/>} {!onboarded&&<PersonalOnboarding profile={{...profile,name:user.name||profile.name}} accent={accent} onAccent={applyAccentCloud} onSave={saveProfileCloud} onDone={()=>{localStorage.setItem("hybrid-onboarding-version","2");setOnboarded(true)}}/>}</div>
+  return <div className="app"><Sidebar collapsed={collapsed} onToggle={()=>setCollapsed(!collapsed)} active={active} onActive={setActive} profile={profile} locked={dataReady===true?[]:DATA_PAGES.filter(page=>page!=="Ma")} garminStatus={garminStatus}/><div className="content">{gated?gate:pages[active]||<Placeholder page={active}/>}</div>{dataReady===true&&<AssistantPanel/>}<ExplainabilityLayer page={gated?`${active}:gate`:active}/><MetricHeaderLayer page={gated?`${active}:gate`:active}/>{showSplash&&onboarded&&<BrandSplash onDone={finishSplash}/>} {!onboarded&&<PersonalOnboarding profile={{...profile,name:user.name||profile.name}} accent={accent} onAccent={applyAccentCloud} onSave={saveProfileCloud} onDone={()=>{localStorage.setItem("hybrid-onboarding-version","2");setOnboarded(true)}}/>}</div>
 }

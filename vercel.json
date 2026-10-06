@@ -23,9 +23,16 @@
     "api/sync.py": {
       "maxDuration": 300,
       "excludeFiles": "{tests/**,frontend/**,data/**,output/**,.pytest-tmp-*/**}"
+    },
+    "api/assistant.py": {
+      "maxDuration": 60,
+      "excludeFiles": "{tests/**,frontend/**,data/**,output/**,.pytest-tmp-*/**}"
     }
   },
   "rewrites": [
-    { "source": "/(.*)", "destination": "/index.html" }
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
   ]
 }

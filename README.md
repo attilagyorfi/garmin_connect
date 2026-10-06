@@ -71,6 +71,12 @@ Regisztráció után Garmin-fiók nélkül is kipróbálható: `python scripts/d
 
 Csatlakoztatott Garmin-fióknál a `python scripts/inspect_garmin_payloads.py <e-mail>` kiírja a sportprofil-végpontok (profil, VO2max, testösszetétel, intenzív percek, lépések, rekordok, erőedzés-sorozatok) válaszainak szerkezetét értékek nélkül, és hogy a `garmin_profile.py` feldolgozói mely mezőket tudták kitölteni.
 
+### AI edzőtárs
+
+Az Edzőtárs chat (`api/assistant.py`, `assistant.py`) a Claude Sonnet 5.5 modellt használja; ehhez szerveroldalon `ANTHROPIC_API_KEY` kell (helyben a `.env.local`-ban, élesben a Vercel környezeti változói között). A modell csak az `assistant_context.py` által összesített adatokat kapja. Felhasználónként napi 15 kérdés és napi tokenkeret érvényes; a memória kikapcsolható és törölhető.
+
+A modell- és promptteszt szintetikus demóadaton fut: `python evals/assistant/run_eval.py --dry-run` (költségbecslés), `--prompts` (rögzített v1 vs. aktuális prompt), alapból Sonnet 5.5 vs. Haiku 4.5. Az eredmények a Gitből kizárt `evals/assistant/results/` mappába kerülnek.
+
 ## Környezeti változók
 
 Másold a `.env.example` tartalmát saját, Gitből kizárt `.env` fájlba vagy állítsd be a platformon:

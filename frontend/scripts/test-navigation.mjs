@@ -20,9 +20,18 @@ const dashboardFixture={
 };
 const cloudPatches=[];
 let dashboardAvailable=false;
+let assistantState={consent:false,memoryEnabled:true,memory:[],conversation:[],usage:{questions:0,limit:15,remaining:15,tokenBudgetLeft:true}};
+const assistantCalls=[];
 let mockedCloudState={version:2,profile:null,accent:"teal",checkins:{},feedback:{},plans:[]};
 globalThis.fetch = async (input,options={}) => {
   const url=String(input);
+  if(url.endsWith("/api/assistant")){
+    if(options.method==="POST"){const payload=JSON.parse(options.body);assistantCalls.push(payload);
+      if(payload.action==="consent")assistantState={...assistantState,consent:payload.value};
+      if(payload.action==="ask")assistantState={...assistantState,conversation:[...assistantState.conversation,{role:"user",content:payload.question},{role:"assistant",content:"**Ma** könnyű nap.\n\n- Zone 2 futás 40 perc\n- Nyújtás"}],memory:[{id:"m1",text:"Este edz."}],usage:{...assistantState.usage,questions:1,remaining:14}};
+      if(payload.action==="deleteMemory")assistantState={...assistantState,memory:[]};}
+    return {ok:true,status:200,json:async()=>({...assistantState,answer:"ok"}),text:async()=>""};
+  }
   if(url.endsWith("/api/dashboard")&&!dashboardAvailable)return {ok:false,status:503,json:async()=>({error:"Még nincs feltöltött Garmin-adat."}),text:async()=>JSON.stringify({error:"Még nincs feltöltött Garmin-adat."})};
   if(url.endsWith("/api/auth"))return {ok:true,status:200,json:async()=>({user:{id:"test-user",email:"attilla@example.com",name:"Attila"}}),text:async()=>""};
   if(url.endsWith("/api/garmin"))return {ok:true,status:200,json:async()=>({status:"connected",email_hint:"at••••@example.com"}),text:async()=>""};
@@ -82,6 +91,26 @@ try {
   if (!tips[1].open||!tips[1].textContent.includes("MIT TEGYÉL?Feküdj le korábban.")) throw new Error("A tipp indoklása nem nyitható le.");
   if (!document.querySelector(".coaching-subhead")) throw new Error("A célhoz kötött jelzések eltűntek.");
   console.log("OK szabályalapú tippek a Ma oldalon");
+  const launcher=document.querySelector(".assistant-launcher");
+  if (!launcher) throw new Error("Hiányzik az edzőtárs indítógombja.");
+  await act(async()=>launcher.click());
+  await act(async()=>new Promise(resolve=>setTimeout(resolve,5)));
+  const consent=[...document.querySelectorAll(".assistant-consent button")].find(node=>node.textContent.includes("Elfogadom"));
+  if (!consent||!document.querySelector(".assistant-consent")?.textContent.includes("összesített")) throw new Error("A hozzájárulási lépés hiányzik.");
+  await act(async()=>consent.click());
+  const starter=[...document.querySelectorAll(".assistant-starters button")].find(node=>node.textContent==="Mit eddzek holnap?");
+  await act(async()=>starter.click());
+  await act(async()=>new Promise(resolve=>setTimeout(resolve,5)));
+  const reply=document.querySelector(".assistant-message.assistant");
+  if (!reply?.querySelector("b")||reply.querySelectorAll("li").length!==2) throw new Error("A válasz nem jelent meg formázva.");
+  if (!document.querySelector(".assistant-head small")?.textContent.includes("14/15")) throw new Error("A napi keret nem frissült.");
+  if (!assistantCalls.some(call=>call.action==="ask"&&call.question==="Mit eddzek holnap?")) throw new Error("A kérdés nem ment el.");
+  await act(async()=>document.querySelector('.assistant-head-actions button[title="Memória"]').click());
+  if (!document.querySelector(".assistant-memory")?.textContent.includes("Este edz.")) throw new Error("A memória nem látható.");
+  await act(async()=>document.querySelector(".assistant-memory li button").click());
+  if (!assistantCalls.some(call=>call.action==="deleteMemory"&&call.id==="m1")) throw new Error("A memóriapont nem törölhető.");
+  await act(async()=>document.querySelector('.assistant-head-actions button[aria-label="Bezárás"]').click());
+  console.log("OK edzőtárs chat: hozzájárulás, kérdés, keret, memória");
   const sync = [...document.querySelectorAll("button")].find(node => node.textContent.trim() === "SZINKRON");
   await act(async () => sync.click());
   if (!document.querySelector(".header-actions")?.textContent.includes("Az online Garmin-szinkron még nincs bekötve")) throw new Error("A nem JSON szinkronhiba nem kapott érthető üzenetet.");
