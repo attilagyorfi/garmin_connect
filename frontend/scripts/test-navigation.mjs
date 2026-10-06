@@ -15,6 +15,7 @@ globalThis.ResizeObserver = class { observe() {} unobserve() {} disconnect() {} 
 const dashboardFixture={
   today:"2026-08-19",readiness:78,confidence:"magas",decision:{title:"Zone 2 alapozás",duration:"45–70 perc",intensity:"közepes",rationale:"Teszt regenerációs indoklás."},week:{total_load:420,change_pct:4,recommendations:["Tartsd a kiegyensúlyozott struktúrát."]},
   sessions:[{id:"test-activity",date:"2026-08-18",type:"Futás",name:"Teszt Zone 2 futás",durationMin:48,avgHr:137,distanceKm:8.2,load:64}],heat:[],metrics:[],trends:[],zones:[0,48,0,0,0],
+  coaching:{tips:[{key:"record",tone:"celebrate",priority:75,title:"Új egyéni csúcs: 5 km",message:"Új legjobb eredmény.",why:"A Garmin új rekordot rögzített.",action:"Ünnepeld meg."},{key:"sleep",tone:"warn",priority:75,title:"Alváshiány gyűlik",message:"Keveset aludtál.",why:"Átlag 6,1 óra.",action:"Feküdj le korábban."}],weekly:{weekStart:"2026-08-10",weekEnd:"2026-08-16",sessions:4,minutes:250,load:900,strengthMinutes:90,changePct:12,sleepHours:7.1,hrvChangePct:-3,summary:"A múlt héten 4 edzés, 4,2 óra edzésidő.",highlights:["Új egyéni csúcs: 5 km"],focus:"Feküdj le korábban."}},
   benchmarks:{profile:{sex:"male",age:35},demo:false,sources:[{key:"hunt2013",label:"HUNT 3 Fitness Study",citation:"Loe H et al. PLoS ONE 2013",url:"https://doi.org/10.1371/journal.pone.0064319",license:"CC BY 4.0"}],cards:[{key:"vo2max",title:"VO2max – aerob kapacitás",status:"ok",value:51,valueText:"51,0 ml/kg/perc",percentile:60,atLeast:false,level:2,category:"jó",cohort:"30–39 éves férfiak",headline:"Jobb, mint a veled egykorú férfiak kb. 60%-áé.",detail:"Referencia.",trend:null,nextGoal:"+4,4 ml/kg/perc kell a „kiváló” szinthez (80. percentilis).",confidence:"közepes",caveat:"Becsült érték.",sources:["hunt2013"]},{key:"steps",title:"Napi lépésszám",status:"missing",headline:"Nincs napi lépésszám adat.",valueText:"—",percentile:null,level:null,category:null,confidence:null,sources:["hunt2013"]}]}
 };
 const cloudPatches=[];
@@ -75,6 +76,12 @@ try {
   if (!document.querySelector('.metric-detail')?.textContent.includes("MIT JELENT MOST?")) throw new Error("A readiness részletes értelmezése nem nyitható meg.");
   if (!document.querySelector('.metric-detail')?.textContent.includes("ADATMINŐSÉG")) throw new Error("A readiness adatminőségi magyarázata hiányzik.");
   console.log("OK readiness részletek és adatminőség");
+  const tips=[...document.querySelectorAll(".coaching-tip")];
+  if (tips.length!==2||!tips[0].classList.contains("tone-celebrate")) throw new Error("A tippek nem jelentek meg a Ma oldalon.");
+  await act(async()=>tips[1].querySelector("summary").click());
+  if (!tips[1].open||!tips[1].textContent.includes("MIT TEGYÉL?Feküdj le korábban.")) throw new Error("A tipp indoklása nem nyitható le.");
+  if (!document.querySelector(".coaching-subhead")) throw new Error("A célhoz kötött jelzések eltűntek.");
+  console.log("OK szabályalapú tippek a Ma oldalon");
   const sync = [...document.querySelectorAll("button")].find(node => node.textContent.trim() === "SZINKRON");
   await act(async () => sync.click());
   if (!document.querySelector(".header-actions")?.textContent.includes("Az online Garmin-szinkron még nincs bekötve")) throw new Error("A nem JSON szinkronhiba nem kapott érthető üzenetet.");
@@ -167,6 +174,11 @@ try {
       await act(async () => edit.click());
       if (!document.querySelector(".content")?.textContent.includes("Profil")) throw new Error("A Cél oldalról nem nyitható meg a Profil.");
       console.log("OK célfelkészültség és profilszerkesztés");
+    }
+    if (label === "Insights") {
+      const digest=document.querySelector(".weekly-digest");
+      if (!digest?.textContent.includes("08.10.–08.16.")||!digest.textContent.includes("+12%")||!digest.textContent.includes("FÓKUSZ A KÖVETKEZŐ HÉTRE")) throw new Error("A heti összefoglaló hiányos.");
+      console.log("OK heti összefoglaló");
     }
     if (label === "Hol tartasz?") {
       await act(async () => new Promise(resolve=>setTimeout(resolve,5)));
