@@ -69,6 +69,8 @@ npm --prefix frontend run dev
 
 Regisztráció után Garmin-fiók nélkül is kipróbálható: `python scripts/dev_api.py --seed-demo <e-mail>` demó dashboardot ment a fiókhoz.
 
+Csatlakoztatott Garmin-fióknál a `python scripts/inspect_garmin_payloads.py <e-mail>` kiírja a sportprofil-végpontok (profil, VO2max, testösszetétel, intenzív percek, lépések, rekordok, erőedzés-sorozatok) válaszainak szerkezetét értékek nélkül, és hogy a `garmin_profile.py` feldolgozói mely mezőket tudták kitölteni.
+
 ## Környezeti változók
 
 Másold a `.env.example` tartalmát saját, Gitből kizárt `.env` fájlba vagy állítsd be a platformon:

@@ -12,6 +12,8 @@ from typing import Any, Callable
 
 from garminconnect import Garmin
 
+from garmin_profile import fetch_profile_metrics, strength_set_candidates, summarize_exercise_sets
+
 
 class GarminSyncError(RuntimeError):
     pass
@@ -188,6 +190,13 @@ class GarminSync:
                     lambda value=str(activity_id): client.get_activity_hr_in_timezones(value),
                     {}, errors, f"hr-zones:{activity_id}",
                 )
+        strength_ids = set(strength_set_candidates(activities))
+        for activity in activities:
+            if str(activity.get("activityId")) in strength_ids:
+                activity["exercise_sets"] = summarize_exercise_sets(self._safe_call(
+                    lambda value=str(activity["activityId"]): client.get_activity_exercise_sets(value), {}, errors, f"exercise-sets:{activity['activityId']}",
+                ))
+        profile = fetch_profile_metrics(client, self._safe_call, errors)
         cached_wellness = {str(item.get("date")): item for item in cached.get("wellness", []) if item.get("date")}
         wellness: list[dict[str, Any]] = list(cached_wellness.values())
         total_days = (end - start).days + 1
@@ -217,9 +226,20 @@ class GarminSync:
                 cached["fallback_reason"] = "A szinkron nem adott használható adatot; az utolsó érvényes cache látható."
                 return cached
             raise GarminSyncError("A Garmin nem adott használható adatot, és nincs korábbi cache.")
-        payload = {"synced_at": datetime.now().astimezone().isoformat(), "days": "all" if days is None else days, "activities": activities, "wellness": sorted(wellness, key=lambda item: item["date"]), "partial_errors": errors[:20], "backfill_in_progress": False}
+        payload = {"synced_at": datetime.now().astimezone().isoformat(), "days": "all" if days is None else days, "activities": activities, "wellness": sorted(wellness, key=lambda item: item["date"]), "profile": profile, "partial_errors": errors[:20], "backfill_in_progress": False}
         self.save_cache(payload)
         return payload
+
+
+def _demo_sets(index: int, kind: str) -> list[dict[str, Any]] | None:
+    if "strength" not in kind:
+        return None
+    progress = index / 30
+    return [
+        {"category": "SQUAT", "exercise": "BARBELL_BACK_SQUAT", "reps": 5, "weight_kg": round(95 + progress * 2.5, 1)},
+        {"category": "BENCH_PRESS", "exercise": "BARBELL_BENCH_PRESS", "reps": 5, "weight_kg": round(72.5 + progress * 1.5, 1)},
+        {"category": "DEADLIFT", "exercise": "BARBELL_DEADLIFT", "reps": 3, "weight_kg": round(125 + progress * 3, 1)},
+    ]
 
 
 def demo_data(days: int = 90, seed: int = 23) -> dict[str, Any]:
@@ -243,8 +263,31 @@ def demo_data(days: int = 90, seed: int = 23) -> dict[str, Any]:
             activity_id = str(10000 + i)
             zone_weights = [0.12, 0.58, 0.20, 0.08, 0.02] if kind in {"running", "hiking"} else [0.18, 0.30, 0.28, 0.18, 0.06]
             zone_payload = [{"zoneNumber": zone, "secsInZone": round(duration_min * 60 * weight)} for zone, weight in enumerate(zone_weights, 1)] if kind in {"running", "hiking"} else None
-            activities.append({"activityId": activity_id, "activityName": kind.replace("_", " ").title(), "startTimeLocal": f"{day.isoformat()} 07:00:00", "activityType": {"typeKey": kind}, "duration": duration_min * 60, "calories": round(duration_min * rng.uniform(6.5, 10)), "averageHR": rng.randint(118, 148), "maxHR": rng.randint(155, 185), "distance": rng.randint(5000, 18000) if kind in {"running", "hiking"} else 0, "elevationGain": rng.randint(100, 1100) if kind == "hiking" else rng.randint(0, 180), "elevationLoss": rng.randint(100, 1000) if kind == "hiking" else rng.randint(0, 150), "hr_zone_minutes": zone_payload})
+            activities.append({"activityId": activity_id, "activityName": kind.replace("_", " ").title(), "startTimeLocal": f"{day.isoformat()} 07:00:00", "activityType": {"typeKey": kind}, "duration": duration_min * 60, "calories": round(duration_min * rng.uniform(6.5, 10)), "averageHR": rng.randint(118, 148), "maxHR": rng.randint(155, 185), "distance": rng.randint(5000, 18000) if kind in {"running", "hiking"} else 0, "elevationGain": rng.randint(100, 1100) if kind == "hiking" else rng.randint(0, 180), "elevationLoss": rng.randint(100, 1000) if kind == "hiking" else rng.randint(0, 150), "hr_zone_minutes": zone_payload, "exercise_sets": _demo_sets(i, kind)})
             feedback[activity_id] = {"rpe": 7 if i % 6 == 0 else 5, "feeling": "planned", "focus": "lower body" if kind != "running" else "cardio", "pack_kg": 10 if kind == "hiking" else None}
         if i % 4 == 0 or illness:
             checkins[day.isoformat()] = {"soreness": 4 if i == days - 5 else 2, "stress": 3, "motivation": 4, "fatigue": 4 if fatigue else 2, "pain": "mild" if i == days - 5 else "none", "illness": illness, "note": "Deterministic demo check-in"}
-    return {"synced_at": datetime.now().astimezone().isoformat(), "days": days, "activities": activities, "wellness": wellness, "demo_checkins": checkins, "demo_feedback": feedback, "demo": True}
+    return {"synced_at": datetime.now().astimezone().isoformat(), "days": days, "activities": activities, "wellness": wellness, "profile": demo_profile(end), "demo_checkins": checkins, "demo_feedback": feedback, "demo": True}
+
+
+def demo_profile(today: date | None = None) -> dict[str, Any]:
+    """Deterministic athlete profile matching the demo activities (35-year-old hybrid athlete)."""
+    today = today or date.today()
+    months = [today - timedelta(days=30 * index) for index in range(11, -1, -1)]
+    weeks = [today - timedelta(days=today.weekday() + 7 * index) for index in range(11, -1, -1)]
+    return {
+        "version": 1, "fetched_at": datetime.now().astimezone().isoformat(), "demo": True,
+        "sex": "male", "birth_date": date(today.year - 35, 3, 14).isoformat(), "height_cm": 180.0, "weight_kg": 78.4,
+        "vo2max_running": 51.0, "vo2max_cycling": None,
+        "vo2max_history": [{"date": day.isoformat(), "running": round(47.5 + index * 0.32, 1)} for index, day in enumerate(months)],
+        "fitness_age": 29.0, "chronological_age": 35.0, "achievable_fitness_age": 27.0,
+        "body_history": [{"date": day.isoformat(), "weight_kg": round(80.6 - index * 0.2, 1), "bmi": round((80.6 - index * 0.2) / 3.24, 1), "body_fat_pct": round(18.4 - index * 0.15, 1), "muscle_mass_kg": None} for index, day in enumerate(months)],
+        "body_weight_kg": 78.4, "bmi": 24.2, "body_fat_pct": 16.7,
+        "intensity_weeks": [{"week_start": day.isoformat(), "moderate": 150 + (index % 3) * 20, "vigorous": 45 + (index % 4) * 10, "equivalent": 150 + (index % 3) * 20 + 2 * (45 + (index % 4) * 10), "goal": 150} for index, day in enumerate(weeks)],
+        "daily_steps": [{"date": (today - timedelta(days=index)).isoformat(), "steps": 8200 + (index * 937) % 5200, "goal": 10000} for index in range(27, -1, -1)],
+        "personal_records": [{"type_id": 3, "activity_type": "running", "label": "5 km", "value": 1335.0, "date": (today - timedelta(days=40)).isoformat(), "activity_id": None},
+                             {"type_id": 4, "activity_type": "running", "label": "10 km", "value": 2856.0, "date": (today - timedelta(days=75)).isoformat(), "activity_id": None}],
+        "race_predictions": {"5k": 1310.0, "10k": 2790.0, "half_marathon": 6240.0, "marathon": 13380.0},
+        "endurance_score": 6420.0, "endurance_classification": 4,
+        "sources": {name: "ok" for name in ("user_profile", "max_metrics", "fitness_age", "body_composition", "intensity_minutes", "daily_steps", "personal_records", "race_predictions", "endurance_score")},
+    }

@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from analytics import build_daily_frames, explainable_readiness, red_flags, training_decision, weekly_summary
+from garmin_profile import athlete_summary
 from garmin_sync import GarminSync, GarminSyncError, demo_data
 from storage import Database
 
@@ -121,6 +122,7 @@ def build_dashboard_payload(cache_dir: str | Path = "data") -> dict[str, Any]:
         "trends": trends,
         "sessions": sessions,
         "zones": [round(value) for value in zone_totals],
+        "athlete": athlete_summary(payload.get("profile"), payload.get("activities", []), wellness.index[-1].date()),
     }
 
 

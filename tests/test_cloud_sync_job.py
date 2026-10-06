@@ -2,7 +2,7 @@ from datetime import date, timedelta
 
 import cloud_sync_job
 from cloud_sync_job import (
-    _advance_activities, _advance_hr_zones, _advance_wellness, _authenticated_sync,
+    _advance_activities, _advance_hr_zones, _advance_profile, _advance_strength_sets, _advance_wellness, _authenticated_sync,
     _earliest_activity_date, _merged_activities, _new_job, _public,
 )
 
@@ -95,7 +95,7 @@ def test_hr_zone_step_stages_partial_records_that_merge_onto_cached_activities()
     job = {**_new_job(), "phase": "hr_zones", "hr_zone_ids": ["7"], "earliest_date": date.today().isoformat()}
     _advance_hr_zones(job, Sync(Client()), store)
     assert store.writes == [("activity", {"7": {"hr_zone_minutes": [{"zoneNumber": 1, "secsInZone": 600}]}})]
-    assert job["phase"] == "wellness"
+    assert job["phase"] == "strength_sets"
     assert "hr_zone_ids" not in job
     merged = _merged_activities(store)
     assert merged == [{"activityId": 7, "activityName": "Futás", "hr_zone_minutes": [{"zoneNumber": 1, "secsInZone": 600}]}]
@@ -146,3 +146,24 @@ def test_authenticated_sync_reuses_stored_tokens_and_saves_refreshed_ones(monkey
     _authenticated_sync("user-1", "run-1")
     assert seen == {"email": "a@example.com", "tokens": '{"di_token": "old"}'}
     assert saved == ['{"di_token": "new"}']
+
+
+def test_strength_sets_step_stages_summaries_then_moves_to_profile():
+    class Client:
+        def get_activity_exercise_sets(self, activity_id):
+            return {"exerciseSets": [{"setType": "ACTIVE", "repetitionCount": 5, "weight": 60000.0, "exercises": [{"category": "BENCH_PRESS", "probability": 99}]}]}
+
+    store = FakeStore({"activities": [{"activityId": 5}]})
+    job = {**_new_job(), "phase": "strength_sets", "strength_set_ids": ["5"], "earliest_date": date.today().isoformat()}
+    _advance_strength_sets(job, Sync(Client()), store)
+    assert store.staged("activity")["5"]["exercise_sets"] == [{"category": "BENCH_PRESS", "exercise": "BENCH_PRESS", "reps": 5, "weight_kg": 60.0}]
+    assert job["phase"] == "profile" and "strength_set_ids" not in job
+
+
+def test_profile_step_stages_profile_then_starts_wellness(monkeypatch):
+    monkeypatch.setattr(cloud_sync_job, "fetch_profile_metrics", lambda client, safe_call, errors: {"version": 1, "sex": "female"})
+    store = FakeStore()
+    job = {**_new_job(), "phase": "profile", "earliest_date": date.today().isoformat()}
+    _advance_profile(job, Sync(object()), store)
+    assert store.staged("profile") == {"latest": {"version": 1, "sex": "female"}}
+    assert job["phase"] == "wellness" and job["wellness_total"] == 1
