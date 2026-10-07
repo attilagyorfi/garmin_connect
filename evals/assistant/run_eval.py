@@ -82,7 +82,7 @@ class Verdict(BaseModel):
 
 def base_context() -> dict[str, Any]:
     with tempfile.TemporaryDirectory(prefix="assistant-eval-") as directory:
-        dashboard = build_dashboard_payload(directory)
+        dashboard = build_dashboard_payload(directory, allow_demo=True)
     return build_context(dashboard, app_profile=APP_PROFILE)
 
 

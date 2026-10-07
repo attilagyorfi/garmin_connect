@@ -89,42 +89,78 @@ def extract_hr_zone_minutes(payload: Any) -> list[float]:
     """Normalize Garmin HR-zone payload variants to five minute values.
 
     Garmin's unofficial response shape has changed over time. Known variants
-    include a list of zone dictionaries, a nested ``zones`` list and mappings
-    such as ``zone1``. Unknown or malformed values safely become zero.
+    include a list of zone dictionaries, nested response envelopes and mappings
+    such as ``zone1``. ``zoneIndex`` is handled as a zero-based index, while
+    ``zoneNumber`` remains one-based. Unknown or malformed values safely become
+    zero.
     """
+    def first_number(item: dict[str, Any], keys: tuple[str, ...]) -> float | None:
+        for key in keys:
+            if key in item:
+                value = number(item.get(key))
+                if value is not None:
+                    return value
+        return None
+
+    def parse_zone_number(item: dict[str, Any], position: int) -> int:
+        if "zoneIndex" in item:
+            index = number(item.get("zoneIndex"))
+            if index is not None and index.is_integer() and 0 <= index <= 4:
+                return int(index) + 1
+        for key in ("zoneNumber", "zone"):
+            if key not in item:
+                continue
+            raw = item.get(key)
+            parsed = number(raw)
+            if parsed is None:
+                digits = "".join(character for character in str(raw) if character.isdigit())
+                parsed = number(digits)
+            if parsed is not None and parsed.is_integer() and 1 <= parsed <= 5:
+                return int(parsed)
+        return position
+
     zones = [0.0] * 5
     candidate = payload
-    if isinstance(candidate, dict):
-        for key in ("hrTimeInZones", "heartRateZones", "zones", "zoneData"):
-            if isinstance(candidate.get(key), (list, dict)):
-                candidate = candidate[key]
-                break
+    for _ in range(3):
+        if not isinstance(candidate, dict):
+            break
+        nested = next(
+            (
+                candidate[key]
+                for key in ("hrTimeInZones", "heartRateZones", "zones", "zoneData", "timeInZones", "data", "result")
+                if isinstance(candidate.get(key), (list, dict))
+            ),
+            None,
+        )
+        if nested is None:
+            break
+        candidate = nested
     if isinstance(candidate, dict):
         for key, raw in candidate.items():
             digits = "".join(character for character in str(key) if character.isdigit())
             if not digits:
                 continue
-            zone_number = int(digits)
-            if not 1 <= zone_number <= 5:
+            zone_id = int(digits)
+            if not 1 <= zone_id <= 5:
                 continue
             if isinstance(raw, dict):
-                seconds = number(raw.get("secsInZone") or raw.get("seconds") or raw.get("duration"))
-                minutes = number(raw.get("minutes"))
+                seconds = first_number(raw, ("secsInZone", "seconds", "duration", "value", "timeInZone", "timeInZoneSeconds", "totalSeconds"))
+                minutes = first_number(raw, ("minutes", "minsInZone", "timeInZoneMinutes"))
             else:
                 seconds, minutes = number(raw), None
-            zones[zone_number - 1] = max(0.0, minutes if minutes is not None else (seconds or 0.0) / 60)
+            zones[zone_id - 1] = max(0.0, minutes if minutes is not None else (seconds or 0.0) / 60)
         return zones
     if not isinstance(candidate, list):
         return zones
     for position, item in enumerate(candidate[:5], start=1):
         if isinstance(item, dict):
-            zone_number = int(number(item.get("zoneNumber") or item.get("zone") or item.get("zoneIndex"), position) or position)
-            seconds = number(item.get("secsInZone") or item.get("seconds") or item.get("duration") or item.get("value"))
-            minutes = number(item.get("minutes"))
+            zone_id = parse_zone_number(item, position)
+            seconds = first_number(item, ("secsInZone", "seconds", "duration", "value", "timeInZone", "timeInZoneSeconds", "totalSeconds"))
+            minutes = first_number(item, ("minutes", "minsInZone", "timeInZoneMinutes"))
         else:
-            zone_number, seconds, minutes = position, number(item), None
-        if 1 <= zone_number <= 5:
-            zones[zone_number - 1] = max(0.0, minutes if minutes is not None else (seconds or 0.0) / 60)
+            zone_id, seconds, minutes = position, number(item), None
+        if 1 <= zone_id <= 5:
+            zones[zone_id - 1] = max(0.0, minutes if minutes is not None else (seconds or 0.0) / 60)
     return zones
 
 
@@ -187,7 +223,7 @@ def build_daily_frames(payload: dict[str, Any], feedback: dict[str, dict[str, An
         wellness = pd.DataFrame(columns=["date", "hrv", "sleep_score", "resting_hr"])
     wellness["date"] = pd.to_datetime(wellness.get("date"), errors="coerce").dt.normalize()
     wellness = wellness.dropna(subset=["date"]).drop_duplicates("date", keep="last").set_index("date").sort_index()
-    for column in ["hrv", "sleep_score", "resting_hr", "sleep_hours", "spo2"]:
+    for column in ["hrv", "hrv_weekly_avg", "hrv_baseline_low", "hrv_baseline_high", "sleep_score", "resting_hr", "sleep_hours", "spo2"]:
         wellness[column] = pd.to_numeric(wellness.get(column), errors="coerce")
 
     rows: list[dict[str, Any]] = []
@@ -207,13 +243,23 @@ def build_daily_frames(payload: dict[str, Any], feedback: dict[str, dict[str, An
             "ascent_m": number(item.get("elevationGain") or item.get("totalElevationGain"), 0.0) or 0.0,
             "descent_m": number(item.get("elevationLoss") or item.get("totalElevationLoss"), 0.0) or 0.0,
             "hr_zone_minutes": item.get("hr_zone_minutes"),
+            "official_activity_load": number(item.get("activityTrainingLoad")),
+            "aerobic_training_effect": number(item.get("aerobicTrainingEffect")),
+            "anaerobic_training_effect": number(item.get("anaerobicTrainingEffect")),
+            "training_effect_label": item.get("trainingEffectLabel"),
+            "vo2_max": number(item.get("vO2MaxValue")),
         }
         zone_minutes = extract_hr_zone_minutes(row["hr_zone_minutes"])
         has_zones = any(zone_minutes)
         row["hr_zone_minutes"] = zone_minutes if has_zones else None
         row["zone2_min"] = zone_minutes[1] if has_zones else np.nan
         row["high_intensity_min"] = sum(zone_minutes[3:5]) if has_zones else np.nan
-        if row["modality"] == "Cardio":
+        official_load = row["official_activity_load"]
+        if official_load is not None:
+            row["cardio_load"] = official_load if row["modality"] != "Strength / Functional" else 0.0
+            row["strength_load"] = official_load if row["modality"] == "Strength / Functional" else 0.0
+            row["load_method"], row["load_confidence"] = "garmin_activity_training_load", "official"
+        elif row["modality"] == "Cardio":
             row["cardio_load"], row["load_method"], row["load_confidence"] = cardio_load(row)
             row["strength_load"] = 0.0
         elif row["modality"] == "Strength / Functional":
@@ -361,8 +407,9 @@ def red_flags(frame: pd.DataFrame, checkin: dict[str, Any] | None = None, sync_a
     return flags
 
 
-def training_decision(result: ReadinessResult, frame: pd.DataFrame, checkin: dict[str, Any] | None = None, flags: list[dict[str, str]] | None = None) -> dict[str, Any]:
-    score = result.score or 0
+def training_decision(result: ReadinessResult, frame: pd.DataFrame, checkin: dict[str, Any] | None = None, flags: list[dict[str, str]] | None = None, score_override: float | None = None) -> dict[str, Any]:
+    score = result.score if score_override is None else score_override
+    score = score or 0
     flags = flags or []
     rules: list[str] = []
     if checkin and checkin.get("illness"):
@@ -393,8 +440,23 @@ def weekly_summary(frame: pd.DataFrame, activities: pd.DataFrame, flags: list[di
     current = frame.tail(7)
     prior = frame.iloc[-14:-7]
     total, previous = current["hybrid_load"].sum(), prior["hybrid_load"].sum()
-    change = ((total / previous - 1) * 100) if previous > 0 else None
     recent_activities = activities[activities["date"] >= current.index.min()] if not activities.empty else activities
+    prior_activities = activities[
+        (activities["date"] >= prior.index.min()) & (activities["date"] <= prior.index.max())
+    ] if not activities.empty and not prior.empty else activities.iloc[0:0]
+    official = recent_activities["official_activity_load"].dropna() if "official_activity_load" in recent_activities else pd.Series(dtype=float)
+    prior_official = prior_activities["official_activity_load"].dropna() if "official_activity_load" in prior_activities else pd.Series(dtype=float)
+    official_coverage = 0 if recent_activities.empty else round(len(official) / len(recent_activities) * 100)
+    prior_official_coverage = 0 if prior_activities.empty else round(len(prior_official) / len(prior_activities) * 100)
+    if recent_activities.empty:
+        reported_total, load_source, change = 0.0, "no_activities", None
+    elif official_coverage == 100:
+        reported_total, load_source = float(official.sum()), "garmin_activity_training_load"
+        previous_reported = float(prior_official.sum()) if prior_official_coverage == 100 else None
+        change = ((reported_total / previous_reported - 1) * 100) if previous_reported and previous_reported > 0 else None
+    else:
+        reported_total, load_source = float(total), "hybrid_estimate"
+        change = ((total / previous - 1) * 100) if previous > 0 else None
     strength_sessions = int((recent_activities.get("modality", pd.Series(dtype=str)) == "Strength / Functional").sum())
     recommendations = []
     if change is not None and change > 20:
@@ -405,7 +467,7 @@ def weekly_summary(frame: pd.DataFrame, activities: pd.DataFrame, flags: list[di
         recommendations.append("A hét elején kezeld a kiemelt red flageket.")
     zone2 = current["zone2_min"].sum(min_count=1) if "zone2_min" in current else np.nan
     high_intensity = current["high_intensity_min"].sum(min_count=1) if "high_intensity_min" in current else np.nan
-    return {"total_load": round(total), "change_pct": None if change is None else round(change), "strength_sessions": strength_sessions, "recovery_days": int((current["hybrid_load"] < 10).sum()), "zone2_min": None if pd.isna(zone2) else round(float(zone2)), "high_intensity_min": None if pd.isna(high_intensity) else round(float(high_intensity)), "flags": len(flags), "recommendations": recommendations[:4] or ["Tartsd a jelenlegi, kiegyensúlyozott struktúrát."]}
+    return {"total_load": round(reported_total), "load_source": load_source, "official_load_coverage_pct": official_coverage, "hybrid_load": round(total), "change_pct": None if change is None else round(change), "strength_sessions": strength_sessions, "recovery_days": int((current["hybrid_load"] < 10).sum()), "zone2_min": None if pd.isna(zone2) else round(float(zone2)), "high_intensity_min": None if pd.isna(high_intensity) else round(float(high_intensity)), "flags": len(flags), "recommendations": recommendations[:4] or ["Tartsd a jelenlegi, kiegyensúlyozott struktúrát."]}
 
 
 def weekly_report_markdown(summary: dict[str, Any], week_end: Any, decision: dict[str, Any], flags: list[dict[str, str]]) -> str:
@@ -413,9 +475,10 @@ def weekly_report_markdown(summary: dict[str, Any], week_end: Any, decision: dic
     end = pd.Timestamp(week_end).date()
     start = end - pd.Timedelta(days=6)
     change = "nincs összehasonlítási alap" if summary.get("change_pct") is None else f"{summary['change_pct']:+d}%"
+    load_label = "Garmin aktivitási terhelések összege" if summary.get("load_source") == "garmin_activity_training_load" else "Hybrid terhelésbecslés"
     lines = [
         "# Heti edzésjelentés", "", f"**Időszak:** {start} – {end}", "",
-        "## Fő mutatók", "", f"- Hibrid terhelés: {summary['total_load']}", f"- Változás: {change}",
+        "## Fő mutatók", "", f"- {load_label}: {summary['total_load']}", f"- Változás: {change}",
         f"- Erőedzések: {summary['strength_sessions']}", f"- Regeneráló napok: {summary['recovery_days']}",
         f"- Zone 2: {summary.get('zone2_min') if summary.get('zone2_min') is not None else 'nincs adat'} perc",
         f"- Magas intenzitás: {summary.get('high_intensity_min') if summary.get('high_intensity_min') is not None else 'nincs adat'} perc", "",

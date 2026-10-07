@@ -83,7 +83,7 @@ def seed_demo(email: str) -> None:
     if not row:
         raise SystemExit(f"Nincs ilyen regisztrált felhasználó: {email}")
     with tempfile.TemporaryDirectory(prefix="hybrid-demo-") as directory:
-        dashboard = build_dashboard_payload(directory)
+        dashboard = build_dashboard_payload(directory, allow_demo=True)
     save_user_json(str(row[0]), DASHBOARD_KEY, dashboard)
     print(f"Demó dashboard elmentve: {email} ({len(dashboard['sessions'])} edzés)")
 
