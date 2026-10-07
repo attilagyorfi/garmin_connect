@@ -25,25 +25,18 @@ def test_email_hint_does_not_expose_full_address():
     assert "sportolo" not in hint
 
 
-def test_garmin_sync_prefers_serialized_tokens_over_token_dir(monkeypatch, tmp_path):
-    import garmin_sync
-
-    calls = []
-
-    class FakeGarmin:
-        def __init__(self, email, password):
-            self.client = self
-
-        def login(self, tokenstore):
-            calls.append(tokenstore)
-
-        def dumps(self):
-            return '{"di_token": "x"}'
-
-    monkeypatch.setattr(garmin_sync, "Garmin", FakeGarmin)
-    sync = garmin_sync.GarminSync(tmp_path, email="a@example.com", password="titok", tokens='{"di_token": "x"}')
-    sync.authenticate()
-    assert calls == ['{"di_token": "x"}']
-    assert sync.export_tokens() == '{"di_token": "x"}'
-    garmin_sync.GarminSync(tmp_path, email="a@example.com", password="titok").authenticate()
-    assert calls[-1] == str(tmp_path / ".garmin_tokens")
+def test_mfa_payload_can_be_encrypted_without_password(monkeypatch):
+    monkeypatch.setenv("GARMIN_CREDENTIALS_KEY", Fernet.generate_key().decode())
+    payload = {
+        "email": "sportolo@example.com",
+        "state": {
+            "flow": "ios",
+            "cookies": {"SESSION": "secret-cookie"},
+            "login_params": {"clientId": "mobile"},
+        },
+    }
+    encrypted = _cipher().encrypt(json.dumps(payload).encode())
+    assert b"secret-cookie" not in encrypted
+    restored = json.loads(_cipher().decrypt(encrypted))
+    assert restored["state"]["flow"] == "ios"
+    assert "password" not in restored

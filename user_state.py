@@ -19,7 +19,11 @@ AVATAR_PRESETS = {"athlete", "strength", "endurance", "classic", "photo"}
 
 
 def empty_state() -> dict[str, Any]:
-    return {"version": 2, "profile": None, "accent": "teal", "checkins": {}, "feedback": {}, "plans": []}
+    return {
+        "version": 3, "profile": None, "accent": "teal", "checkins": {},
+        "feedback": {}, "plans": [],
+        "assistant": {"memoryEnabled": True, "messages": []},
+    }
 
 
 def _text(value: Any, maximum: int) -> str:
@@ -109,9 +113,35 @@ def validate_plan(value: Any, plan_id: str | None = None) -> dict[str, Any]:
     }
 
 
+def validate_assistant(value: Any) -> dict[str, Any]:
+    if not isinstance(value, dict):
+        raise ValueError("Érvénytelen asszisztensbeállítás.")
+    enabled = bool(value.get("memoryEnabled", True))
+    messages = value.get("messages", [])
+    if not isinstance(messages, list) or len(messages) > 40:
+        raise ValueError("Érvénytelen beszélgetési előzmény.")
+    clean = []
+    for item in messages[-40:]:
+        if not isinstance(item, dict) or item.get("role") not in {"user", "assistant"}:
+            continue
+        text = _text(item.get("text"), 6000)
+        if text:
+            clean.append({
+                "id": _text(item.get("id"), 100) or f"msg-{len(clean)}",
+                "role": item["role"], "text": text,
+            })
+    return {"memoryEnabled": enabled, "messages": clean if enabled else []}
+
+
 def load_state(user_id: str | None = None) -> dict[str, Any]:
     stored = (load_user_json(user_id, STATE_KEY) if user_id else load_json(STATE_KEY)) or {}
-    return {**empty_state(), **stored, "version": 2, "checkins": stored.get("checkins") or {}, "feedback": stored.get("feedback") or {}, "plans": stored.get("plans") or []}
+    return {
+        **empty_state(), **stored, "version": 3,
+        "checkins": stored.get("checkins") or {},
+        "feedback": stored.get("feedback") or {},
+        "plans": stored.get("plans") or [],
+        "assistant": validate_assistant(stored.get("assistant") or {}),
+    }
 
 
 def apply_patch(patch: Any, user_id: str | None = None) -> dict[str, Any]:
@@ -176,6 +206,8 @@ def apply_patch(patch: Any, user_id: str | None = None) -> dict[str, Any]:
         if not plan_id:
             raise ValueError("Hiányzó tervazonosító.")
         state["plans"] = [plan for plan in state["plans"] if plan.get("id") != plan_id]
+    if "assistant" in patch:
+        state["assistant"] = validate_assistant(patch["assistant"])
     if user_id:
         save_user_json(user_id, STATE_KEY, state)
     else:

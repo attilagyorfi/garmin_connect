@@ -27,6 +27,14 @@
     "api/assistant.py": {
       "maxDuration": 60,
       "excludeFiles": "{tests/**,frontend/**,data/**,output/**,.pytest-tmp-*/**}"
+    },
+    "api/admin.py": {
+      "maxDuration": 30,
+      "excludeFiles": "{tests/**,frontend/**,data/**,output/**,.pytest-tmp-*/**}"
+    },
+    "api/sessions.py": {
+      "maxDuration": 30,
+      "excludeFiles": "{tests/**,frontend/**,data/**,output/**,.pytest-tmp-*/**}"
     }
   },
   "rewrites": [

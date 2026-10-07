@@ -58,6 +58,7 @@ A `scripts/dev_api.py` ugyanazokat az `api/*.py` handlereket szolgálja ki a `12
 ```text
 DATABASE_URL=postgresql://postgres@127.0.0.1:55432/postgres
 GARMIN_CREDENTIALS_KEY=<python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())">
+HYBRID_ADMIN_EMAILS=<a saját e-mail-címed>
 ```
 
 ```bash
@@ -66,6 +67,12 @@ postgres -D .local/pgdata -p 55432 -c listen_addresses=127.0.0.1
 python scripts/dev_api.py
 npm --prefix frontend run dev
 ```
+
+### Zárt hozzáférés és fiókbiztonság
+
+Új fiók csak adminisztrátori meghívóval (`/?invite=…`, 7 napig érvényes, egyszer használható) nyitható. A `HYBRID_ADMIN_EMAILS`-ben felsorolt címek meghívó nélkül is regisztrálhatnak, és admin szerepet kapnak; így hozható létre az első admin. Elfelejtett jelszóhoz az admin a Beállítások › Adminisztráció részen egyszer használható visszaállító linket készít (`/?auth=reset&token=…`). Az adminisztrátori műveletek naplózódnak.
+
+A Beállítások › Fiók és biztonság részen kezelhető a jelszócsere (utána minden eszköz kijelentkezik), az aktív munkamenetek, a saját adatok JSON-exportja (`/api/state?export=1`, jelszó, token és Garmin-munkamenet nélkül) és a végleges fióktörlés. A Garmin-kapcsolat csak titkosított munkamenettokent tárol, Garmin-jelszót nem; kétlépcsős (MFA) belépésnél a kódot a felület külön kéri.
 
 Regisztráció után Garmin-fiók nélkül is kipróbálható: `python scripts/dev_api.py --seed-demo <e-mail>` demó dashboardot ment a fiókhoz.
 

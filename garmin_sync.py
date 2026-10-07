@@ -55,7 +55,7 @@ class GarminSync:
     ttl_hours: float | None = None
     email: str | None = None
     password: str | None = None
-    tokens: str | None = None
+    tokenstore: str | None = None
 
     def __post_init__(self) -> None:
         self.cache_dir = Path(self.cache_dir or os.getenv("CACHE_DIR", "data"))
@@ -71,20 +71,24 @@ class GarminSync:
 
     def authenticate(self) -> Garmin:
         email, password = self.email or os.getenv("GARMIN_EMAIL"), self.password or os.getenv("GARMIN_PASSWORD")
-        if not email or not password:
-            raise GarminSyncError("Hiányzik a GARMIN_EMAIL vagy GARMIN_PASSWORD. Használd a demo módot, vagy állítsd be mindkettőt.")
+        tokenstore = self.tokenstore or os.getenv("GARMINTOKENS")
+        if not tokenstore and (not email or not password):
+            raise GarminSyncError("Nincs érvényes Garmin-munkamenet. Csatlakoztasd újra a fiókot a Beállításokban.")
         try:
             client = Garmin(email, password)
             # Serialized session tokens (cloud sync) take precedence over the on-disk token store.
-            client.login(self.tokens or str(self.token_dir))
+            client.login(tokenstore or str(self.token_dir))
         except Exception as exc:
             message = str(exc).lower()
-            if "429" in message or "rate" in message:
+            if "429" in message or "rate limit" in message or "ratelimit" in message or "too many requests" in message:
                 reason = "Garmin rate limit. Várj, majd próbáld újra; az utolsó cache használható."
+            elif any(marker in message for marker in ("timeout", "timed out", "connection reset", "connection aborted",
+                                                      "connection error", "remote end closed", "502", "503", "504")):
+                reason = "A Garmin átmenetileg nem elérhető. Az eddigi szinkronizálási előrehaladás megmarad."
             elif "mfa" in message or "challenge" in message:
-                reason = "Garmin MFA szükséges. Az első belépést interaktív környezetben végezd el."
+                reason = "Garmin MFA szükséges. Csatlakoztasd újra a fiókot a Beállításokban."
             else:
-                reason = "Garmin hitelesítési hiba. Ellenőrizd a környezeti változókat és a cache-elt tokent."
+                reason = "Garmin hitelesítési hiba. Csatlakoztasd újra a fiókot a Beállításokban."
             raise GarminSyncError(reason) from exc
         self.client = client
         return client
