@@ -109,7 +109,8 @@ def build_dashboard_payload(cache_dir: str | Path = "data", *, allow_demo: bool 
         {"date": stamp.date().isoformat(), "ctl": round(_number(row["ctl"]), 1), "atl": round(_number(row["atl"]), 1), "tsb": round(_number(row["tsb"]), 1)}
         for stamp, row in weekly.iterrows()
     ]
-    recent_sessions = activities.sort_values("date", ascending=False).head(100)
+    # The whole history: period views (overview, comparisons, plan outcomes) must not see a truncated list.
+    all_sessions = activities.sort_values("date", ascending=False)
     sessions = [
         {
             "id": str(row["activity_id"]), "date": row["date"].date().isoformat(), "type": _sport_name(row["type"]),
@@ -123,7 +124,7 @@ def build_dashboard_payload(cache_dir: str | Path = "data", *, allow_demo: bool 
             "vo2Max": _number(row.get("vo2_max"), None),
             "distanceKm": round(_number(row["distance_km"]), 1),
         }
-        for _, row in recent_sessions.iterrows()
+        for _, row in all_sessions.iterrows()
     ]
     athlete = athlete_summary(payload.get("profile"), payload.get("activities", []), wellness.index[-1].date())
     benchmarks = athlete_benchmarks(

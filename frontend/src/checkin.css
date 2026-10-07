@@ -2,3 +2,5 @@
 .check-alerts button{min-height:38px;border:1px solid #3a3c3b;border-radius:7px;background:#202222;color:#aeb1af;padding:0 14px;font-size:12px}
 .check-alerts button.selected{border-color:#f59e0b;background:#332817;color:#fbbf24}
 @media(min-width:1500px){.check-alerts button{min-height:44px;font-size:13px}}
+
+.checkin .scale-row{grid-template-columns:1fr;gap:7px}.scale-row>.scale-row-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px}.scale-row-head>span{font-size:14px;font-weight:700;color:#f2f4f3}.scale-row-head>small{color:#a7aba9;font-size:12px;line-height:1.35;text-align:right}.scale-buttons{display:grid;grid-template-columns:repeat(5,1fr);gap:5px}.scale-buttons button[aria-pressed="true"]{border-color:var(--accent);background:var(--accent-deep);color:var(--accent-text)}.check-alert-help{margin:9px 0 0;color:#a7aba9;font-size:13px;line-height:1.5}.check-alerts button[aria-pressed="true"]{border-color:#f59e0b;background:#332817;color:#fbbf24}

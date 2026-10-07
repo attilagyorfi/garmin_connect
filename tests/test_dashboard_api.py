@@ -90,13 +90,13 @@ def test_official_garmin_metrics_are_preferred_and_same_day_sessions_preserved(m
     assert result["dataQuality"]["activityCount"] == len(raw["activities"])
 
 
-def test_data_quality_counts_the_whole_history_not_just_listed_sessions(monkeypatch, tmp_path):
+def test_payload_exposes_the_whole_activity_history(monkeypatch, tmp_path):
     raw = demo_data(365)
     monkeypatch.setattr("dashboard_api.GarminSync.load_cache", lambda self: raw)
     result = build_dashboard_payload(tmp_path)
-    assert len(raw["activities"]) > len(result["sessions"]) == 100
+    assert len(result["sessions"]) == len(raw["activities"]) > 100
     assert result["dataQuality"]["activityCount"] == len(raw["activities"])
-    assert result["dataQuality"]["activityDateFrom"] < result["sessions"][-1]["date"]
+    assert result["dataQuality"]["activityDateFrom"] == result["sessions"][-1]["date"]
 
 
 def test_missing_measurements_are_not_zero(monkeypatch, tmp_path):
