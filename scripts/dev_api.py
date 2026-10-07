@@ -29,7 +29,7 @@ except ImportError:
 else:
     load_dotenv(ROOT / ".env.local", override=False)
 
-ENDPOINTS = ("assistant", "auth", "dashboard", "garmin", "state", "sync")
+ENDPOINTS = ("admin", "assistant", "auth", "dashboard", "garmin", "sessions", "state", "sync")
 HANDLERS = {name: importlib.import_module(f"api.{name}").handler for name in ENDPOINTS}
 
 

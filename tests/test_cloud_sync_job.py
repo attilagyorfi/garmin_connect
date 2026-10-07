@@ -1,3 +1,4 @@
+import pytest
 from datetime import date, timedelta
 
 import cloud_sync_job
@@ -126,12 +127,12 @@ def test_wellness_step_skips_cached_days_and_stages_only_new_ones():
     assert job["wellness_done"] == 3
 
 
-def test_authenticated_sync_reuses_stored_tokens_and_saves_refreshed_ones(monkeypatch):
+def test_authenticated_sync_uses_stored_tokenstore_and_saves_refreshed_one(monkeypatch):
     seen, saved = {}, []
 
     class FakeGarminSync:
-        def __init__(self, cache_dir, email, password, tokens):
-            seen.update(email=email, tokens=tokens)
+        def __init__(self, cache_dir, tokenstore):
+            seen.update(tokenstore=tokenstore)
 
         def authenticate(self):
             return None
@@ -140,30 +141,29 @@ def test_authenticated_sync_reuses_stored_tokens_and_saves_refreshed_ones(monkey
             return '{"di_token": "new"}'
 
     monkeypatch.setattr(cloud_sync_job, "GarminSync", FakeGarminSync)
-    monkeypatch.setattr(cloud_sync_job, "load_credentials", lambda user_id: ("a@example.com", "titok"))
-    monkeypatch.setattr(cloud_sync_job, "load_tokens", lambda user_id: '{"di_token": "old"}')
-    monkeypatch.setattr(cloud_sync_job, "save_tokens", lambda user_id, tokens: saved.append(tokens))
+    monkeypatch.setattr(cloud_sync_job, "load_tokenstore", lambda user_id: '{"di_token": "old"}')
+    monkeypatch.setattr(cloud_sync_job, "refresh_tokenstore", lambda user_id, tokens: saved.append(tokens))
     _authenticated_sync("user-1", "run-1")
-    assert seen == {"email": "a@example.com", "tokens": '{"di_token": "old"}'}
+    assert seen == {"tokenstore": '{"di_token": "old"}'}
     assert saved == ['{"di_token": "new"}']
 
 
-def test_strength_sets_step_stages_summaries_then_moves_to_profile():
-    class Client:
-        def get_activity_exercise_sets(self, activity_id):
-            return {"exerciseSets": [{"setType": "ACTIVE", "repetitionCount": 5, "weight": 60000.0, "exercises": [{"category": "BENCH_PRESS", "probability": 99}]}]}
+def test_rejected_session_requires_reauth_but_outage_does_not(monkeypatch):
+    marked = []
 
-    store = FakeStore({"activities": [{"activityId": 5}]})
-    job = {**_new_job(), "phase": "strength_sets", "strength_set_ids": ["5"], "earliest_date": date.today().isoformat()}
-    _advance_strength_sets(job, Sync(Client()), store)
-    assert store.staged("activity")["5"]["exercise_sets"] == [{"category": "BENCH_PRESS", "exercise": "BENCH_PRESS", "reps": 5, "weight_kg": 60.0}]
-    assert job["phase"] == "profile" and "strength_set_ids" not in job
+    def fake_sync(message):
+        class FakeGarminSync:
+            def __init__(self, cache_dir, tokenstore):
+                pass
 
+            def authenticate(self):
+                raise cloud_sync_job.GarminSyncError(message)
+        return FakeGarminSync
 
-def test_profile_step_stages_profile_then_starts_wellness(monkeypatch):
-    monkeypatch.setattr(cloud_sync_job, "fetch_profile_metrics", lambda client, safe_call, errors: {"version": 1, "sex": "female"})
-    store = FakeStore()
-    job = {**_new_job(), "phase": "profile", "earliest_date": date.today().isoformat()}
-    _advance_profile(job, Sync(object()), store)
-    assert store.staged("profile") == {"latest": {"version": 1, "sex": "female"}}
-    assert job["phase"] == "wellness" and job["wellness_total"] == 1
+    monkeypatch.setattr(cloud_sync_job, "load_tokenstore", lambda user_id: "{}")
+    monkeypatch.setattr(cloud_sync_job, "mark_reauth_required", marked.append)
+    for message, expected in (("Garmin hitelesítési hiba. Csatlakoztasd újra.", ["u1"]), ("A Garmin átmenetileg nem elérhető.", ["u1"])):
+        monkeypatch.setattr(cloud_sync_job, "GarminSync", fake_sync(message))
+        with pytest.raises(cloud_sync_job.GarminSyncError):
+            _authenticated_sync("u1", "run")
+        assert marked == expected

@@ -18,7 +18,7 @@ from cloud_dashboard import DASHBOARD_KEY, RAW_CACHE_KEY
 from dashboard_api import build_dashboard_payload
 from garmin_profile import fetch_profile_metrics, strength_set_candidates, summarize_exercise_sets
 from garmin_sync import GarminSync, GarminSyncError, _first_number, _sleep_score
-from garmin_connection import load_credentials, load_tokens, save_tokens
+from garmin_connection import load_tokenstore, mark_reauth_required, refresh_tokenstore
 
 
 SYNC_JOB_KEY = "garmin_sync_job_v2"
@@ -287,15 +287,22 @@ def _finalize(job: dict[str, Any], store: SyncStore) -> None:
     job.update(status="completed", phase="completed", progress=100, message="A teljes Garmin-előzmény szinkronizálása elkészült.", completed_at=_now(), updated_at=_now())
 
 
+REAUTH_MARKERS = ("hitelesítési hiba", "mfa szükséges")
+
+
 def _authenticated_sync(user_id: str, run_id: str) -> GarminSync:
-    """Log in with the stored session tokens; the password is only used when Garmin rejects them."""
-    email, password = load_credentials(user_id)
-    tokens = load_tokens(user_id)
-    sync = GarminSync(Path(tempfile.gettempdir()) / f"hybrid-sync-{run_id}", email=email, password=password, tokens=tokens)
-    sync.authenticate()
+    """Log in with the stored, encrypted Garmin session; no Garmin password is kept."""
+    tokenstore = load_tokenstore(user_id)
+    sync = GarminSync(Path(tempfile.gettempdir()) / f"hybrid-sync-{run_id}", tokenstore=tokenstore)
+    try:
+        sync.authenticate()
+    except GarminSyncError as exc:
+        if any(marker in str(exc).lower() for marker in REAUTH_MARKERS):
+            mark_reauth_required(user_id)  # rate limits and outages keep the session
+        raise
     refreshed = sync.export_tokens()
-    if refreshed and refreshed != tokens:
-        save_tokens(user_id, refreshed)
+    if refreshed and refreshed != tokenstore:
+        refresh_tokenstore(user_id, refreshed)
     return sync
 
 

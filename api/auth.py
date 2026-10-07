@@ -1,9 +1,53 @@
 from __future__ import annotations
 
 import json
+import os
 from http.server import BaseHTTPRequestHandler
+from urllib.parse import urlsplit
 
-from auth_store import clear_cookie_header, cookie_header, current_user, login, logout, register
+from auth_store import (
+    RateLimitError, client_ip_from, change_password, clear_cookie_header, cookie_header, delete_account,
+    current_user, login, logout, register, reset_password, verify_email,
+)
+
+
+def _validated_base_url(raw: str, *, allow_local_http: bool = False) -> str:
+    value = str(raw or "").strip().rstrip("/")
+    parsed = urlsplit(value)
+    local_hosts = {"localhost", "127.0.0.1", "::1"}
+    if (
+        not parsed.hostname
+        or parsed.username
+        or parsed.password
+        or parsed.query
+        or parsed.fragment
+        or parsed.path not in ("", "/")
+        or parsed.scheme not in ({"https", "http"} if allow_local_http else {"https"})
+        or (parsed.scheme == "http" and parsed.hostname not in local_hosts)
+    ):
+        raise RuntimeError("A nyilvános alkalmazáscím nincs biztonságosan beállítva.")
+    return value
+
+
+def _public_base_url(headers: object) -> str:
+    configured = os.getenv("AUTH_PUBLIC_URL", "").strip()
+    if configured:
+        return _validated_base_url(configured, allow_local_http=True)
+
+    vercel_host = (
+        os.getenv("VERCEL_PROJECT_PRODUCTION_URL", "").strip()
+        or os.getenv("VERCEL_URL", "").strip()
+    )
+    if vercel_host:
+        return _validated_base_url(f"https://{vercel_host.lstrip('/')}")
+
+    host = str(headers.get("Host", "") if hasattr(headers, "get") else "").strip()
+    protocol = str(headers.get("X-Forwarded-Proto", "http") if hasattr(headers, "get") else "http").strip().lower()
+    candidate = f"{protocol}://{host}"
+    parsed = urlsplit(candidate)
+    if parsed.hostname not in {"localhost", "127.0.0.1", "::1"}:
+        raise RuntimeError("Állítsd be az AUTH_PUBLIC_URL környezeti változót.")
+    return _validated_base_url(candidate, allow_local_http=True)
 
 
 class handler(BaseHTTPRequestHandler):
@@ -32,16 +76,77 @@ class handler(BaseHTTPRequestHandler):
                 raise ValueError("Érvénytelen kérésméret.")
             payload = json.loads(self.rfile.read(size))
             action = payload.get("action")
+            protocol = self.headers.get("X-Forwarded-Proto", "https")
+            secure = protocol != "http"
             if action == "register":
-                user, token = register(payload.get("email", ""), payload.get("password", ""), payload.get("name", ""))
+                client_ip = client_ip_from(self.headers, getattr(self, "client_address", None))
+                user, token = register(
+                    payload.get("email", ""), payload.get("password", ""),
+                    payload.get("name", ""), payload.get("inviteToken", ""),
+                    self.headers.get("User-Agent", ""), client_ip,
+                )
                 status = 201
             elif action == "login":
-                user, token = login(payload.get("email", ""), payload.get("password", ""))
+                client_id = client_ip_from(self.headers, getattr(self, "client_address", None))
+                user, token = login(
+                    payload.get("email", ""), payload.get("password", ""), client_id,
+                    self.headers.get("User-Agent", ""), client_id,
+                )
                 status = 200
+            elif action == "verify_email":
+                client_ip = client_ip_from(self.headers, getattr(self, "client_address", None))
+                user, token = verify_email(
+                    payload.get("token", ""), self.headers.get("User-Agent", ""), client_ip,
+                )
+                status = 200
+            elif action == "resend_verification":
+                self._send({"error": "A zárt rendszerben nincs e-mailes megerősítés."}, 403)
+                return
+            elif action == "request_password_reset":
+                self._send({"error": "Kérj egyszer használható jelszó-visszaállító hivatkozást az adminisztrátortól."}, 403)
+                return
+            elif action == "reset_password":
+                reset_password(payload.get("token", ""), payload.get("password", ""))
+                self._send({"ok": True, "message": "A jelszó megváltozott. Most már bejelentkezhetsz."})
+                return
+            elif action == "change_password":
+                authenticated = current_user(self.headers)
+                if not authenticated:
+                    self._send({"error": "A művelethez bejelentkezés szükséges."}, 401)
+                    return
+                client_id = client_ip_from(self.headers, getattr(self, "client_address", None))
+                change_password(
+                    authenticated["id"], payload.get("currentPassword", ""),
+                    payload.get("newPassword", ""), client_id,
+                )
+                self._send(
+                    {"ok": True, "message": "A jelszavad megváltozott. Biztonsági okból minden eszközről kijelentkeztettünk."},
+                    200, clear_cookie_header(),
+                )
+                return
+            elif action == "delete_account":
+                authenticated = current_user(self.headers)
+                if not authenticated:
+                    self._send({"error": "A művelethez bejelentkezés szükséges."}, 401)
+                    return
+                client_id = client_ip_from(self.headers, getattr(self, "client_address", None))
+                delete_account(
+                    authenticated["id"], payload.get("currentPassword", ""),
+                    payload.get("confirmation", ""), client_id,
+                )
+                self._send(
+                    {
+                        "ok": True,
+                        "message": "A fiók és a hozzá tartozó személyes adatok véglegesen törlődtek.",
+                    },
+                    200, clear_cookie_header(),
+                )
+                return
             else:
                 raise ValueError("Ismeretlen fiókművelet.")
-            secure = self.headers.get("X-Forwarded-Proto", "https") != "http"
             self._send({"user": user}, status, cookie_header(token, secure))
+        except RateLimitError as exc:
+            self._send({"error": str(exc)}, 429)
         except (ValueError, TypeError, json.JSONDecodeError) as exc:
             self._send({"error": str(exc) or "Érvénytelen fiókadat."}, 400)
         except Exception:

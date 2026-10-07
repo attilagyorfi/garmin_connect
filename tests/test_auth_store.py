@@ -1,8 +1,14 @@
 from http.client import HTTPMessage
+from unittest.mock import Mock
 
 import pytest
+import auth_store
 
-from auth_store import _clean_credentials, _password_hash, _verify_password, cookie_header, token_from_headers
+from auth_store import (
+    _admin_emails, _clean_credentials, _device_name, _ip_hint, _limit_key,
+    _password_hash, _public_user, _verify_password, cookie_header,
+    initialize_auth, is_ai_enabled, token_from_headers,
+)
 
 
 def test_scrypt_password_hash_is_salted_and_verifiable():
@@ -33,3 +39,345 @@ def test_session_token_is_read_from_cookie_header():
     headers = HTTPMessage()
     headers.add_header("Cookie", "theme=teal; hybrid_session=session-token")
     assert token_from_headers(headers) == "session-token"
+
+
+def test_login_limit_key_does_not_expose_email_or_ip():
+    value = _limit_key("sportolo@example.com", "192.0.2.10")
+    assert len(value) == 64
+    assert "sportolo" not in value
+    assert value == _limit_key("sportolo@example.com", "192.0.2.10")
+
+
+def test_session_metadata_is_human_readable_and_ip_is_masked():
+    assert _device_name(
+        "Mozilla/5.0 (Windows NT 10.0) AppleWebKit Chrome/140.0 Safari/537.36"
+    ) == "Chrome · Windows"
+    assert _ip_hint("192.0.2.123") == "192.0.2.…"
+    assert _ip_hint("2001:db8:abcd:12::1") == "2001:db8:abcd:…"
+
+
+def test_admin_accounts_and_ai_flag_are_explicit(monkeypatch):
+    monkeypatch.setenv("HYBRID_ADMIN_EMAILS", " Admin@Example.com, hibás, sportolo@example.com ")
+    monkeypatch.delenv("HYBRID_AI_ENABLED", raising=False)
+    assert _admin_emails() == {"admin@example.com", "sportolo@example.com"}
+    assert is_ai_enabled() is False
+    monkeypatch.setenv("HYBRID_AI_ENABLED", "true")
+    assert is_ai_enabled() is True
+
+
+def test_public_user_includes_authorization_role():
+    user = _public_user(("id", "admin@example.com", "Admin", object(), "admin", "active"))
+    assert user["role"] == "admin"
+    assert user["accessStatus"] == "active"
+
+
+class AccessConnection:
+    def __init__(self, target=("member", "active", "sportolo@example.com")):
+        self.target = target
+        self.sql = []
+        self.commits = 0
+
+    def execute(self, sql, params=None):
+        self.sql.append((" ".join(sql.split()), params))
+        self.current_sql = sql
+        return self
+
+    def fetchone(self):
+        if "FROM pg_attribute" in self.current_sql:
+            return (True,)
+        if "SELECT role FROM hybrid_users" in self.current_sql:
+            return ("admin",)
+        if "SELECT role, access_status, email" in self.current_sql:
+            return self.target
+        return None
+
+    def commit(self):
+        self.commits += 1
+
+    def close(self):
+        pass
+
+
+def test_suspending_member_revokes_every_session(monkeypatch):
+    db = AccessConnection()
+    monkeypatch.setattr(auth_store, "connect", lambda: db)
+    auth_store.set_user_access("admin-1", "member-1", "suspended")
+    statements = [sql for sql, _params in db.sql]
+    assert any("UPDATE hybrid_users SET access_status" in sql for sql in statements)
+    assert any("DELETE FROM hybrid_sessions" in sql for sql in statements)
+    audit = next(params for sql, params in db.sql if "INSERT INTO hybrid_admin_audit" in sql)
+    assert audit[1:] == ("admin-1", "user_suspended", "member-1", "sportolo@example.com")
+    assert db.commits == 2
+
+
+def test_admin_access_cannot_be_suspended(monkeypatch):
+    db = AccessConnection(target=("admin", "active", "other-admin@example.com"))
+    monkeypatch.setattr(auth_store, "connect", lambda: db)
+    with pytest.raises(ValueError, match="Adminisztrátori"):
+        auth_store.set_user_access("admin-1", "admin-2", "suspended")
+
+
+def test_unchanged_access_state_is_not_added_to_audit(monkeypatch):
+    db = AccessConnection(target=("member", "active", "sportolo@example.com"))
+    monkeypatch.setattr(auth_store, "connect", lambda: db)
+    auth_store.set_user_access("admin-1", "member-1", "active")
+    assert not any("INSERT INTO hybrid_admin_audit" in sql for sql, _params in db.sql)
+    assert db.commits == 1
+
+
+class PasswordConnection:
+    def __init__(self, password_hash):
+        self.password_hash = password_hash
+        self.sql = []
+        self.commits = 0
+
+    def execute(self, sql, params=None):
+        self.sql.append((" ".join(sql.split()), params))
+        self.current_sql = sql
+        return self
+
+    def fetchone(self):
+        if "FROM pg_attribute" in self.current_sql:
+            return (True,)
+        if "SELECT password_hash" in self.current_sql:
+            return (self.password_hash, "sportolo@example.com")
+        if "SELECT failures, window_started_at" in self.current_sql:
+            return None
+        return None
+
+    def commit(self):
+        self.commits += 1
+
+    def close(self):
+        pass
+
+
+def test_password_change_verifies_current_password_and_revokes_all_sessions(monkeypatch):
+    db = PasswordConnection(_password_hash("jelenlegi-biztonsagos"))
+    monkeypatch.setattr(auth_store, "connect", lambda: db)
+
+    auth_store.change_password("user-1", "jelenlegi-biztonsagos", "uj-biztonsagos-jelszo")
+
+    update = next(params for sql, params in db.sql if "UPDATE hybrid_users SET password_hash" in sql)
+    assert _verify_password("uj-biztonsagos-jelszo", update[0])
+    assert update[1] == "user-1"
+    assert any("DELETE FROM hybrid_sessions WHERE user_id" in sql for sql, _params in db.sql)
+    assert any("DELETE FROM hybrid_login_limits WHERE limit_key" in sql for sql, _params in db.sql)
+    assert db.commits == 2
+
+
+def test_password_change_rejects_wrong_or_reused_password(monkeypatch):
+    encoded = _password_hash("jelenlegi-biztonsagos")
+    for current, new, message in [
+        ("hibas-jelszo", "uj-biztonsagos-jelszo", "jelenlegi jelszó"),
+        ("jelenlegi-biztonsagos", "jelenlegi-biztonsagos", "eltérő"),
+    ]:
+        db = PasswordConnection(encoded)
+        monkeypatch.setattr(auth_store, "connect", lambda: db)
+        with pytest.raises(ValueError, match=message):
+            auth_store.change_password("user-1", current, new)
+        assert not any("UPDATE hybrid_users SET password_hash" in sql for sql, _params in db.sql)
+        assert not any("DELETE FROM hybrid_sessions WHERE user_id" in sql for sql, _params in db.sql)
+
+
+def test_wrong_current_password_is_counted_for_rate_limiting(monkeypatch):
+    db = PasswordConnection(_password_hash("jelenlegi-biztonsagos"))
+    monkeypatch.setattr(auth_store, "connect", lambda: db)
+
+    with pytest.raises(ValueError, match="jelenlegi jelszó"):
+        auth_store.change_password(
+            "user-1", "hibas-jelszo", "uj-biztonsagos-jelszo", "192.0.2.10"
+        )
+
+    assert any("INSERT INTO hybrid_login_limits" in sql for sql, _params in db.sql)
+
+
+class AccountDeletionConnection:
+    def __init__(self, password_hash, role="member", other_admins=1):
+        self.password_hash = password_hash
+        self.role = role
+        self.other_admins = other_admins
+        self.sql = []
+        self.commits = 0
+
+    def execute(self, sql, params=None):
+        normalized = " ".join(sql.split())
+        self.sql.append((normalized, params))
+        self.current_sql = normalized
+        self.current_params = params
+        return self
+
+    def fetchone(self):
+        if "FROM pg_attribute" in self.current_sql:
+            return (True,)
+        if "SELECT password_hash, email, role" in self.current_sql:
+            return (self.password_hash, "sportolo@example.com", self.role)
+        if "SELECT failures, window_started_at" in self.current_sql:
+            return None
+        if "SELECT COUNT(*) FROM hybrid_users" in self.current_sql:
+            return (self.other_admins,)
+        if "SELECT to_regclass(%s)" in self.current_sql:
+            return (self.current_params[0],)
+        return None
+
+    def commit(self):
+        self.commits += 1
+
+    def close(self):
+        pass
+
+
+def test_account_deletion_erases_data_and_anonymizes_audit_tombstone(monkeypatch):
+    db = AccountDeletionConnection(_password_hash("jelenlegi-biztonsagos"))
+    monkeypatch.setattr(auth_store, "connect", lambda: db)
+
+    auth_store.delete_account(
+        "user-1", "jelenlegi-biztonsagos", auth_store.ACCOUNT_DELETE_CONFIRMATION,
+        "192.0.2.10",
+    )
+
+    statements = [sql for sql, _params in db.sql]
+    for table in auth_store.USER_DATA_TABLES:
+        assert any(f"DELETE FROM {table} WHERE user_id" in sql for sql in statements)
+    assert any("UPDATE hybrid_invites SET revoked_at" in sql for sql in statements)
+    assert any("UPDATE hybrid_admin_audit SET target_email = NULL" in sql for sql in statements)
+    anonymization = next(
+        params for sql, params in db.sql
+        if "SET email = %s, password_hash = %s, display_name = %s" in sql
+    )
+    assert anonymization[0].startswith("deleted-")
+    assert anonymization[0].endswith("@invalid.local")
+    assert "sportolo@example.com" not in anonymization
+    assert anonymization[2:] == ("Törölt felhasználó", "user-1")
+    assert db.commits == 2
+
+
+def test_account_deletion_requires_exact_confirmation_before_database_access(monkeypatch):
+    connect = Mock()
+    monkeypatch.setattr(auth_store, "connect", connect)
+    with pytest.raises(ValueError, match="FIÓK TÖRLÉSE"):
+        auth_store.delete_account("user-1", "jelszo", "fiók törlése")
+    connect.assert_not_called()
+
+
+def test_account_deletion_wrong_password_is_rate_limited_and_does_not_erase(monkeypatch):
+    db = AccountDeletionConnection(_password_hash("jelenlegi-biztonsagos"))
+    monkeypatch.setattr(auth_store, "connect", lambda: db)
+    with pytest.raises(ValueError, match="jelenlegi jelszó"):
+        auth_store.delete_account(
+            "user-1", "hibas-jelszo", auth_store.ACCOUNT_DELETE_CONFIRMATION,
+            "192.0.2.10",
+        )
+    assert any("INSERT INTO hybrid_login_limits" in sql for sql, _params in db.sql)
+    assert not any("DELETE FROM hybrid_user_state" in sql for sql, _params in db.sql)
+    assert not any("access_status = 'deleted'" in sql for sql, _params in db.sql)
+
+
+def test_last_active_admin_cannot_delete_own_account(monkeypatch):
+    db = AccountDeletionConnection(
+        _password_hash("jelenlegi-biztonsagos"), role="admin", other_admins=0,
+    )
+    monkeypatch.setattr(auth_store, "connect", lambda: db)
+    with pytest.raises(ValueError, match="utolsó aktív adminisztrátori"):
+        auth_store.delete_account(
+            "admin-1", "jelenlegi-biztonsagos", auth_store.ACCOUNT_DELETE_CONFIRMATION,
+        )
+    assert not any("DELETE FROM hybrid_user_state" in sql for sql, _params in db.sql)
+    assert not any("access_status = 'deleted'" in sql for sql, _params in db.sql)
+
+
+def test_invite_audit_never_contains_generated_secret(monkeypatch):
+    db = AccessConnection()
+    monkeypatch.setattr(auth_store, "connect", lambda: db)
+    token, invite = auth_store.create_invite("admin-1")
+    audit = next(params for sql, params in db.sql if "INSERT INTO hybrid_admin_audit" in sql)
+    assert audit[1:] == ("admin-1", "invite_created", None, None)
+    assert token not in repr(audit)
+    assert invite["id"] not in repr(audit)
+
+
+class SchemaConnection:
+    def __init__(self, readiness):
+        self.readiness = iter(readiness)
+        self.statements = []
+        self.commits = 0
+
+    def execute(self, sql):
+        self.statements.append(sql.strip())
+        return self
+
+    def fetchone(self):
+        return (next(self.readiness),)
+
+    def commit(self):
+        self.commits += 1
+
+
+def test_ready_auth_schema_does_not_run_ddl_or_acquire_migration_lock():
+    db = SchemaConnection([True])
+    initialize_auth(db)
+    assert len(db.statements) == 1
+    assert "FROM pg_attribute" in db.statements[0]
+    assert db.commits == 1
+
+
+def test_auth_schema_rechecks_after_lock_when_another_request_migrated():
+    db = SchemaConnection([False, True])
+    initialize_auth(db)
+    assert len(db.statements) == 3
+    assert "pg_advisory_xact_lock" in db.statements[1]
+    assert "FROM pg_attribute" in db.statements[2]
+    assert db.commits == 1
+
+
+def test_auth_schema_initialization_locks_before_any_ddl_and_commits():
+    db = SchemaConnection([False, False])
+    initialize_auth(db)
+    assert "pg_advisory_xact_lock" in db.statements[1]
+    assert "FROM pg_attribute" in db.statements[2]
+    assert db.statements[3].startswith("CREATE TABLE IF NOT EXISTS hybrid_users")
+    assert any("ALTER TABLE hybrid_sessions" in sql for sql in db.statements[3:])
+    assert db.commits == 1
+
+
+def test_client_ip_prefers_vercel_headers_over_caller_supplied_forwarded_for():
+    from auth_store import client_ip_from
+    headers = {"X-Forwarded-For": "203.0.113.9, 10.0.0.1", "x-vercel-forwarded-for": "198.51.100.7"}
+    assert client_ip_from(headers, ("127.0.0.1", 1234)) == "198.51.100.7"
+    assert client_ip_from({"X-Forwarded-For": "203.0.113.9, 10.0.0.1"}) == "203.0.113.9"
+    assert client_ip_from({}, ("127.0.0.1", 1234)) == "127.0.0.1"
+
+
+class BootstrapConnection:
+    def __init__(self):
+        self.sql = []
+
+    def execute(self, sql, params=None):
+        self.sql.append((" ".join(sql.split()), params))
+        self.current_sql = sql
+        return self
+
+    def fetchone(self):
+        if "FROM pg_attribute" in self.current_sql:
+            return (True,)
+        return None  # no matching invite
+
+    def commit(self):
+        pass
+
+    def rollback(self):
+        pass
+
+    def close(self):
+        pass
+
+
+def test_listed_admin_can_register_without_invite_but_others_cannot(monkeypatch):
+    monkeypatch.setenv("HYBRID_ADMIN_EMAILS", "admin@example.com")
+    db = BootstrapConnection()
+    monkeypatch.setattr(auth_store, "connect", lambda: db)
+    user, token = auth_store.register("Admin@Example.com", "hosszu-biztonsagos", "Admin", "")
+    assert user["role"] == "admin" and token
+    assert not any("UPDATE hybrid_invites SET used_at" in sql for sql, _params in db.sql)
+    with pytest.raises(ValueError, match="meghívó"):
+        auth_store.register("tag@example.com", "hosszu-biztonsagos", "Tag", "")
