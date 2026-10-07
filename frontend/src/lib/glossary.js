@@ -1,5 +1,6 @@
 export const metricGlossary={
   "Readiness":"A 0–100-as terhelhetőségi pontszám azt becsüli, mennyire áll készen a szervezeted a mai edzésre. A magasabb érték általában több terhelést enged, az alacsonyabb érték regenerációt vagy könnyítést indokol.",
+  "Training Readiness":"A Garmin óra saját, reggel számolt 0–100-as felkészültségi pontszáma az alvás, a HRV-állapot, a regenerációs idő és a terhelés alapján. Ha elérhető, ezt használjuk; az edzésjavaslatot erre építve, saját óvatossági szabályainkkal adjuk.",
   "Bizonyosság":"Azt mutatja, mennyire teljesek és következetesek az értékeléshez használt adatok. Alacsony bizonyosságnál az ajánlást óvatosabban érdemes kezelni.",
   "HRV (éjszakai)":"A szívverések közötti idő apró változékonysága alvás közben. A saját megszokott értékedhez képest tartós csökkenés fáradtságot vagy stresszt jelezhet; egyetlen nap önmagában nem döntő.",
   "Alvás":"Az alvás hossza és minősége a regeneráció egyik fő jele. Kevés vagy rossz alvás ronthatja a teljesítményt, a koordinációt és a terheléstűrést.",

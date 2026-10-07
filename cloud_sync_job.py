@@ -7,17 +7,18 @@ whole multi-year history; the finalize step merges them into the raw cache once.
 from __future__ import annotations
 
 import json
+import math
 import tempfile
 import uuid
 from datetime import date, datetime, timedelta
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from cloud_cache import SCHEMA_READY, load_user_json, save_user_json, sync_lock
 from cloud_dashboard import DASHBOARD_KEY, RAW_CACHE_KEY
 from dashboard_api import build_dashboard_payload
 from garmin_profile import fetch_profile_metrics, strength_set_candidates, summarize_exercise_sets
-from garmin_sync import GarminSync, GarminSyncError, _first_number, _sleep_score
+from garmin_sync import WELLNESS_SCHEMA_VERSION, GarminSync, GarminSyncError, _wellness_record
 from garmin_connection import load_tokenstore, mark_reauth_required, refresh_tokenstore
 
 
@@ -26,6 +27,12 @@ ACTIVITY_PAGE_SIZE = 100
 HR_ZONE_CHUNK = 8
 STRENGTH_SET_CHUNK = 8
 WELLNESS_CHUNK = 5
+MAX_TRANSIENT_RETRIES = 6
+RETRYABLE_MARKERS = (
+    "429", "rate limit", "too many requests", "timeout", "timed out", "temporarily", "átmenetileg",
+    "connection reset", "connection aborted", "connection error", "remote end closed",
+    "service unavailable", "502", "503", "504",
+)
 
 
 def _now() -> str:
@@ -82,14 +89,15 @@ class SyncStore:
         return {str(key): payload for key, payload in rows}
 
     def known_wellness_dates(self, start: str, end: str) -> set[str]:
-        """Dates in [start, end] already present in the raw cache or staged in this run."""
+        """Dates in [start, end] cached with the current metric schema or staged in this run."""
         rows = self.db.execute("""
             SELECT item ->> 'date' FROM hybrid_user_state, jsonb_array_elements(payload -> 'wellness') AS item
             WHERE user_id = %s AND state_key = %s AND item ->> 'date' BETWEEN %s AND %s
+              AND item ->> 'metric_schema_version' = %s
             UNION
             SELECT item_key FROM hybrid_sync_items
             WHERE user_id = %s AND run_id = %s AND kind = 'wellness' AND item_key BETWEEN %s AND %s
-        """, (self.user_id, RAW_CACHE_KEY, start, end, self.user_id, self.run_id, start, end)).fetchall()
+        """, (self.user_id, RAW_CACHE_KEY, start, end, str(WELLNESS_SCHEMA_VERSION), self.user_id, self.run_id, start, end)).fetchall()
         return {str(row[0]) for row in rows}
 
     def clear(self, all_runs: bool = False) -> None:
@@ -107,6 +115,7 @@ def _public(job: dict[str, Any] | None) -> dict[str, Any]:
         "run_id", "status", "phase", "progress", "message", "activities_fetched",
         "activity_offset", "hr_zones_done", "hr_zones_total", "strength_sets_done", "strength_sets_total", "wellness_done",
         "wellness_total", "started_at", "updated_at", "completed_at", "partial_errors",
+        "retry_count", "retry_after_seconds", "next_retry_at", "resumable",
     ) if job.get(key) is not None}
 
 
@@ -131,9 +140,68 @@ def _new_job() -> dict[str, Any]:
     }
 
 
+def _is_retryable_error(exc: BaseException) -> bool:
+    chain = [exc, exc.__cause__] if exc.__cause__ else [exc]
+    return any(marker in str(item).lower() for item in chain for marker in RETRYABLE_MARKERS)
+
+
 def _fail(job: dict[str, Any], exc: Exception) -> dict[str, Any]:
-    job.update(status="failed", phase="failed", message=str(exc) or "A szinkron megszakadt.", updated_at=_now())
+    """Stop the run but remember its phase, so the same run (and its staged data) can be resumed."""
+    phase = job.get("phase")
+    if phase and phase != "failed":
+        job["resume_phase"] = phase
+    message = str(exc) if isinstance(exc, GarminSyncError) and str(exc) else "A szinkron váratlan hiba miatt megszakadt."
+    job.update(status="failed", phase="failed", message=message, resumable=bool(job.get("resume_phase")),
+               retry_after_seconds=0, next_retry_at=None, updated_at=_now())
     return job
+
+
+def _schedule_retry(job: dict[str, Any]) -> dict[str, Any]:
+    attempt = int(job.get("retry_count", 0)) + 1
+    if attempt > MAX_TRANSIENT_RETRIES:
+        return _fail(job, GarminSyncError(
+            "A Garmin többszöri automatikus próbálkozás után sem válaszolt. "
+            "Az eddigi előrehaladás megmaradt; később folytathatod a szinkront."
+        ))
+    delay = min(60, 2 ** attempt)
+    job.update(
+        status="running", retry_count=attempt, retry_after_seconds=delay,
+        next_retry_at=(datetime.now().astimezone() + timedelta(seconds=delay)).isoformat(),
+        message=f"A Garmin átmenetileg nem elérhető. Automatikus újrapróbálás {delay} másodperc múlva…",
+        updated_at=_now(),
+    )
+    return job
+
+
+def _resume_failed_job(job: dict[str, Any]) -> dict[str, Any]:
+    phase = job.pop("resume_phase", None)
+    if not phase:
+        raise GarminSyncError("Ez a szinkron nem folytatható. Indíts új szinkront.")
+    job.pop("resumable", None)
+    job.update(status="running", phase=phase, retry_count=0, retry_after_seconds=0, next_retry_at=None,
+               message="A korábbi szinkron folytatása…", updated_at=_now())
+    return job
+
+
+def _retry_wait_remaining(job: dict[str, Any]) -> int:
+    try:
+        remaining = (datetime.fromisoformat(str(job["next_retry_at"])) - datetime.now().astimezone()).total_seconds()
+    except (KeyError, TypeError, ValueError):
+        return 0
+    return max(0, math.ceil(remaining))
+
+
+def _optional_call(call: Callable[[], Any], default: Any, errors: list[str], label: str) -> Any:
+    """Like GarminSync._safe_call, but a rate limit or outage aborts the step so it can be retried
+    instead of silently recording an empty value for that activity or day."""
+    try:
+        result = call()
+        return default if result is None else result
+    except Exception as exc:
+        if _is_retryable_error(exc):
+            raise GarminSyncError("A Garmin átmenetileg korlátozta vagy megszakította az adatlekérést.") from exc
+        errors.append(f"{label}: {type(exc).__name__}")
+        return default
 
 
 def _activity_kind(activity: dict[str, Any]) -> str:
@@ -191,7 +259,7 @@ def _advance_hr_zones(job: dict[str, Any], sync: GarminSync, store: SyncStore) -
     start = int(job.get("hr_zones_done", 0))
     errors = job.setdefault("partial_errors", [])
     zones = {
-        activity_id: {"hr_zone_minutes": sync._safe_call(lambda value=activity_id: client.get_activity_hr_in_timezones(value), {}, errors, f"hr-zones:{activity_id}")}
+        activity_id: {"hr_zone_minutes": _optional_call(lambda value=activity_id: client.get_activity_hr_in_timezones(value), {}, errors, f"hr-zones:{activity_id}")}
         for activity_id in ids[start:start + HR_ZONE_CHUNK]
     }
     store.stage("activity", zones)
@@ -212,7 +280,7 @@ def _advance_strength_sets(job: dict[str, Any], sync: GarminSync, store: SyncSto
     start = int(job.get("strength_sets_done", 0))
     errors = job.setdefault("partial_errors", [])
     store.stage("activity", {
-        activity_id: {"exercise_sets": summarize_exercise_sets(sync._safe_call(lambda value=activity_id: client.get_activity_exercise_sets(value), {}, errors, f"exercise-sets:{activity_id}"))}
+        activity_id: {"exercise_sets": summarize_exercise_sets(_optional_call(lambda value=activity_id: client.get_activity_exercise_sets(value), {}, errors, f"exercise-sets:{activity_id}"))}
         for activity_id in ids[start:start + STRENGTH_SET_CHUNK]
     })
     done = min(len(ids), start + STRENGTH_SET_CHUNK)
@@ -227,7 +295,7 @@ def _advance_strength_sets(job: dict[str, Any], sync: GarminSync, store: SyncSto
 def _advance_profile(job: dict[str, Any], sync: GarminSync, store: SyncStore) -> None:
     client = sync.client
     assert client is not None
-    store.stage("profile", {"latest": fetch_profile_metrics(client, sync._safe_call, job.setdefault("partial_errors", []))})
+    store.stage("profile", {"latest": fetch_profile_metrics(client, _optional_call, job.setdefault("partial_errors", []))})
     start_date = date.fromisoformat(job["earliest_date"])
     total = (date.today() - start_date).days + 1
     job.update(phase="wellness", wellness_cursor=start_date.isoformat(), wellness_total=total, wellness_done=0, progress=52, message="Napi HRV-, alvás- és pulzusadatok visszatöltése…")
@@ -244,14 +312,13 @@ def _advance_wellness(job: dict[str, Any], sync: GarminSync, store: SyncStore) -
     processed = 0
     while cursor <= end and processed < WELLNESS_CHUNK:
         iso = cursor.isoformat()
-        if iso not in known:
-            hrv = sync._safe_call(lambda d=iso: client.get_hrv_data(d), {}, errors, f"hrv:{iso}")
-            sleep = sync._safe_call(lambda d=iso: client.get_sleep_data(d), {}, errors, f"sleep:{iso}")
-            heart = sync._safe_call(lambda d=iso: client.get_heart_rates(d), {}, errors, f"heart:{iso}")
-            hrv_summary = hrv.get("hrvSummary", hrv) if isinstance(hrv, dict) else {}
-            sleep_daily = sleep.get("dailySleepDTO", sleep) if isinstance(sleep, dict) else {}
-            sleep_seconds = _first_number(sleep_daily, "sleepTimeSeconds", "sleepTime")
-            fetched[iso] = {"date": iso, "hrv": _first_number(hrv_summary, "lastNightAvg", "weeklyAvg", "lastNight5MinHigh"), "sleep_score": _sleep_score(sleep_daily) or _sleep_score(sleep), "sleep_hours": sleep_seconds / 3600 if sleep_seconds else None, "resting_hr": _first_number(heart, "restingHeartRate", "restingHeartRateValue"), "spo2": _first_number(sleep_daily, "averageSpO2Value", "averageSpo2", "avgSpO2")}
+        # Today is always refreshed: Garmin finalizes sleep/HRV and the morning readiness during the day.
+        if iso not in known or cursor == end:
+            hrv = _optional_call(lambda d=iso: client.get_hrv_data(d), {}, errors, f"hrv:{iso}")
+            sleep = _optional_call(lambda d=iso: client.get_sleep_data(d), {}, errors, f"sleep:{iso}")
+            heart = _optional_call(lambda d=iso: client.get_heart_rates(d), {}, errors, f"heart:{iso}")
+            readiness = _optional_call(lambda d=iso: client.get_morning_training_readiness(d), {}, errors, f"training-readiness:{iso}") if cursor == end else None
+            fetched[iso] = _wellness_record(iso, hrv, sleep, heart, readiness)
         cursor += timedelta(days=1)
         processed += 1
     store.stage("wellness", fetched)
@@ -314,11 +381,18 @@ def advance_sync(user_id: str, run_id: str | None = None) -> tuple[dict[str, Any
         if run_id and (not current or current.get("run_id") != run_id):
             raise GarminSyncError("A szinkron munkamenete már nem érvényes. Indíts új szinkront.")
         # Jobs written by the previous format carried the raw payload inline; restart those.
-        resumable = current and current.get("status") == "running" and "raw" not in current
-        job = current if resumable else _new_job()
+        resumable = bool(current) and "raw" not in current and (
+            current.get("status") == "running" or (current.get("status") == "failed" and bool(run_id))
+        )
+        job = (_resume_failed_job(current) if current.get("status") == "failed" else current) if resumable else _new_job()
         store = SyncStore(db, user_id, job["run_id"])
         if not resumable:
             store.clear(all_runs=True)
+        wait = _retry_wait_remaining(job)
+        if wait:
+            job["retry_after_seconds"] = wait
+            save_user_json(user_id, SYNC_JOB_KEY, job, db)
+            return _public(job), 202
         try:
             if job["phase"] == "finalize":
                 _finalize(job, store)
@@ -334,10 +408,13 @@ def advance_sync(user_id: str, run_id: str | None = None) -> tuple[dict[str, Any
                     _advance_profile(job, sync, store)
                 elif job["phase"] == "wellness":
                     _advance_wellness(job, sync, store)
-                job["updated_at"] = _now()
+                job.update(retry_count=0, retry_after_seconds=0, next_retry_at=None, updated_at=_now())
         except Exception as exc:
             db.rollback()
-            _fail(job, exc)
+            if _is_retryable_error(exc):
+                _schedule_retry(job)
+            else:
+                _fail(job, exc)
         save_user_json(user_id, SYNC_JOB_KEY, job, db)
         public = _public(job)
         return public, 200 if job["status"] == "completed" else 202 if job["status"] == "running" else 409

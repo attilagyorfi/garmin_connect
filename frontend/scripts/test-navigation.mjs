@@ -13,12 +13,15 @@ globalThis.SVGElement = dom.window.SVGElement;
 dom.window.HTMLElement.prototype.attachEvent = () => {};
 globalThis.ResizeObserver = class { observe() {} unobserve() {} disconnect() {} };
 const dashboardFixture={
-  today:"2026-08-19",readiness:78,confidence:"magas",decision:{title:"Zone 2 alapozás",duration:"45–70 perc",intensity:"közepes",rationale:"Teszt regenerációs indoklás."},week:{total_load:420,change_pct:4,recommendations:["Tartsd a kiegyensúlyozott struktúrát."]},
+  source:"garmin",today:"2026-08-19",readiness:78,confidence:"magas",readinessSource:"garmin_training_readiness",garminTrainingReadiness:{score:78,level:"HIGH"},
+  dataQuality:{referenceDate:"2026-08-19",missingMetrics:["Alvás"],activityCount:461,activityDateFrom:"2024-04-01",activityDateTo:"2026-08-18",hrvStatus:"BALANCED",hrvBaselineLow:50,hrvBaselineHigh:66,officialLoadCoveragePct:92},
+decision:{title:"Zone 2 alapozás",duration:"45–70 perc",intensity:"közepes",rationale:"Teszt regenerációs indoklás."},week:{total_load:420,change_pct:4,recommendations:["Tartsd a kiegyensúlyozott struktúrát."]},
   sessions:[{id:"test-activity",date:"2026-08-18",type:"Futás",name:"Teszt Zone 2 futás",durationMin:48,avgHr:137,distanceKm:8.2,load:64}],heat:[],metrics:[],trends:[],zones:[0,48,0,0,0],
   coaching:{tips:[{key:"record",tone:"celebrate",priority:75,title:"Új egyéni csúcs: 5 km",message:"Új legjobb eredmény.",why:"A Garmin új rekordot rögzített.",action:"Ünnepeld meg."},{key:"sleep",tone:"warn",priority:75,title:"Alváshiány gyűlik",message:"Keveset aludtál.",why:"Átlag 6,1 óra.",action:"Feküdj le korábban."}],weekly:{weekStart:"2026-08-10",weekEnd:"2026-08-16",sessions:4,minutes:250,load:900,strengthMinutes:90,changePct:12,sleepHours:7.1,hrvChangePct:-3,summary:"A múlt héten 4 edzés, 4,2 óra edzésidő.",highlights:["Új egyéni csúcs: 5 km"],focus:"Feküdj le korábban."}},
   benchmarks:{profile:{sex:"male",age:35},demo:false,sources:[{key:"hunt2013",label:"HUNT 3 Fitness Study",citation:"Loe H et al. PLoS ONE 2013",url:"https://doi.org/10.1371/journal.pone.0064319",license:"CC BY 4.0"}],cards:[{key:"vo2max",title:"VO2max – aerob kapacitás",status:"ok",value:51,valueText:"51,0 ml/kg/perc",percentile:60,atLeast:false,level:2,category:"jó",cohort:"30–39 éves férfiak",headline:"Jobb, mint a veled egykorú férfiak kb. 60%-áé.",detail:"Referencia.",trend:null,nextGoal:"+4,4 ml/kg/perc kell a „kiváló” szinthez (80. percentilis).",confidence:"közepes",caveat:"Becsült érték.",sources:["hunt2013"]},{key:"steps",title:"Napi lépésszám",status:"missing",headline:"Nincs napi lépésszám adat.",valueText:"—",percentile:null,level:null,category:null,confidence:null,sources:["hunt2013"]}]}
 };
 const cloudPatches=[];
+let syncResponseMode="non-json",syncRequests=[];
 let dashboardAvailable=false;
 let assistantState={consent:false,memoryEnabled:true,memory:[],conversation:[],usage:{questions:0,limit:15,remaining:15,tokenBudgetLeft:true}};
 const assistantCalls=[];
@@ -35,7 +38,14 @@ globalThis.fetch = async (input,options={}) => {
   if(url.endsWith("/api/dashboard")&&!dashboardAvailable)return {ok:false,status:503,json:async()=>({error:"Még nincs feltöltött Garmin-adat."}),text:async()=>JSON.stringify({error:"Még nincs feltöltött Garmin-adat."})};
   if(url.endsWith("/api/auth"))return {ok:true,status:200,json:async()=>({user:{id:"test-user",email:"attilla@example.com",name:"Attila"}}),text:async()=>""};
   if(url.endsWith("/api/garmin"))return {ok:true,status:200,json:async()=>({status:"connected",email_hint:"at••••@example.com"}),text:async()=>""};
-  if(url.endsWith("/api/sync"))return {ok:false,status:404,text:async()=>"The page could not be found"};
+  if(url.endsWith("/api/sync")){
+    if(syncResponseMode==="failed"){
+      syncRequests.push(options.body||"");
+      const body={run_id:"resume-test",status:"failed",phase:"failed",progress:42,resumable:true,message:"A Garmin többszöri automatikus próbálkozás után sem válaszolt."};
+      return {ok:false,status:409,json:async()=>body,text:async()=>JSON.stringify(body)};
+    }
+    return {ok:false,status:404,text:async()=>"The page could not be found"};
+  }
   if(url.endsWith("/api/state")){
     if(options.method==="PATCH"){
       const patch=JSON.parse(options.body);cloudPatches.push(patch);
@@ -84,6 +94,9 @@ try {
   await act(async () => readinessMetric.click());
   if (!document.querySelector('.metric-detail')?.textContent.includes("MIT JELENT MOST?")) throw new Error("A readiness részletes értelmezése nem nyitható meg.");
   if (!document.querySelector('.metric-detail')?.textContent.includes("ADATMINŐSÉG")) throw new Error("A readiness adatminőségi magyarázata hiányzik.");
+  const coverage=document.querySelector(".data-coverage")?.textContent||"";
+  for (const expected of ["Garmin Training Readiness · 78 / 100","kiegyensúlyozott · alapsáv 50–66 ms","3 / 4 elérhető","Hiányzik: Alvás","92% Garmin-adat","461 edzés"]) if (!coverage.includes(expected)) throw new Error(`Az adatlefedettségből hiányzik: ${expected}`);
+  if (!document.querySelector(".decision-card")?.textContent.includes("GARMIN TRAINING READINESS")) throw new Error("A döntéskártya nem jelzi a Garmin Training Readiness forrást.");
   console.log("OK readiness részletek és adatminőség");
   const tips=[...document.querySelectorAll(".coaching-tip")];
   if (tips.length!==2||!tips[0].classList.contains("tone-celebrate")) throw new Error("A tippek nem jelentek meg a Ma oldalon.");
@@ -115,6 +128,14 @@ try {
   await act(async () => sync.click());
   if (!document.querySelector(".header-actions")?.textContent.includes("Az online Garmin-szinkron még nincs bekötve")) throw new Error("A nem JSON szinkronhiba nem kapott érthető üzenetet.");
   console.log("OK online szinkronhiba kezelése");
+  syncResponseMode="failed";
+  await act(async () => [...document.querySelectorAll("button")].find(node => node.textContent.trim() === "SZINKRON").click());
+  const resume=[...document.querySelectorAll("button")].find(node=>node.textContent.trim()==="SZINKRON FOLYTATÁSA");
+  if (!resume) throw new Error("A megszakadt szinkron nem folytatható ugyanabból a futásból.");
+  await act(async () => resume.click());
+  if (!syncRequests.some(body=>body.includes("resume-test"))) throw new Error("A folytatás nem a megszakadt futás azonosítójával indult.");
+  syncResponseMode="non-json";
+  console.log("OK megszakadt szinkron folytatása");
   const illness = [...document.querySelectorAll("button")].find(node => node.textContent.trim() === "Betegségérzetem van");
   if (!illness) throw new Error("Hiányzik a betegségérzet check-in vezérlője.");
   await act(async () => illness.click());

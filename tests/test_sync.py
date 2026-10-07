@@ -90,7 +90,8 @@ def test_full_history_sync_resumes_cached_wellness(tmp_path):
     assert first["backfill_in_progress"] is False
     expected_days = (date.today() - date(2026, 8, 12)).days + 1
     assert len(first["wellness"]) == expected_days
-    assert client.wellness_calls == initial_calls
+    # A mai napot minden szinkron frissíti; a történeti napokat a cache-ből használja.
+    assert client.wellness_calls == initial_calls + 1
     assert second["activities"][0]["activityId"] == 1
 
 
@@ -98,3 +99,17 @@ def test_merge_preserves_enriched_cached_fields(tmp_path):
     sync = GarminSync(tmp_path)
     merged = sync._merge_records([{"activityId": 1, "hr_zone_minutes": [10]}], [{"activityId": 1, "duration": 60}], "activityId")
     assert merged == [{"activityId": 1, "hr_zone_minutes": [10], "duration": 60}]
+
+
+def test_transient_authentication_failure_is_not_reported_as_bad_credentials(monkeypatch, tmp_path):
+    class UnavailableGarmin:
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        @staticmethod
+        def login(_tokenstore):
+            raise TimeoutError("Connection timed out")
+
+    monkeypatch.setattr("garmin_sync.Garmin", UnavailableGarmin)
+    with pytest.raises(GarminSyncError, match="átmenetileg nem elérhető"):
+        GarminSync(tmp_path, tokenstore="encrypted-token-bundle").authenticate()
