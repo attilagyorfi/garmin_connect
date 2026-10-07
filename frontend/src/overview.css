@@ -1,0 +1,41 @@
+.overview-page .overview-heading {display:block;padding:0 260px 12px 0}
+.overview-heading h1 {font-size:32px;margin:8px 0}
+.overview-page p {font-size:15px;line-height:1.65;color:#c6ccc9}
+.overview-period {display:flex;gap:24px;align-items:center;flex-wrap:wrap;margin:24px 0 16px}
+.overview-period .segmented {transform:none!important}
+.overview-period p {margin:0}
+.overview-data-state {padding:18px 20px;margin-bottom:20px;border:1px solid #424945;border-radius:12px;color:#e2e7e4;font-size:15px;line-height:1.6}
+.overview-data-state button {margin-left:12px;padding:10px 16px}
+.overview-page .overview-kpis span {font-size:15px;letter-spacing:0;margin:0 0 12px;color:#dce2df}
+.overview-page .overview-kpis strong {font-size:32px;color:#fff}
+.overview-page .overview-kpis small {display:block;font-size:13px;color:#bac2be;margin-top:10px}
+.overview-kpi-summary {min-height:48px;margin:13px 0 0;color:#c6ccc9}
+.overview-kpi-details,.overview-chart-details {margin-top:16px;border-top:1px solid #343a37}
+.overview-kpi-details summary,.overview-chart-details summary {min-height:44px;display:flex;align-items:center;justify-content:space-between;gap:12px;color:var(--accent-text);font-weight:700;cursor:pointer;list-style:none}
+.overview-kpi-details summary::-webkit-details-marker,.overview-chart-details summary::-webkit-details-marker {display:none}
+.overview-kpi-details summary::after,.overview-chart-details summary::after {content:"+";font:700 19px/1 "Geist Mono",monospace;color:var(--accent)}
+.overview-kpi-details[open] summary::after,.overview-chart-details[open] summary::after {content:"−"}
+.overview-kpi-details summary:focus-visible,.overview-chart-details summary:focus-visible {outline:2px solid var(--accent);outline-offset:4px;border-radius:4px}
+.overview-kpi-details p {margin:0 0 4px;font-size:14px;line-height:1.6;color:#b9c1bd}
+.overview-chart-details {margin-top:14px}
+.overview-chart-details>p {margin:0 0 12px}
+.overview-quality {padding:26px;margin-bottom:16px}
+.overview-quality h2 {margin-top:8px;font-size:23px}
+.overview-quality-intro {max-width:920px;margin:12px 0 20px}
+.overview-quality-grid {display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.overview-quality-grid article {position:relative;min-height:178px;padding:19px;border:1px solid #343a37;border-radius:10px;background:#151716}
+.overview-quality-grid article::before {content:"";position:absolute;left:19px;top:20px;width:8px;height:8px;border-radius:50%;background:#7b827e;box-shadow:0 0 0 4px rgba(123,130,126,.12)}
+.overview-quality-grid article[data-state="good"]::before {background:var(--accent);box-shadow:0 0 0 4px color-mix(in srgb,var(--accent) 16%,transparent)}
+.overview-quality-grid article[data-state="mixed"]::before {background:#f59e0b;box-shadow:0 0 0 4px rgba(245,158,11,.14)}
+.overview-quality-grid article>span {display:block;margin-left:22px;color:#b9c0bc;font:600 12px/1.2 "Geist Mono",monospace;letter-spacing:.04em}
+.overview-quality-grid article>strong {display:block;margin:17px 0 8px;color:#fff;font-size:20px;line-height:1.25}
+.overview-quality-grid article>p {margin:0;font-size:13px;line-height:1.55;color:#adb5b1}
+.overview-quality-note {margin:18px 0 0;padding-top:17px;border-top:1px solid #303431}
+.overview-quality-note b {color:#fff}
+.overview-explanations {display:grid;grid-template-columns:repeat(3,1fr);gap:24px}
+.overview-empty {padding:48px 16px;text-align:center;border:1px dashed #49534c;border-radius:12px}
+@media(max-width:1200px){.overview-quality-grid{grid-template-columns:1fr 1fr}}
+@media(max-width:900px){.overview-page .overview-heading{padding-right:0;padding-top:64px}.overview-explanations{grid-template-columns:1fr;gap:0}.overview-page .overview-kpis{grid-template-columns:1fr}.overview-quality-grid{grid-template-columns:1fr}.overview-quality-grid article{min-height:0}}
+.overview-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:16px}.overview-kpis>div{padding:24px}.overview-kpis strong,.overview-kpis span{display:block}.overview-kpis strong{font:700 28px/1.1 "Geist Mono",monospace}.overview-kpis span{margin-top:9px;color:#8e9290;font:600 11px "Geist Mono",monospace;letter-spacing:.08em}.overview-chart{padding:24px}.overview-chart h2{margin-top:7px}.overview-bottom{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px}.overview-bottom>div{padding:26px}.overview-bottom h2{font-size:21px;margin:10px 0}.overview-bottom p{color:#9da19f;line-height:1.6;margin-bottom:0}
+
+@media(max-width:1200px){.overview-kpis{grid-template-columns:1fr 1fr}}

@@ -23,6 +23,7 @@ import "./sync-gate.css";
 import "./benchmarks.css";
 import "./coaching.css";
 import "./assistant.css";
+import "./overview.css";
 
 createRoot(document.getElementById("root")).render(
   <React.StrictMode>

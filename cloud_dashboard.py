@@ -15,10 +15,14 @@ RAW_CACHE_KEY = "garmin_raw_cache_v1"
 DASHBOARD_KEY = "dashboard_snapshot_v1"
 
 
+class NoDashboardData(RuntimeError):
+    """No snapshot exists yet; this is not a service outage."""
+
+
 def dashboard_snapshot(user_id: str | None = None) -> dict[str, Any]:
     payload = load_user_json(user_id, DASHBOARD_KEY) if user_id else load_json(DASHBOARD_KEY)
     if not payload:
-        raise RuntimeError("Még nincs feltöltött Garmin-adat. Indíts szinkronizálást.")
+        raise NoDashboardData("Még nincs feltöltött Garmin-adat. Indíts szinkronizálást.")
     return payload
 
 

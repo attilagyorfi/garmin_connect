@@ -4,3 +4,7 @@
 .sidebar nav button.locked{opacity:.45;cursor:not-allowed}.sidebar nav button.locked:hover{background:transparent;color:inherit}.sidebar nav button .nav-lock{margin-left:auto;width:14px;height:14px}.sidebar.collapsed nav button .nav-lock{display:none}
 @media(max-width:980px){.sync-gate-steps{grid-template-columns:1fr}.sync-gate-action{flex-direction:column;align-items:flex-start}}
 .sync-gate-loading{color:#8f9391;font-size:15px;padding:24px 0}
+
+.checkin-gate{max-width:980px;margin:6vh auto 0;display:grid;grid-template-columns:.75fr 1.4fr;gap:28px;align-items:start}.checkin-gate>div{padding:34px 10px}.checkin-gate h2{font-size:34px;margin:12px 0}.checkin-gate>div>p{color:#a5a9a7;font-size:16px;line-height:1.65}.checkin-required{padding:28px}.checkin-required .check-footer button:disabled{opacity:.4;cursor:not-allowed}
+.today-unavailable{display:grid;gap:16px;max-width:980px}.today-unavailable>.card{padding:26px}.today-unavailable h2{margin:0 0 10px}.today-unavailable p{color:#c6ccc9;line-height:1.6}
+@media(max-width:1200px){.checkin-gate{grid-template-columns:1fr;margin-top:0}.checkin-gate>div{padding-bottom:0}}

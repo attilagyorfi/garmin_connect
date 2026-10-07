@@ -4,7 +4,7 @@ import json
 from http.server import BaseHTTPRequestHandler
 
 from auth_store import current_user
-from cloud_dashboard import dashboard_snapshot
+from cloud_dashboard import NoDashboardData, dashboard_snapshot
 
 
 class handler(BaseHTTPRequestHandler):
@@ -15,6 +15,8 @@ class handler(BaseHTTPRequestHandler):
                 body, status = {"error": "A művelethez bejelentkezés szükséges."}, 401
             else:
                 body, status = dashboard_snapshot(user["id"]), 200
+        except NoDashboardData:
+            body, status = {"error": "Még nincs szinkronizált Garmin-adat.", "code": "no_dashboard_data"}, 404
         except Exception:
             body, status = {"error": "A Garmin-adatok jelenleg nem tölthetők be."}, 503
         encoded = json.dumps(body, ensure_ascii=False).encode("utf-8")

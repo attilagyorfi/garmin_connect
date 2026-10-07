@@ -1,0 +1,5 @@
+import { PolarAngleAxis, RadialBar, RadialBarChart, ResponsiveContainer } from "recharts";
+
+// One 0–100 ring for every score (today's readiness, goal readiness), on a fixed 0–100 scale.
+export function ScoreRing({score,className="",showMaximum=false,ariaLabel}){const normalized=Math.max(0,Math.min(100,Math.round(Number(score)||0))),label=ariaLabel||`${normalized} pont a 100-ból`;
+  return <div className={`ring ${className}`.trim()} data-score={normalized} role="img" aria-label={label}><ResponsiveContainer width="100%" height="100%"><RadialBarChart accessibilityLayer aria-label={label} innerRadius="82%" outerRadius="100%" data={[{name:"pontszám",value:normalized,fill:"var(--accent)"}]} startAngle={90} endAngle={-270}><PolarAngleAxis type="number" domain={[0,100]} angleAxisId={0} tick={false}/><RadialBar dataKey="value" cornerRadius={8} background={{fill:"#292929"}}/></RadialBarChart></ResponsiveContainer><strong>{normalized}</strong>{showMaximum&&<span className="score-maximum">/ 100</span>}</div>}
