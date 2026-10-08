@@ -24,7 +24,7 @@ decision:{title:"Zone 2 alapozás",duration:"45–70 perc",intensity:"közepes",
   benchmarks:{profile:{sex:"male",age:35},demo:false,sources:[{key:"hunt2013",label:"HUNT 3 Fitness Study",citation:"Loe H et al. PLoS ONE 2013",url:"https://doi.org/10.1371/journal.pone.0064319",license:"CC BY 4.0"}],cards:[{key:"vo2max",title:"VO2max – aerob kapacitás",status:"ok",value:51,valueText:"51,0 ml/kg/perc",percentile:60,atLeast:false,level:2,category:"jó",cohort:"30–39 éves férfiak",headline:"Jobb, mint a veled egykorú férfiak kb. 60%-áé.",detail:"Referencia.",trend:null,nextGoal:"+4,4 ml/kg/perc kell a „kiváló” szinthez (80. percentilis).",confidence:"közepes",caveat:"Becsült érték.",sources:["hunt2013"]},{key:"steps",title:"Napi lépésszám",status:"missing",headline:"Nincs napi lépésszám adat.",valueText:"—",percentile:null,level:null,category:null,confidence:null,sources:["hunt2013"]}]}
 };
 const cloudPatches=[];
-let syncResponseMode="non-json",syncRequests=[];
+let syncResponseMode="non-json",syncRequests=[],cloudStateFetches=0;
 let dashboardAvailable=false;
 let assistantState={consent:false,memoryEnabled:true,memory:[],conversation:[],usage:{questions:0,limit:15,remaining:15,tokenBudgetLeft:true}};
 const assistantCalls=[];
@@ -34,7 +34,8 @@ globalThis.fetch = async (input,options={}) => {
   if(url.endsWith("/api/assistant")){
     if(options.method==="POST"){const payload=JSON.parse(options.body);assistantCalls.push(payload);
       if(payload.action==="consent")assistantState={...assistantState,consent:payload.value};
-      if(payload.action==="ask")assistantState={...assistantState,conversation:[...assistantState.conversation,{role:"user",content:payload.question},{role:"assistant",content:"**Ma** könnyű nap.\n\n- Zone 2 futás 40 perc\n- Nyújtás"}],memory:[{id:"m1",text:"Este edz."}],usage:{...assistantState.usage,questions:1,remaining:14}};
+      if(payload.action==="ask")assistantState={...assistantState,conversation:[...assistantState.conversation,{role:"user",content:payload.question},{role:"assistant",content:"**Ma** könnyű nap.\n\n- Zone 2 futás 40 perc\n- Nyújtás",actions:[{id:"act-1",action:"upsert_plan",summary:"Holnapi könnyű Zone 2 futás",reason:"A terhelhetőség közepes.",status:"pending",before:null,plan:{date:TODAY,type:"Futás",title:"Zone 2 futás",duration:40,intensity:"könnyű",rpe:4}}]}],memory:[{id:"m1",text:"Este edz."}],usage:{...assistantState.usage,questions:1,remaining:14}};
+      if(payload.action==="decideProposal"){assistantState={...assistantState,conversation:assistantState.conversation.map(item=>item.actions?{...item,actions:item.actions.map(action=>action.id===payload.id?{...action,status:payload.decision==="approve"?"applied":"rejected"}:action)}:item),decision:{id:payload.id,status:payload.decision==="approve"?"applied":"rejected"}};}
       if(payload.action==="deleteMemory")assistantState={...assistantState,memory:[]};}
     return {ok:true,status:200,json:async()=>({...assistantState,answer:"ok"}),text:async()=>""};
   }
@@ -50,6 +51,7 @@ globalThis.fetch = async (input,options={}) => {
     }
     return {ok:false,status:404,text:async()=>"The page could not be found"};
   }
+  if(url.endsWith("/api/state")&&options.method!=="PATCH")cloudStateFetches+=1;
   if(url.endsWith("/api/state")){
     if(options.method==="PATCH"){
       const patch=JSON.parse(options.body);cloudPatches.push(patch);
@@ -140,12 +142,21 @@ try {
   if (!reply?.querySelector("b")||reply.querySelectorAll("li").length!==2) throw new Error("A válasz nem jelent meg formázva.");
   if (!document.querySelector(".assistant-head small")?.textContent.includes("14/15")) throw new Error("A napi keret nem frissült.");
   if (!assistantCalls.some(call=>call.action==="ask"&&call.question==="Mit eddzek holnap?")) throw new Error("A kérdés nem ment el.");
+  const proposalCard=document.querySelector(".assistant-proposal");
+  if (!proposalCard?.textContent.includes("Jóváhagyásra vár")||!proposalCard.textContent.includes("Zone 2 futás · 40 perc")) throw new Error("Az edzőtárs tervjavaslata nem jelent meg előnézetként.");
+  if (cloudPatches.some(patch=>patch.plan?.title==="Zone 2 futás")) throw new Error("A javaslat jóváhagyás nélkül a tervbe került.");
+  const stateFetchesBefore=cloudStateFetches;
+  await act(async()=>[...proposalCard.querySelectorAll("button")].find(node=>node.textContent==="Jóváhagyom").click());
+  await act(async()=>new Promise(resolve=>setTimeout(resolve,5)));
+  if (!assistantCalls.some(call=>call.action==="decideProposal"&&call.id==="act-1"&&call.decision==="approve")) throw new Error("A jóváhagyás nem a szerveroldali döntési végpontra ment.");
+  if (!document.querySelector(".assistant-proposal")?.textContent.includes("Bekerült a Naptárba")||document.querySelector(".assistant-proposal-actions")) throw new Error("A jóváhagyott javaslat állapota nem frissült.");
+  if (cloudStateFetches<=stateFetchesBefore) throw new Error("Jóváhagyás után az alkalmazás nem töltötte újra a tervet.");
   await act(async()=>document.querySelector('.assistant-head-actions button[title="Memória"]').click());
   if (!document.querySelector(".assistant-memory")?.textContent.includes("Este edz.")) throw new Error("A memória nem látható.");
   await act(async()=>document.querySelector(".assistant-memory li button").click());
   if (!assistantCalls.some(call=>call.action==="deleteMemory"&&call.id==="m1")) throw new Error("A memóriapont nem törölhető.");
   await act(async()=>document.querySelector('.assistant-head-actions button[aria-label="Bezárás"]').click());
-  console.log("OK edzőtárs chat: hozzájárulás, kérdés, keret, memória");
+  console.log("OK edzőtárs chat: hozzájárulás, kérdés, keret, jóváhagyásos tervjavaslat, memória");
   const sync = [...document.querySelectorAll("button")].find(node => node.textContent.trim() === "SZINKRON");
   await act(async () => sync.click());
   if (!document.querySelector(".header-actions")?.textContent.includes("Az online Garmin-szinkron még nincs bekötve")) throw new Error("A nem JSON szinkronhiba nem kapott érthető üzenetet.");

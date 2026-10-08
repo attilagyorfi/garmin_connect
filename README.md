@@ -86,7 +86,9 @@ Az ütemező (`model_registry.py`) futásonként legfeljebb tíz fiókot ellenő
 
 ### AI edzőtárs
 
-Az Edzőtárs chat (`api/assistant.py`, `assistant.py`) a Claude Sonnet 5.5 modellt használja; ehhez szerveroldalon `ANTHROPIC_API_KEY` kell (helyben a `.env.local`-ban, élesben a Vercel környezeti változói között). A modell csak az `assistant_context.py` által összesített adatokat kapja. Felhasználónként napi 15 kérdés és napi tokenkeret érvényes; a memória kikapcsolható és törölhető.
+Az Edzőtárs chat (`api/assistant.py`, `assistant.py`) a Claude Sonnet 5.5 modellt használja; ehhez szerveroldalon `ANTHROPIC_API_KEY` kell (helyben a `.env.local`-ban, élesben a Vercel környezeti változói között). A modell csak az `assistant_context.py` által összesített adatokat kapja. Felhasználónként napi 15 kérdés és napi 150 000 tokenes keret érvényes (budapesti naptári nap szerint). Minden Claude-hívás előtt az `ai_usage.py` felhasználónkénti zár alatt lefoglalja a keretet, utána a tényleges tokenszámmal rögzíti; így párhuzamos kérdések sem léphetik túl a keretet, a sikertelen hívás pedig nem számít bele. Az adminisztrátor a Beállításokban felhasználó nélküli, 30 napos összesítőt lát (kérdések, tokenek, listaáron becsült költség). A memória kikapcsolható és törölhető.
+
+Az edzőtárs kérésre edzéstervet is javasolhat (`assistant_actions.py`, szigorú sémájú `propose_plan_change` eszköz). A javaslat csak függőben lévő, 24 óráig érvényes művelet: a Naptár kizárólag a felhasználó jóváhagyása után változik, és ha a terv a javaslat óta módosult, a jóváhagyás nem írja felül. A modell a meglévő tervekre rövid jelekkel (T1, T2…) hivatkozik, tárolt azonosítót nem kap.
 
 A modell- és promptteszt szintetikus demóadaton fut: `python evals/assistant/run_eval.py --dry-run` (költségbecslés), `--prompts` (rögzített v1 vs. aktuális prompt), alapból Sonnet 5.5 vs. Haiku 4.5. Az eredmények a Gitből kizárt `evals/assistant/results/` mappába kerülnek.
 

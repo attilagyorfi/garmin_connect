@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from http.server import BaseHTTPRequestHandler
 
-from assistant import AssistantError, ask, load_assistant_state, public_state, update_settings
+from assistant import AssistantError, ask, decide_proposal, load_assistant_state, public_state, update_settings
 from auth_store import current_user
 
 
@@ -23,7 +23,7 @@ class handler(BaseHTTPRequestHandler):
             if not user:
                 self._send({"error": "A művelethez bejelentkezés szükséges."}, 401)
                 return
-            self._send(public_state(load_assistant_state(user["id"])))
+            self._send(public_state(load_assistant_state(user["id"]), user["id"]))
         except Exception:
             self._send({"error": "Az edzőtárs állapota jelenleg nem tölthető be."}, 503)
 
@@ -39,6 +39,8 @@ class handler(BaseHTTPRequestHandler):
             payload = json.loads(self.rfile.read(size))
             if payload.get("action") == "ask":
                 self._send(ask(user["id"], payload.get("question", "")))
+            elif payload.get("action") == "decideProposal":
+                self._send(decide_proposal(user["id"], str(payload.get("id", "")), str(payload.get("decision", ""))))
             else:
                 self._send(update_settings(user["id"], payload))
         except (AssistantError, json.JSONDecodeError) as exc:
