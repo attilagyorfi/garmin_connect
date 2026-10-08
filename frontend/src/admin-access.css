@@ -45,3 +45,6 @@
   .admin-audit-heading, .admin-audit-row { grid-template-columns: 1fr; display: grid; }
   .admin-audit-row > span:last-child { text-align: left; }
 }
+
+.admin-ai-usage{margin-top:22px;padding-top:20px;border-top:1px solid #303431}.admin-ai-usage-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:12px}.admin-ai-usage-grid span{padding:13px 14px;border:1px solid #303431;border-radius:10px;background:#151716}.admin-ai-usage-grid b{display:block;font:700 20px/1.2 "Geist Mono",monospace;color:#fff}.admin-ai-usage-grid small{display:block;margin-top:5px;color:#a9b0ac;font-size:12px}
+@media(max-width:900px){.admin-ai-usage-grid{grid-template-columns:1fr 1fr}}

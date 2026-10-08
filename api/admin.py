@@ -4,6 +4,7 @@ import json
 from http.server import BaseHTTPRequestHandler
 from urllib.parse import quote
 
+from ai_usage import admin_summary
 from auth_store import (
     create_admin_password_reset,
     create_invite,
@@ -47,7 +48,7 @@ class handler(BaseHTTPRequestHandler):
         try:
             user = self._admin()
             if user:
-                self._send(list_access_admin(user["id"]))
+                self._send({**list_access_admin(user["id"]), "aiUsage": admin_summary(30)})
         except Exception:
             self._send({"error": "A hozzáférések most nem kérdezhetők le."}, 500)
 
