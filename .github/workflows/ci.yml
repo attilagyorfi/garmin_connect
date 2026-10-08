@@ -25,11 +25,11 @@ jobs:
       - run: python -m pip install --upgrade pip
       - run: python -m pip install -r requirements-dev.txt
       - run: python -m pytest -q
-      - run: python -m py_compile app.py analytics.py storage.py garmin_sync.py garmin_profile.py benchmarks.py tips.py assistant.py assistant_context.py assistant_prompts.py auth_store.py data_export.py garmin_connection.py
+      - run: python -m py_compile app.py analytics.py storage.py garmin_sync.py garmin_profile.py benchmarks.py tips.py assistant.py assistant_context.py assistant_prompts.py auth_store.py data_export.py garmin_connection.py model_registry.py
       - name: Vercel functions import with production dependencies only
         run: |
           python -m venv /tmp/prod && /tmp/prod/bin/pip install -q -r requirements.txt
-          /tmp/prod/bin/python -c "import api.admin, api.assistant, api.auth, api.dashboard, api.sessions, api.garmin, api.state, api.sync"
+          /tmp/prod/bin/python -c "import api.admin, api.assistant, api.auth, api.dashboard, api.sessions, api.garmin, api.model, api.retrain, api.state, api.sync"
 
   frontend:
     runs-on: ubuntu-latest

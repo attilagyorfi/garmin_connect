@@ -24,6 +24,7 @@ import "./benchmarks.css";
 import "./coaching.css";
 import "./assistant.css";
 import "./overview.css";
+import "./model-status.css";
 
 createRoot(document.getElementById("root")).render(
   <React.StrictMode>

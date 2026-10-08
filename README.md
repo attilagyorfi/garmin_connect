@@ -78,6 +78,12 @@ Regisztráció után Garmin-fiók nélkül is kipróbálható: `python scripts/d
 
 Csatlakoztatott Garmin-fióknál a `python scripts/inspect_garmin_payloads.py <e-mail>` kiírja a sportprofil-végpontok (profil, VO2max, testösszetétel, intenzív percek, lépések, rekordok, erőedzés-sorozatok) válaszainak szerkezetét értékek nélkül, és hogy a `garmin_profile.py` feldolgozói mely mezőket tudták kitölteni.
 
+### Személyes regenerációs modell (napi karbantartás)
+
+A production telepítés naponta egyszer (03:15 UTC, Vercel Cron) meghívja a `/api/retrain` végpontot. Ehhez a Vercel Production környezetében kötelező egy hosszú, véletlen `CRON_SECRET`; a Vercel ezt `Bearer` hitelesítésként küldi, hiányzó vagy eltérő titoknál a végpont nem indul el.
+
+Az ütemező (`model_registry.py`) futásonként legfeljebb tíz fiókot ellenőriz, felhasználónként elkülönítve. Ugyanazt az adatállapotot nem tanítja újra, és az időrendi validációs kaput nem kerüli meg: gyengébb vagy elégtelen jelöltet eltárol ellenőrzési eredményként, de nem aktivál. Az Insights oldalon (`/api/model`) csak a mintanagyság, az adat-időszak, a lefedettség és a közérthetően magyarázott hibaérték jelenik meg; a modell együtthatói és a nyers Garmin-adatok nem kerülnek a böngészőbe. Fióktörléskor a modellverziók is törlődnek.
+
 ### AI edzőtárs
 
 Az Edzőtárs chat (`api/assistant.py`, `assistant.py`) a Claude Sonnet 5.5 modellt használja; ehhez szerveroldalon `ANTHROPIC_API_KEY` kell (helyben a `.env.local`-ban, élesben a Vercel környezeti változói között). A modell csak az `assistant_context.py` által összesített adatokat kapja. Felhasználónként napi 15 kérdés és napi tokenkeret érvényes; a memória kikapcsolható és törölhető.

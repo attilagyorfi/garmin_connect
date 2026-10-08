@@ -39,6 +39,7 @@ globalThis.fetch = async (input,options={}) => {
     return {ok:true,status:200,json:async()=>({...assistantState,answer:"ok"}),text:async()=>""};
   }
   if(url.endsWith("/api/dashboard")&&!dashboardAvailable)return {ok:false,status:404,json:async()=>({error:"Még nincs szinkronizált Garmin-adat.",code:"no_dashboard_data"}),text:async()=>JSON.stringify({error:"Még nincs szinkronizált Garmin-adat.",code:"no_dashboard_data"})};
+  if(url.endsWith("/api/model"))return {ok:true,status:200,json:async()=>({active:{id:7,trained_at:"2026-09-22T03:15:00+00:00",data_start:"2025-09-01",data_end:"2026-09-21",samples:340,model_mae:0.42,baseline_mae:0.61,eligible:true,active:true,promotion_reason:"A jelölt MAE-je jobb.",validation:{improvementPct:31.1,windowsWon:3,windowCount:3}},latest:null,readiness:{availableSamples:340,requiredSamples:132,progressPct:100,observedDays:365,dataStart:"2025-09-01",dataEnd:"2026-09-22",readyForValidation:true,coverage:[{key:"sleep_score",label:"Alváspontszám",availableDays:350,coveragePct:96},{key:"hrv",label:"Éjszakai HRV",availableDays:340,coveragePct:93},{key:"resting_hr",label:"Nyugalmi pulzus",availableDays:355,coveragePct:97},{key:"hybrid_load",label:"Edzésterhelés",availableDays:365,coveragePct:100},{key:"session_rpe",label:"Saját edzésérzet (RPE)",availableDays:40,coveragePct:11}]},schedule:{nextCheckAt:"2026-09-23T03:15:00+00:00",frequency:"daily"},lastRun:{checkedAt:"2026-09-22T03:15:00+00:00",status:"candidate_ready",due:true,reasons:["30 új adatnap érkezett"],dataEnd:"2026-09-22",message:"A validált jelölt aktiválva."}}),text:async()=>""};
   if(url.endsWith("/api/auth"))return {ok:true,status:200,json:async()=>({user:{id:"test-user",email:"attilla@example.com",name:"Attila"}}),text:async()=>""};
   if(url.endsWith("/api/garmin"))return {ok:true,status:200,json:async()=>({status:"connected",email_hint:"at••••@example.com"}),text:async()=>""};
   if(url.endsWith("/api/sync")){
@@ -193,6 +194,13 @@ try {
     if (label === "Insights") {
       const weeklyTranslation=document.querySelector('.decision-translation');
       if(!weeklyTranslation?.textContent.includes('A heti adatok jelentése röviden')||!weeklyTranslation.textContent.includes('Mi változott?')||!weeklyTranslation.textContent.includes('előző 7 napból')) throw new Error("Az Insights heti, közérthető értelmezése hiányzik.");
+      await act(async () => new Promise(resolve=>setTimeout(resolve,5)));
+      const modelStatus=document.querySelector('.model-status');
+      if (!modelStatus?.textContent.includes("Aktív személyes regenerációs modell")) throw new Error("Az automatikus személyes modell állapota nem jelent meg.");
+      if (!modelStatus.textContent.includes("átlagos abszolút hiba 0,42")||!modelStatus.textContent.includes("nem terhelhetőségi pontszám")) throw new Error("A modell pontosságának laikus magyarázata hiányzik.");
+      if (!modelStatus.textContent.includes("340 / 132 nap")||!modelStatus.textContent.includes("31,1% kisebb hiba")||!modelStatus.textContent.includes("3 / 3 jobb")) throw new Error("A modell adatalkalmassági vagy validációs összefoglalója hiányzik.");
+      if (!modelStatus.textContent.includes("Éjszakai HRV")||!modelStatus.textContent.includes("Következő automatikus ellenőrzés")) throw new Error("A modell adatlefedettsége vagy ütemezése hiányzik.");
+      console.log("OK ütemezett személyes modellállapot, adatalkalmasság és közérthető pontosság");
     }
     if (label === "Naptár") {
       const add = [...document.querySelectorAll("button")].find(node => node.textContent.includes("EDZÉS HOZZÁADÁSA"));

@@ -27,6 +27,8 @@ ACCOUNT_DELETE_CONFIRMATION = "FIÓK TÖRLÉSE"
 USER_DATA_TABLES = (
     "hybrid_user_state",
     "hybrid_sync_items",
+    "hybrid_retraining_runs",
+    "hybrid_model_versions",
     "hybrid_garmin_connections",
     "hybrid_assistant_actions",
     "hybrid_retraining_runs",
