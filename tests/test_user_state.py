@@ -44,6 +44,9 @@ def test_profile_accent_checkin_and_feedback_are_merged(memory_store):
     {"profile": {"avatarPreset": "photo", "avatarImage": "https://example.com/avatar.png"}},
     {"plan": {"date": "2026-08-24", "type": "Úszás"}},
     {"deletePlan": ""},
+    {"profile": {"eventType": "ultra"}},
+    {"profile": {"referenceRaceKey": "3k"}},
+    {"profile": {"referenceRaceKey": "10k", "referenceRaceTime": "fél óra"}},
 ])
 def test_invalid_state_is_rejected(memory_store, patch):
     with pytest.raises((ValueError, TypeError)):
@@ -90,3 +93,12 @@ def test_training_plan_full_crud_and_bulk_template(memory_store):
 
     deleted = user_state.apply_patch({"deletePlan": "plan-1"})
     assert [plan["id"] for plan in deleted["plans"]] == ["period-2026-08-25"]
+
+
+def test_event_type_and_reference_race_are_kept(memory_store):
+    state = user_state.apply_patch({"profile": {"eventName": "Tavaszi Maraton", "eventDate": "2027-04-11", "eventType": "marathon",
+                                                "referenceRaceKey": "10k", "referenceRaceTime": "49:30"}})
+    profile = state["profile"]
+    assert (profile["eventType"], profile["referenceRaceKey"], profile["referenceRaceTime"]) == ("marathon", "10k", "49:30")
+    assert user_state.apply_patch({"profile": {"referenceRaceKey": "half", "referenceRaceTime": "1:52:05"}})["profile"]["referenceRaceTime"] == "1:52:05"
+    assert user_state.apply_patch({"profile": {}})["profile"]["eventType"] == ""
