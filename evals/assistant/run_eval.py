@@ -4,11 +4,15 @@
     python evals/assistant/run_eval.py               # Claude Sonnet 5.5 vs Haiku 4.5, judged by Opus 5.5 (ANTHROPIC_API_KEY)
     python evals/assistant/run_eval.py --prompts     # frozen v1 prompt vs current prompt, both on Sonnet 5.5
 
+Chat cases run through the production code path (assistant._answer): the same system prompt and cached context
+block, the plan-proposal tool with T1/T2 plan handles, and the follow-up turn after a proposal. Proposals are
+validated by the production normalizer against synthetic plans, without touching the database.
 Every answer pair is graded blind (random A/B order, no model names) by Claude Opus 5.5.
 """
 from __future__ import annotations
 
 import argparse
+import contextlib
 import copy
 import json
 import random
@@ -16,7 +20,7 @@ import re
 import sys
 import tempfile
 import time
-from datetime import datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any, Literal
 
@@ -32,6 +36,8 @@ except ImportError:
 else:
     load_dotenv(ROOT / ".env.local", override=False)
 
+import assistant  # noqa: E402
+import assistant_actions  # noqa: E402
 from assistant_context import build_context  # noqa: E402
 from assistant_prompts import MEMORY_TASK, SUMMARY_TASK, SYSTEM_PROMPT, context_block  # noqa: E402
 from dashboard_api import build_dashboard_payload  # noqa: E402
@@ -133,9 +139,10 @@ class Budget:
     def __init__(self, limit: float) -> None:
         self.limit, self.spent = limit, 0.0
 
-    def add(self, model: str, input_tokens: int, output_tokens: int) -> float:
+    def add(self, model: str, input_tokens: int, output_tokens: int, cache_read: int = 0, cache_write: int = 0) -> float:
         price_in, price_out = PRICES[model]
-        cost = (input_tokens * price_in + output_tokens * price_out) / 1_000_000
+        # Prompt caching: reads cost 0.1x, writes 1.25x the input price.
+        cost = (input_tokens * price_in + output_tokens * price_out + cache_read * price_in * 0.1 + cache_write * price_in * 1.25) / 1_000_000
         self.spent += cost
         if self.spent > self.limit:
             raise SystemExit(f"Költségkorlát elérve ({self.spent:.2f} USD > {self.limit} USD) – a futás leállt.")
@@ -161,6 +168,92 @@ def call_claude(client: Any, model: str, message: str, schema: type[BaseModel] |
         "latency": time.perf_counter() - started,
     }
 
+
+
+# ---------------------------------------------------------------- production chat path
+
+def eval_plans(today: date) -> list[dict[str, Any]]:
+    """Synthetic upcoming plans: tomorrow's tempo run, a strength session, and a long run on the next weekend day."""
+    weekend = today + timedelta(days=max(2, (5 - today.weekday()) % 7 or 7))
+    rows = [
+        (today + timedelta(days=1), "Futás", "Tempófutás", 50, "közepes–magas", 7),
+        (today + timedelta(days=2), "Erő", "Teljes test erőedzés", 60, "közepes", 6),
+        (weekend if weekend > today + timedelta(days=2) else today + timedelta(days=4), "Futás", "Hosszú futás", 90, "könnyű", 5),
+    ]
+    return [{"id": f"eval-plan-{index}", "date": day.isoformat(), "type": kind, "title": title, "duration": minutes,
+             "intensity": intensity, "rpe": rpe, "note": ""} for index, (day, kind, title, minutes, intensity, rpe) in enumerate(rows, 1)]
+
+
+def chat_context(ctx: dict[str, Any], case: dict[str, Any]) -> tuple[dict[str, Any], list[dict[str, Any]], dict[str, str]]:
+    """The context exactly as assistant.ask builds it: memory, plan handles and (empty) proposal history."""
+    ctx = copy.deepcopy(ctx)
+    ctx["memória"] = case.get("memory", [])
+    plans = eval_plans(date.fromisoformat(ctx["dátum"]))
+    ctx["tervek"], handles = assistant_actions.plan_handles(plans, today=date.fromisoformat(ctx["dátum"]))
+    ctx["tervjavaslatok_előzménye"] = []
+    return ctx, plans, handles
+
+
+@contextlib.contextmanager
+def patched(target: Any, name: str, value: Any):
+    saved = getattr(target, name)
+    setattr(target, name, value)
+    try:
+        yield
+    finally:
+        setattr(target, name, saved)
+
+
+def proposal_line(item: dict[str, Any]) -> str:
+    plan = item.get("plan") or item.get("before") or {}
+    what = "törlés" if item["action"] == "delete_plan" else f"{plan.get('date')} · {plan.get('type')} · {plan.get('title')} · {plan.get('duration')} perc · {plan.get('intensity')} · RPE {plan.get('rpe')}"
+    return f"[Jóváhagyásra rögzített tervjavaslat: {item['summary']} — {what}. Indok: {item['reason']}]"
+
+
+def production_answer(client: Any, player: dict[str, Any], case: dict[str, Any], ctx: dict[str, Any], plans: list[dict[str, Any]],
+                      handles: dict[str, str]) -> dict[str, Any]:
+    import anthropic
+
+    proposals: list[dict[str, Any]] = []
+    problems: list[str] = []
+
+    def record(batch: list[Any]) -> tuple[list[dict[str, Any]], list[str]]:
+        stored, rejected = [], []
+        for proposal in batch:
+            try:
+                action, payload, summary, reason, before = assistant_actions._normalize(proposal, "eval", handles)
+            except (ValueError, TypeError) as exc:
+                rejected.append(str(exc))
+                continue
+            item = {"id": f"eval-{len(proposals)}", "action": action, "summary": summary, "reason": reason, "plan": payload.get("plan"), "before": before}
+            proposals.append(item)
+            stored.append(item)
+        problems.extend(rejected)
+        return stored, rejected
+
+    started = time.perf_counter()
+    try:
+        with patched(assistant, "SYSTEM_PROMPT", player["system"]), patched(assistant_actions, "load_state", lambda _user: {"plans": plans}):
+            text, usage, _created = assistant._answer(client, ctx, [], case["question"], on_proposals=record)
+    except anthropic.APIStatusError as exc:
+        return {"error": f"{type(exc).__name__}: {exc.message}", "latency": time.perf_counter() - started}
+    return {"text": text, "judge_text": "\n\n".join([text, *map(proposal_line, proposals)]), "proposals": proposals, "invalid_proposals": problems,
+            "stop_reason": "refusal" if text == assistant.REFUSAL_TEXT else "end_turn", "input_tokens": usage.get("input", 0),
+            "output_tokens": usage.get("output", 0), "cache_read": usage.get("cache_read", 0), "cache_write": usage.get("cache_write", 0),
+            "latency": time.perf_counter() - started}
+
+
+def proposal_expectation_met(case: dict[str, Any], answer: dict[str, Any]) -> bool | None:
+    """Deterministic check for cases that state whether a proposal is expected (and how hard it may be)."""
+    expected = case.get("expect_proposal")
+    if expected is None and "max_rpe" not in case:
+        return None
+    made = answer.get("proposals") or []
+    if expected is not None and bool(made) != expected:
+        return False
+    if case.get("expect_action") and made and not any(item["action"] == case["expect_action"] for item in made):
+        return False
+    return all((item.get("plan") or {}).get("rpe", 0) <= case["max_rpe"] for item in made) if "max_rpe" in case else True
 
 
 # ---------------------------------------------------------------- checks and judging
@@ -209,10 +302,13 @@ def main() -> None:
     context = base_context()
     jobs = [(name, case) for name, (_, _, kinds) in setup["comparisons"].items() for case in cases if kinds is None or case["kind"] in kinds]
     if args.dry_run:
-        chars = sum(len(user_message(case, scenario(context, case["scenario"]))) + len(SYSTEM_PROMPT) for _, case in jobs)
+        # Upper bound: a chat case may take two model turns (proposal + follow-up); tool definition counted in.
+        chars = sum((len(user_message(case, chat_context(scenario(context, case["scenario"]), case)[0])) + len(SYSTEM_PROMPT) + 2500)
+                    * (2 if case["kind"] == "chat" else 1) for _, case in jobs)
         judge_price = max(PRICES[model][1] for model in setup["judges"])
         estimate = (chars / 3.2 * 2 * 3 * 4 + len(jobs) * 900 * (2 * 10 + len(setup["judges"]) * judge_price)) / 1_000_000
-        print(f"{len(cases)} eset, {len(jobs)} válaszpár, {len(jobs) * len(setup['judges'])} bírálat. "
+        tool_cases = sum(1 for _, case in jobs if case.get("expect_proposal") is not None or "max_rpe" in case)
+        print(f"{len(cases)} eset ({tool_cases} tervmódosítási), {len(jobs)} válaszpár, {len(jobs) * len(setup['judges'])} bírálat. "
               f"Becsült költség: kb. {estimate:.2f} USD (felső becslés), korlát: {MAX_USD} USD.")
         return
 
@@ -227,15 +323,22 @@ def main() -> None:
         entry_a, entry_b, _ = setup["comparisons"][name]
         first, second = contestant(entry_a), contestant(entry_b)
         ctx = scenario(context, case["scenario"])
+        plans, handles = [], {}
+        if case["kind"] == "chat":
+            ctx, plans, handles = chat_context(ctx, case)
         prompt = user_message(case, ctx, first["summary_task"])
         schema = MemoryNotes if case["kind"] == "memory" else None
         answers = {}
         for player in (first, second):
             model = player["model"]
             player_prompt = user_message(case, ctx, player["summary_task"])
-            result = call_claude(client, model, player_prompt, schema, player["system"])
+            if case["kind"] == "chat":
+                result = production_answer(client, player, case, ctx, plans, handles)
+            else:
+                result = call_claude(client, model, player_prompt, schema, player["system"])
             if "error" not in result:
-                result["cost"] = budget.add(model, result["input_tokens"], result["output_tokens"])
+                result["cost"] = budget.add(model, result["input_tokens"], result["output_tokens"], result.get("cache_read", 0), result.get("cache_write", 0))
+                result["proposal_ok"] = proposal_expectation_met(case, result)
                 result["words"] = len(result["text"].split())
                 result["emoji"] = bool(EMOJI.search(result["text"]))
                 result["unsupported_numbers"] = [] if schema else unsupported_numbers(result["text"], player_prompt)
@@ -244,7 +347,8 @@ def main() -> None:
         if all("error" not in item for item in answers.values()):
             order = [first["label"], second["label"]]
             rng.shuffle(order)
-            message = judge_message(case, prompt, answers[order[0]]["text"], answers[order[1]]["text"])
+            shown = {label: item.get("judge_text", item["text"]) for label, item in answers.items()}
+            message = judge_message(case, prompt, shown[order[0]], shown[order[1]])
             for judge in setup["judges"]:
                 result = call_claude(client, judge, message, Verdict, JUDGE_SYSTEM)
                 if "error" in result or not result.get("parsed"):
@@ -310,13 +414,22 @@ def report(rows: list[dict[str, Any]], spent: float, setup: dict[str, Any]) -> s
             lines.append(f"| {label} | " + " | ".join(cells) + " |")
         for label, test in (("Ellenőrizetlen számot tartalmazó válasz", lambda a: bool(a.get("unsupported_numbers"))),
                             ("Emojit tartalmazó válasz", lambda a: bool(a.get("emoji"))),
-                            ("Hiba / elutasítás", lambda a: "error" in a or a.get("stop_reason") == "refusal")):
+                            ("Hiba / elutasítás", lambda a: "error" in a or a.get("stop_reason") == "refusal"),
+                            ("Tervjavaslatot tett", lambda a: bool(a.get("proposals"))),
+                            ("Érvénytelen (elutasított) tervjavaslat", lambda a: bool(a.get("invalid_proposals")))):
             lines.append(f"| {label} | " + " | ".join(str(sum(1 for row in group if test(row["answers"][model]))) for model in models) + " |")
+        checked = [row for row in group if row["answers"][models[0]].get("proposal_ok") is not None or row["answers"][models[1]].get("proposal_ok") is not None]
+        if checked:
+            cells = [f"{sum(1 for row in checked if row['answers'][model].get('proposal_ok'))}/{len(checked)}" for model in models]
+            lines.append("| Tervjavaslat-elvárás teljesült | " + " | ".join(cells) + " |")
         lines.append("\n### Esetenként (bírói indoklással)\n")
         for row in group:
             for judge in judges:
                 verdict = row["verdicts"].get(judge, {})
                 lines.append(f"- **{row['case']['id']}** ({row['case']['category']}) – {judge}: {verdict.get('winner', '—')}. {verdict.get('reason', verdict.get('error', ''))}")
+            for model in models:
+                for item in row["answers"][model].get("proposals") or []:
+                    lines.append(f"  - {model} javaslata: {item['summary']}" + ("" if row["answers"][model].get("proposal_ok") in (None, True) else " (**elvárással ellentétes**)"))
     return "\n".join(lines) + "\n"
 
 
