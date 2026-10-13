@@ -17,6 +17,45 @@ class handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(encoded)
 
+    def _ask_stream(self, user_id: str, question: str) -> None:
+        """NDJSON stream: {"type":"delta","text"} pieces, {"type":"reset"} when a plan proposal replaces the
+        streamed draft, then {"type":"done", ...state} or {"type":"error"}. Checks that fail before the first
+        piece (consent, limits, missing data) still get a normal JSON error response."""
+        started = disconnected = False
+
+        def emit(event: dict) -> None:
+            nonlocal started, disconnected
+            if disconnected:
+                return
+            if not started:
+                self.send_response(200)
+                self.send_header("Content-Type", "application/x-ndjson; charset=utf-8")
+                self.send_header("Cache-Control", "private, no-store")
+                self.send_header("X-Accel-Buffering", "no")
+                self.end_headers()
+                started = True
+            try:
+                self.wfile.write(json.dumps(event, ensure_ascii=False).encode("utf-8") + b"\n")
+                self.wfile.flush()
+            except OSError:
+                # The athlete closed the panel: the answer is still finished, counted and saved to the conversation.
+                disconnected = True
+
+        try:
+            result = ask(user_id, question, on_delta=lambda text: emit({"type": "delta", "text": text}),
+                         on_reset=lambda: emit({"type": "reset"}))
+        except AssistantError as exc:
+            if not started:
+                raise
+            emit({"type": "error", "error": str(exc)})
+            return
+        except Exception:
+            if not started:
+                raise
+            emit({"type": "error", "error": "Az edzőtárs most nem érhető el. Próbáld újra egy kicsit később."})
+            return
+        emit({"type": "done", **result})
+
     def do_GET(self) -> None:  # noqa: N802
         try:
             user = current_user(self.headers)
@@ -37,7 +76,9 @@ class handler(BaseHTTPRequestHandler):
             if size <= 0 or size > 16_384:
                 raise AssistantError("Érvénytelen kérésméret.")
             payload = json.loads(self.rfile.read(size))
-            if payload.get("action") == "ask":
+            if payload.get("action") == "ask" and payload.get("stream"):
+                self._ask_stream(user["id"], payload.get("question", ""))
+            elif payload.get("action") == "ask":
                 self._send(ask(user["id"], payload.get("question", "")))
             elif payload.get("action") == "decideProposal":
                 self._send(decide_proposal(user["id"], str(payload.get("id", "")), str(payload.get("decision", ""))))

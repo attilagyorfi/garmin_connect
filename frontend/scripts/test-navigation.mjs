@@ -29,6 +29,7 @@ let syncResponseMode="non-json",syncRequests=[],cloudStateFetches=0;
 let dashboardAvailable=false;
 let assistantState={consent:false,memoryEnabled:true,memory:[],conversation:[],usage:{questions:0,limit:15,remaining:15,tokenBudgetLeft:true}};
 const assistantCalls=[];
+let releaseStream;const streamGate=new Promise(resolve=>{releaseStream=resolve});
 let mockedCloudState={version:2,profile:null,accent:"teal",checkins:{},feedback:{},plans:[]};
 globalThis.fetch = async (input,options={}) => {
   const url=String(input);
@@ -38,6 +39,12 @@ globalThis.fetch = async (input,options={}) => {
       if(payload.action==="ask")assistantState={...assistantState,conversation:[...assistantState.conversation,{role:"user",content:payload.question},{role:"assistant",content:"**Ma** könnyű nap.\n\n- Zone 2 futás 40 perc\n- Nyújtás",actions:[{id:"act-1",action:"upsert_plan",summary:"Holnapi könnyű Zone 2 futás",reason:"A terhelhetőség közepes.",status:"pending",before:null,plan:{date:TODAY,type:"Futás",title:"Zone 2 futás",duration:40,intensity:"könnyű",rpe:4}}]}],memory:[{id:"m1",text:"Este edz."}],usage:{...assistantState.usage,questions:1,remaining:14}};
       if(payload.action==="decideProposal"){assistantState={...assistantState,conversation:assistantState.conversation.map(item=>item.actions?{...item,actions:item.actions.map(action=>action.id===payload.id?{...action,status:payload.decision==="approve"?"applied":"rejected"}:action)}:item),decision:{id:payload.id,status:payload.decision==="approve"?"applied":"rejected"}};}
       if(payload.action==="deleteMemory")assistantState={...assistantState,memory:[]};}
+    if(options.method==="POST"&&JSON.parse(options.body).stream){
+      // NDJSON stream with lines split across chunks; the second chunk waits until the test has seen the draft.
+      const encoder=new TextEncoder(),lines=[{type:"delta",text:"Javaslom"},{type:"reset"},{type:"delta",text:"**Ma** könnyű"},{type:"delta",text:" nap."},{type:"done",...assistantState,answer:"ok"}].map(event=>JSON.stringify(event)+"\n").join(""),cut=lines.indexOf(" nap.")-3;
+      const chunks=[lines.slice(0,cut),lines.slice(cut)];
+      return {ok:true,status:200,headers:{get:name=>name==="Content-Type"?"application/x-ndjson; charset=utf-8":null},body:{getReader:()=>({read:async()=>{if(!chunks.length)return {done:true};if(chunks.length===1)await streamGate;return {done:false,value:encoder.encode(chunks.shift())}}})}};
+    }
     return {ok:true,status:200,json:async()=>({...assistantState,answer:"ok"}),text:async()=>""};
   }
   if(url.endsWith("/api/dashboard")&&!dashboardAvailable)return {ok:false,status:404,json:async()=>({error:"Még nincs szinkronizált Garmin-adat.",code:"no_dashboard_data"}),text:async()=>JSON.stringify({error:"Még nincs szinkronizált Garmin-adat.",code:"no_dashboard_data"})};
@@ -155,6 +162,11 @@ try {
   const starter=[...document.querySelectorAll(".assistant-starters button")].find(node=>node.textContent==="Mit eddzek holnap?");
   await act(async()=>starter.click());
   await act(async()=>new Promise(resolve=>setTimeout(resolve,5)));
+  const draft=document.querySelector(".assistant-message.streaming");
+  if (draft?.textContent!=="Ma könnyű"||!draft.querySelector("b")||document.querySelector(".assistant-input textarea")?.disabled!==true) throw new Error("A folyamatos válasz nem jelenik meg írás közben (vagy a javaslat előtti vázlat bennmaradt).");
+  await act(async()=>{releaseStream();await new Promise(resolve=>setTimeout(resolve,5))});
+  if (document.querySelector(".assistant-message.streaming,.assistant-message.typing")) throw new Error("A folyamatos válasz vázlata a végleges válasz után is látszik.");
+  if (!assistantCalls.some(call=>call.action==="ask"&&call.stream===true)) throw new Error("A kérdés nem folyamatos válaszként ment el.");
   const reply=document.querySelector(".assistant-message.assistant");
   if (!reply?.querySelector("b")||reply.querySelectorAll("li").length!==2) throw new Error("A válasz nem jelent meg formázva.");
   if (!document.querySelector(".assistant-head small")?.textContent.includes("14/15")) throw new Error("A napi keret nem frissült.");
