@@ -77,13 +77,26 @@ def _add_usage(total: dict[str, int], response: Any) -> dict[str, int]:
     return total
 
 
+def _turn(client: Any, messages: list[dict[str, Any]], request: dict[str, Any], on_delta: Any) -> Any:
+    """One model call; with on_delta the text is streamed piece by piece, the returned message is the same."""
+    if on_delta is None:
+        return client.beta.messages.create(messages=messages, **request)
+    with client.beta.messages.stream(messages=messages, **request) as stream:
+        for text in stream.text_stream:
+            on_delta(text)
+        return stream.get_final_message()
+
+
 REFUSAL_TEXT = "Erre a kérdésre most nem tudok válaszolni. Kérlek, fogalmazd meg másképp, vagy kérdezz az edzéseidről."
 
 
 def _answer(client: Any, context: dict[str, Any], history: list[dict[str, Any]], question: str,
-            on_proposals: Any = None) -> tuple[str, dict[str, int], list[dict[str, Any]]]:
+            on_proposals: Any = None, on_delta: Any = None, on_reset: Any = None) -> tuple[str, dict[str, int], list[dict[str, Any]]]:
     """One answer; if the model proposes plan changes they are stored as pending actions (on_proposals)
-    and the model gets one follow-up turn to tell the athlete what awaits approval."""
+    and the model gets one follow-up turn to tell the athlete what awaits approval.
+
+    Streaming (on_delta) shows the text as it is written. The answer is the follow-up turn's text when a proposal
+    was made, so on_reset tells the client to drop what the first turn had streamed."""
     messages: list[dict[str, Any]] = [{"role": item["role"], "content": item.get("promptContent", item["content"])} for item in history[-PROMPT_HISTORY_MESSAGES:]]
     messages.append({"role": "user", "content": question})
     request = dict(
@@ -95,7 +108,7 @@ def _answer(client: Any, context: dict[str, Any], history: list[dict[str, Any]],
     )
     usage: dict[str, int] = {}
     created: list[dict[str, Any]] = []
-    response = client.beta.messages.create(messages=messages, **request)
+    response = _turn(client, messages, request, on_delta)
     _add_usage(usage, response)
     if response.stop_reason == "tool_use" and on_proposals is not None:
         calls = [block for block in response.content if block.type == "tool_use" and block.name == assistant_actions.PLAN_TOOL["name"]]
@@ -107,8 +120,10 @@ def _answer(client: Any, context: dict[str, Any], history: list[dict[str, Any]],
                     if stored else f"Nem rögzíthető: {problems[0] if problems else 'érvénytelen javaslat'}")
             results.append({"type": "tool_result", "tool_use_id": block.id, "content": text, **({} if stored else {"is_error": True})})
         messages += [{"role": "assistant", "content": response.content}, {"role": "user", "content": results}]
+        if on_reset is not None:
+            on_reset()
         # No further proposals in the follow-up: it only explains what was recorded.
-        response = client.beta.messages.create(messages=messages, **{**request, "tool_choice": {"type": "none"}})
+        response = _turn(client, messages, {**request, "tool_choice": {"type": "none"}}, on_delta)
         _add_usage(usage, response)
     if response.stop_reason == "refusal":
         return REFUSAL_TEXT, usage, created
@@ -140,7 +155,8 @@ def _merge_memory(memory: list[dict[str, Any]], notes: list[str]) -> list[dict[s
     return memory[-MAX_MEMORY_NOTES:]
 
 
-def ask(user_id: str, question: str, client: Any | None = None) -> dict[str, Any]:
+def ask(user_id: str, question: str, client: Any | None = None, on_delta: Any = None, on_reset: Any = None) -> dict[str, Any]:
+    """Answer one question. Every check (consent, data, limits) runs before the first on_delta call."""
     question = str(question or "").strip()
     if not question:
         raise AssistantError("Írd be a kérdésedet.")
@@ -173,7 +189,8 @@ def ask(user_id: str, question: str, client: Any | None = None) -> dict[str, Any
         memory_job = pool.submit(_extract_memory, client, question, previous_answer) if memory_generation else None
         try:
             answer, usage, created = _answer(client, context, history, question,
-                                             on_proposals=lambda proposals: assistant_actions.create_actions(user_id, proposals, handles))
+                                             on_proposals=lambda proposals: assistant_actions.create_actions(user_id, proposals, handles),
+                                             on_delta=on_delta, on_reset=on_reset)
         except Exception:
             ai_usage.release(generation)
             if memory_generation:

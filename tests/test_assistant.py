@@ -20,9 +20,25 @@ def usage(**extra):
     return SimpleNamespace(input_tokens=100, output_tokens=50, cache_read_input_tokens=0, cache_creation_input_tokens=0, **extra)
 
 
+class FakeStream:
+    """Stand-in for the SDK's message stream: text pieces, then the same final message create() would return."""
+
+    def __init__(self, pieces, message):
+        self.text_stream, self._message = iter(pieces), message
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_args):
+        return False
+
+    def get_final_message(self):
+        return self._message
+
+
 class FakeClient:
     def __init__(self, answer="Ma könnyű Zone 2 futás legyen.", notes=("Este 7 után edz.",), stop_reason="end_turn", responses=None, error=None):
-        self.calls = []
+        self.calls, self.streamed = [], 0
         outer = self
         queue = list(responses or [])
 
@@ -36,6 +52,13 @@ class FakeClient:
                     if queue:
                         return queue.pop(0)
                     return SimpleNamespace(stop_reason=stop_reason, content=[SimpleNamespace(type="text", text=answer)], usage=usage())
+
+                @staticmethod
+                def stream(**kwargs):
+                    outer.streamed += 1
+                    message = Beta.messages.create(**kwargs)
+                    text = "".join(block.text for block in message.content if block.type == "text")
+                    return FakeStream([text[index:index + 7] for index in range(0, len(text), 7)], message)
 
         class Messages:
             @staticmethod
@@ -228,3 +251,27 @@ def test_context_has_no_identifiers_and_marks_missing_metrics():
     assert "123456" not in flat and "@" not in flat
     assert {"mutató": "VO2max", "érték": "nincs adat", "ok": "Nincs adat."} in context["korosztályos_összevetés"]
     assert context["memória"] == ["Tömör válaszokat kér."]
+
+
+def test_streamed_answer_matches_the_stored_answer(store):
+    update_settings("u1", {"action": "consent", "value": True})
+    client, pieces = FakeClient(), []
+    result = ask("u1", "Mit eddzek holnap?", client, on_delta=pieces.append)
+    assert client.streamed == 1 and len(pieces) > 1
+    assert "".join(pieces) == result["answer"] == result["conversation"][-1]["content"]
+
+
+def test_streamed_proposal_resets_the_draft_and_streams_the_follow_up(store, actions):
+    update_settings("u1", {"action": "consent", "value": True})
+    proposal = {"action": "upsert_plan", "target": "T1", "date": None, "type": None, "title": None, "duration": 35,
+                "intensity": "könnyű", "rpe": 4, "purpose": None, "summary": "Könnyebb mai futás", "reason": "Alacsony HRV"}
+    tool_turn = SimpleNamespace(stop_reason="tool_use", usage=usage(), content=[
+        SimpleNamespace(type="text", text="Javaslom, hogy könnyíts."),
+        SimpleNamespace(type="tool_use", id="tu1", name="propose_plan_change", input=proposal)])
+    final_turn = SimpleNamespace(stop_reason="end_turn", usage=usage(), content=[SimpleNamespace(type="text", text="A javaslatot lent jóváhagyhatod.")])
+    client, events = FakeClient(responses=[tool_turn, final_turn]), []
+    result = ask("u1", "Könnyítsd a mai edzést", client, on_delta=lambda text: events.append(text), on_reset=lambda: events.append(None))
+    reset = events.index(None)
+    assert "".join(events[:reset]) == "Javaslom, hogy könnyíts."
+    assert "".join(events[reset + 1:]) == result["answer"] == "A javaslatot lent jóváhagyhatod."
+    assert client.streamed == 2 and result["conversation"][-1]["actions"][0]["status"] == "pending"
