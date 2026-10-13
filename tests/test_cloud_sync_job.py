@@ -169,8 +169,8 @@ def test_authenticated_sync_uses_stored_tokenstore_and_saves_refreshed_one(monke
     seen, saved = {}, []
 
     class FakeGarminSync:
-        def __init__(self, cache_dir, tokenstore):
-            seen.update(tokenstore=tokenstore)
+        def __init__(self, cache_dir, tokenstore, use_environment=True):
+            seen.update(tokenstore=tokenstore, use_environment=use_environment)
 
         def authenticate(self):
             return None
@@ -182,7 +182,7 @@ def test_authenticated_sync_uses_stored_tokenstore_and_saves_refreshed_one(monke
     monkeypatch.setattr(cloud_sync_job, "load_tokenstore", lambda user_id: '{"di_token": "old"}')
     monkeypatch.setattr(cloud_sync_job, "refresh_tokenstore", lambda user_id, tokens: saved.append(tokens))
     _authenticated_sync("user-1", "run-1")
-    assert seen == {"tokenstore": '{"di_token": "old"}'}
+    assert seen == {"tokenstore": '{"di_token": "old"}', "use_environment": False}
     assert saved == ['{"di_token": "new"}']
 
 
@@ -191,7 +191,7 @@ def test_rejected_session_requires_reauth_but_outage_does_not(monkeypatch):
 
     def fake_sync(message):
         class FakeGarminSync:
-            def __init__(self, cache_dir, tokenstore):
+            def __init__(self, cache_dir, tokenstore, use_environment=True):
                 pass
 
             def authenticate(self):
@@ -320,3 +320,15 @@ def test_failed_run_without_run_id_starts_fresh(monkeypatch):
     _wire_advance(monkeypatch, saved, store, lambda user_id, run_id: Sync(Client()))
     body, _ = advance_sync("user")
     assert body["run_id"] != failed["run_id"]
+
+
+@pytest.mark.parametrize("stored", ["", None])
+def test_missing_session_never_falls_back_to_server_credentials(monkeypatch, stored):
+    monkeypatch.setenv("GARMIN_EMAIL", "operator@example.test")
+    monkeypatch.setenv("GARMIN_PASSWORD", "not-for-users")
+    built = []
+    monkeypatch.setattr(cloud_sync_job, "GarminSync", lambda *args, **kwargs: built.append(kwargs))
+    monkeypatch.setattr(cloud_sync_job, "load_tokenstore", lambda user_id: stored)
+    with pytest.raises(GarminSyncError, match="Garmin-munkamenet"):
+        _authenticated_sync("user-1", "run-1")
+    assert built == []

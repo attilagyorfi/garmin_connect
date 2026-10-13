@@ -360,7 +360,9 @@ REAUTH_MARKERS = ("hitelesítési hiba", "mfa szükséges")
 def _authenticated_sync(user_id: str, run_id: str) -> GarminSync:
     """Log in with the stored, encrypted Garmin session; no Garmin password is kept."""
     tokenstore = load_tokenstore(user_id)
-    sync = GarminSync(Path(tempfile.gettempdir()) / f"hybrid-sync-{run_id}", tokenstore=tokenstore)
+    if not tokenstore:
+        raise GarminSyncError("Nincs érvényes Garmin-munkamenet. Csatlakoztasd újra a fiókot a Beállításokban.")
+    sync = GarminSync(Path(tempfile.gettempdir()) / f"hybrid-sync-{run_id}", tokenstore=tokenstore, use_environment=False)
     try:
         sync.authenticate()
     except GarminSyncError as exc:
