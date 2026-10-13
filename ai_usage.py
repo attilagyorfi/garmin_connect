@@ -51,6 +51,18 @@ def _initialize(db: Any) -> None:
             completed_at TIMESTAMPTZ
         )
     """)
+    # Production already has this table from the retired codex build (no kind/cache columns, a required
+    # prompt_hash). CREATE TABLE IF NOT EXISTS keeps that shape, so bring it up to date idempotently.
+    db.execute("ALTER TABLE hybrid_ai_generations ADD COLUMN IF NOT EXISTS kind TEXT NOT NULL DEFAULT 'answer'")
+    db.execute("ALTER TABLE hybrid_ai_generations ADD COLUMN IF NOT EXISTS cache_read_tokens INTEGER")
+    db.execute("ALTER TABLE hybrid_ai_generations ADD COLUMN IF NOT EXISTS cache_write_tokens INTEGER")
+    legacy_prompt_hash = db.execute("""
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = current_schema() AND table_name = 'hybrid_ai_generations'
+          AND column_name = 'prompt_hash' AND is_nullable = 'NO'
+    """).fetchone()
+    if legacy_prompt_hash:
+        db.execute("ALTER TABLE hybrid_ai_generations ALTER COLUMN prompt_hash DROP NOT NULL")
     db.execute("CREATE INDEX IF NOT EXISTS hybrid_ai_generations_user_day_idx ON hybrid_ai_generations(user_id, created_at DESC)")
     db.commit()
     SCHEMA_READY.add("ai_generations")

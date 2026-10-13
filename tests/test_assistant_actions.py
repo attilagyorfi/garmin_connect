@@ -131,3 +131,28 @@ def test_expired_and_foreign_actions_are_refused(world):
 def test_cost_estimate_uses_all_token_kinds():
     numbers = {"input": 1_000_000, "output": 100_000, "cache_read": 1_000_000, "cache_write": 0}
     assert ai_usage.estimated_cost(numbers) == pytest.approx(2.0 + 1.0 + 0.2)
+
+
+def test_legacy_ai_generations_table_is_migrated(monkeypatch):
+    """Production has the table from the retired codex build: no kind/cache columns, a required prompt_hash."""
+    statements = []
+
+    class Db:
+        def execute(self, sql, params=()):
+            statements.append(" ".join(sql.split()))
+            self.row = (1,) if "information_schema.columns" in sql else None
+            return self
+
+        def fetchone(self):
+            return self.row
+
+        def commit(self):
+            pass
+
+    monkeypatch.setattr(ai_usage, "SCHEMA_READY", set())
+    ai_usage._initialize(Db())
+    joined = "\n".join(statements)
+    for column in ("kind TEXT NOT NULL DEFAULT 'answer'", "cache_read_tokens INTEGER", "cache_write_tokens INTEGER"):
+        assert f"ADD COLUMN IF NOT EXISTS {column}" in joined
+    assert "ALTER COLUMN prompt_hash DROP NOT NULL" in joined
+    assert joined.index("pg_advisory_xact_lock") < joined.index("CREATE TABLE")
