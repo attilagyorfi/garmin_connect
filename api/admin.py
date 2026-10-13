@@ -5,7 +5,11 @@ from http.server import BaseHTTPRequestHandler
 from urllib.parse import quote
 
 from ai_usage import admin_summary
+from auth_email import EmailError, invite_message, password_reset_message, public_link, send_email
 from auth_store import (
+    EMAIL_PATTERN,
+    INVITE_DAYS,
+    TOKEN_MINUTES,
     create_admin_password_reset,
     create_invite,
     current_user,
@@ -35,6 +39,16 @@ class handler(BaseHTTPRequestHandler):
             return None
         return user
 
+    def _mail(self, recipient: str, subject: str, text: str, markup: str) -> dict:
+        """Send one admin-initiated e-mail; a failure is reported, the copyable link still works."""
+        try:
+            result = send_email(recipient, subject, text, markup)
+        except EmailError as exc:
+            return {"emailSent": False, "emailError": f"{exc} A linket másold ki és küldd el kézzel."}
+        if result["testMode"]:
+            return {"emailSent": False, "emailError": "Teszt üzemmód (AUTH_EMAIL_TEST_MODE): e-mail nem ment ki."}
+        return {"emailSent": True, "emailTo": recipient}
+
     def _payload(self) -> dict:
         size = int(self.headers.get("Content-Length", "0"))
         if size <= 0 or size > 16_384:
@@ -60,14 +74,25 @@ class handler(BaseHTTPRequestHandler):
             payload = self._payload()
             action = payload.get("action")
             if action == "create_invite":
+                recipient = str(payload.get("email") or "").strip().lower()[:254]
+                if recipient and not EMAIL_PATTERN.fullmatch(recipient):
+                    raise ValueError("Adj meg egy érvényes e-mail-címet a meghívóhoz.")
                 token, invite = create_invite(user["id"])
-                self._send({**invite, "path": f"/?invite={quote(token)}"}, 201)
+                query = f"invite={quote(token)}"
+                body = {**invite, "path": f"/?{query}"}
+                if recipient:
+                    body.update(self._mail(recipient, *invite_message(public_link(self.headers, query), INVITE_DAYS)))
+                self._send(body, 201)
                 return
             if action == "create_password_reset":
                 result = create_admin_password_reset(user["id"], payload.get("email", ""))
                 if not result:
                     raise ValueError("Ehhez az e-mail-címhez nem tartozik fiók.")
-                self._send({"email": result[0], "path": f"/?auth=reset&token={quote(result[1])}"}, 201)
+                query = f"auth=reset&token={quote(result[1])}"
+                body = {"email": result[0], "path": f"/?{query}"}
+                if payload.get("sendEmail"):
+                    body.update(self._mail(result[0], *password_reset_message(public_link(self.headers, query), TOKEN_MINUTES)))
+                self._send(body, 201)
                 return
             if action == "revoke_invite":
                 revoke_invite(user["id"], payload.get("id", ""))

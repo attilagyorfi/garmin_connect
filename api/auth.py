@@ -1,53 +1,15 @@
 from __future__ import annotations
 
 import json
-import os
+import sys
 from http.server import BaseHTTPRequestHandler
-from urllib.parse import urlsplit
+from urllib.parse import quote
 
+from auth_email import EmailError, _public_base_url, _validated_base_url, password_reset_message, send_email  # noqa: F401 (re-exported for tests)
 from auth_store import (
     RateLimitError, client_ip_from, change_password, clear_cookie_header, cookie_header, delete_account,
-    current_user, login, logout, register, reset_password, verify_email,
+    TOKEN_MINUTES, current_user, login, logout, register, request_password_reset, reset_password, verify_email,
 )
-
-
-def _validated_base_url(raw: str, *, allow_local_http: bool = False) -> str:
-    value = str(raw or "").strip().rstrip("/")
-    parsed = urlsplit(value)
-    local_hosts = {"localhost", "127.0.0.1", "::1"}
-    if (
-        not parsed.hostname
-        or parsed.username
-        or parsed.password
-        or parsed.query
-        or parsed.fragment
-        or parsed.path not in ("", "/")
-        or parsed.scheme not in ({"https", "http"} if allow_local_http else {"https"})
-        or (parsed.scheme == "http" and parsed.hostname not in local_hosts)
-    ):
-        raise RuntimeError("A nyilvános alkalmazáscím nincs biztonságosan beállítva.")
-    return value
-
-
-def _public_base_url(headers: object) -> str:
-    configured = os.getenv("AUTH_PUBLIC_URL", "").strip()
-    if configured:
-        return _validated_base_url(configured, allow_local_http=True)
-
-    vercel_host = (
-        os.getenv("VERCEL_PROJECT_PRODUCTION_URL", "").strip()
-        or os.getenv("VERCEL_URL", "").strip()
-    )
-    if vercel_host:
-        return _validated_base_url(f"https://{vercel_host.lstrip('/')}")
-
-    host = str(headers.get("Host", "") if hasattr(headers, "get") else "").strip()
-    protocol = str(headers.get("X-Forwarded-Proto", "http") if hasattr(headers, "get") else "http").strip().lower()
-    candidate = f"{protocol}://{host}"
-    parsed = urlsplit(candidate)
-    if parsed.hostname not in {"localhost", "127.0.0.1", "::1"}:
-        raise RuntimeError("Állítsd be az AUTH_PUBLIC_URL környezeti változót.")
-    return _validated_base_url(candidate, allow_local_http=True)
 
 
 class handler(BaseHTTPRequestHandler):
@@ -103,7 +65,16 @@ class handler(BaseHTTPRequestHandler):
                 self._send({"error": "A zárt rendszerben nincs e-mailes megerősítés."}, 403)
                 return
             elif action == "request_password_reset":
-                self._send({"error": "Kérj egyszer használható jelszó-visszaállító hivatkozást az adminisztrátortól."}, 403)
+                # Same answer whether or not the address has an account, so accounts cannot be enumerated.
+                client_ip = client_ip_from(self.headers, getattr(self, "client_address", None))
+                result = request_password_reset(payload.get("email", ""), client_ip)
+                if result:
+                    subject, text, markup = password_reset_message(_public_base_url(self.headers) + f"/?auth=reset&token={quote(result[1])}", TOKEN_MINUTES)
+                    try:
+                        send_email(result[0], subject, text, markup)
+                    except EmailError as exc:
+                        sys.stderr.write(f"password reset e-mail not sent: {exc}\n")
+                self._send({"ok": True, "message": "Ha ehhez a címhez tartozik aktív fiók, néhány percen belül megérkezik a jelszó-visszaállító levél. Nézd meg a spam mappát is."})
                 return
             elif action == "reset_password":
                 reset_password(payload.get("token", ""), payload.get("password", ""))

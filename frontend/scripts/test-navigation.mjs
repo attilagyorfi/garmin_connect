@@ -24,7 +24,7 @@ decision:{title:"Zone 2 alapozás",duration:"45–70 perc",intensity:"közepes",
   coaching:{tips:[{key:"record",tone:"celebrate",priority:75,title:"Új egyéni csúcs: 5 km",message:"Új legjobb eredmény.",why:"A Garmin új rekordot rögzített.",action:"Ünnepeld meg."},{key:"sleep",tone:"warn",priority:75,title:"Alváshiány gyűlik",message:"Keveset aludtál.",why:"Átlag 6,1 óra.",action:"Feküdj le korábban."}],weekly:{weekStart:"2026-08-10",weekEnd:"2026-08-16",sessions:4,minutes:250,load:900,strengthMinutes:90,changePct:12,sleepHours:7.1,hrvChangePct:-3,summary:"A múlt héten 4 edzés, 4,2 óra edzésidő.",highlights:["Új egyéni csúcs: 5 km"],focus:"Feküdj le korábban."}},
   benchmarks:{profile:{sex:"male",age:35},demo:false,sources:[{key:"hunt2013",label:"HUNT 3 Fitness Study",citation:"Loe H et al. PLoS ONE 2013",url:"https://doi.org/10.1371/journal.pone.0064319",license:"CC BY 4.0"}],cards:[{key:"vo2max",title:"VO2max – aerob kapacitás",status:"ok",value:51,valueText:"51,0 ml/kg/perc",percentile:60,atLeast:false,level:2,category:"jó",cohort:"30–39 éves férfiak",headline:"Jobb, mint a veled egykorú férfiak kb. 60%-áé.",detail:"Referencia.",trend:null,nextGoal:"+4,4 ml/kg/perc kell a „kiváló” szinthez (80. percentilis).",confidence:"közepes",caveat:"Becsült érték.",sources:["hunt2013"]},{key:"steps",title:"Napi lépésszám",status:"missing",headline:"Nincs napi lépésszám adat.",valueText:"—",percentile:null,level:null,category:null,confidence:null,sources:["hunt2013"]}]}
 };
-const cloudPatches=[];
+const cloudPatches=[],authRequests=[];
 let syncResponseMode="non-json",syncRequests=[],cloudStateFetches=0;
 let dashboardAvailable=false;
 let assistantState={consent:false,memoryEnabled:true,memory:[],conversation:[],usage:{questions:0,limit:15,remaining:15,tokenBudgetLeft:true}};
@@ -42,6 +42,7 @@ globalThis.fetch = async (input,options={}) => {
   }
   if(url.endsWith("/api/dashboard")&&!dashboardAvailable)return {ok:false,status:404,json:async()=>({error:"Még nincs szinkronizált Garmin-adat.",code:"no_dashboard_data"}),text:async()=>JSON.stringify({error:"Még nincs szinkronizált Garmin-adat.",code:"no_dashboard_data"})};
   if(url.endsWith("/api/model"))return {ok:true,status:200,json:async()=>({active:{id:7,trained_at:"2026-09-22T03:15:00+00:00",data_start:"2025-09-01",data_end:"2026-09-21",samples:340,model_mae:0.42,baseline_mae:0.61,eligible:true,active:true,promotion_reason:"A jelölt MAE-je jobb.",validation:{improvementPct:31.1,windowsWon:3,windowCount:3}},latest:null,readiness:{availableSamples:340,requiredSamples:132,progressPct:100,observedDays:365,dataStart:"2025-09-01",dataEnd:"2026-09-22",readyForValidation:true,coverage:[{key:"sleep_score",label:"Alváspontszám",availableDays:350,coveragePct:96},{key:"hrv",label:"Éjszakai HRV",availableDays:340,coveragePct:93},{key:"resting_hr",label:"Nyugalmi pulzus",availableDays:355,coveragePct:97},{key:"hybrid_load",label:"Edzésterhelés",availableDays:365,coveragePct:100},{key:"session_rpe",label:"Saját edzésérzet (RPE)",availableDays:40,coveragePct:11}]},schedule:{nextCheckAt:"2026-09-23T03:15:00+00:00",frequency:"daily"},lastRun:{checkedAt:"2026-09-22T03:15:00+00:00",status:"candidate_ready",due:true,reasons:["30 új adatnap érkezett"],dataEnd:"2026-09-22",message:"A validált jelölt aktiválva."}}),text:async()=>""};
+  if(url.endsWith("/api/auth")&&options.method==="POST"&&JSON.parse(options.body).action==="request_password_reset"){authRequests.push(JSON.parse(options.body));return {ok:true,status:200,json:async()=>({ok:true,message:"Ha ehhez a címhez tartozik aktív fiók, néhány percen belül megérkezik a jelszó-visszaállító levél."}),text:async()=>""};}
   if(url.endsWith("/api/auth"))return {ok:true,status:200,json:async()=>({user:{id:"test-user",email:"attilla@example.com",name:"Attila"}}),text:async()=>""};
   if(url.endsWith("/api/garmin"))return {ok:true,status:200,json:async()=>({status:"connected",email_hint:"at••••@example.com"}),text:async()=>""};
   if(url.endsWith("/api/sync")){
@@ -74,6 +75,21 @@ localStorage.setItem("hybrid-onboarding-version", "2");
 const vite = await createServer({ server: { middlewareMode: true }, appType: "custom", optimizeDeps: { noDiscovery: true } });
 try {
   const { App } = await vite.ssrLoadModule("/src/App.jsx");
+  // Self-service password reset: the login screen asks for the e-mail only and shows the generic answer.
+  const { AuthScreen } = await vite.ssrLoadModule("/src/pages/AuthScreen.jsx");
+  const authHost = document.createElement("div"); document.body.appendChild(authHost);
+  const authRoot = createRoot(authHost), authenticated = [];
+  await act(async () => authRoot.render(React.createElement(AuthScreen, { onAuthenticated: user => authenticated.push(user) })));
+  const authButton = text => [...authHost.querySelectorAll("button")].find(node => node.textContent.trim() === text);
+  if (authHost.textContent.includes("adminisztrátortól")) throw new Error("A belépőoldal még az adminisztrátorhoz küldi az elfelejtett jelszót.");
+  await act(async () => authButton("Elfelejtetted a jelszavad?").click());
+  if (authHost.querySelector('input[type="password"]') || !authHost.textContent.includes("Kérj visszaállító levelet")) throw new Error("Az elfelejtett jelszó nézet nem csak e-mail-címet kér.");
+  await act(async () => { const input = authHost.querySelector('input[type="email"]'); Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value").set.call(input, "tag@example.test"); input.dispatchEvent(new window.Event("input", { bubbles: true })); });
+  await act(async () => authHost.querySelector("form").dispatchEvent(new window.Event("submit", { bubbles: true, cancelable: true })));
+  if (authRequests.length !== 1 || authRequests[0].email !== "tag@example.test" || authenticated.length) throw new Error("A visszaállító levél kérése nem ment el helyesen.");
+  if (!authHost.querySelector(".auth-success")?.textContent.includes("jelszó-visszaállító levél") || !authButton("Bejelentkezés")) throw new Error("A kérés után nem a semleges üzenet és a belépés jelent meg.");
+  await act(async () => authRoot.unmount()); authHost.remove();
+  console.log("OK elfelejtett jelszó: e-mail-kérés, semleges válasz, vissza a belépéshez");
   const gateRoot = createRoot(document.getElementById("root"));
   await act(async () => gateRoot.render(React.createElement(App)));
   await act(async () => new Promise(resolve=>setTimeout(resolve,5)));
