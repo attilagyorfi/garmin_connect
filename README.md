@@ -106,11 +106,13 @@ Másold a `.env.example` tartalmát saját, Gitből kizárt `.env` fájlba vagy 
 
 | Változó | Jelentés | Alapérték |
 |---|---|---|
-| `GARMIN_EMAIL` | Garmin-fiók e-mail | nincs |
-| `GARMIN_PASSWORD` | Garmin-jelszó | nincs |
+| `GARMIN_EMAIL` | Garmin-fiók e-mail – **csak a régi, egyfelhasználós Streamlit-app** (Railway) | nincs |
+| `GARMIN_PASSWORD` | Garmin-jelszó – **csak a Streamlit-app** | nincs |
 | `CACHE_DIR` | JSON, token és SQLite könyvtár | `data` |
 | `CACHE_TTL_HOURS` | friss cache időtartama | `12` |
 | `BASELINE_DAYS` | személyes baseline ablaka | `28` |
+
+A többfelhasználós Vercel-appban ezeket **ne** állítsd be: ott minden felhasználó a saját, titkosítva tárolt Garmin-munkamenetével szinkronizál, a felhős szinkron (`use_environment=False`) a szerver Garmin-adataira sosem esik vissza.
 
 A `.env`, tokenkönyvtár, cache, SQLite, export és egészségadat Gitből kizárt. A repóba soha ne commitolj valódi hitelesítőt vagy személyes egészségadatot.
 

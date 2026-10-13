@@ -113,3 +113,25 @@ def test_transient_authentication_failure_is_not_reported_as_bad_credentials(mon
     monkeypatch.setattr("garmin_sync.Garmin", UnavailableGarmin)
     with pytest.raises(GarminSyncError, match="átmenetileg nem elérhető"):
         GarminSync(tmp_path, tokenstore="encrypted-token-bundle").authenticate()
+
+
+def test_cloud_mode_ignores_operator_environment_credentials(monkeypatch, tmp_path):
+    logins = []
+
+    class RecordingGarmin:
+        def __init__(self, *args, **kwargs):
+            logins.append(args)
+
+        @staticmethod
+        def login(_tokenstore):
+            return None
+
+    monkeypatch.setenv("GARMIN_EMAIL", "operator@example.test")
+    monkeypatch.setenv("GARMIN_PASSWORD", "not-for-users")
+    monkeypatch.setenv("GARMINTOKENS", "operator-session")
+    monkeypatch.setattr("garmin_sync.Garmin", RecordingGarmin)
+    with pytest.raises(GarminSyncError, match="Garmin-munkamenet"):
+        GarminSync(tmp_path, use_environment=False).authenticate()
+    assert logins == []
+    GarminSync(tmp_path).authenticate()  # the single-user Streamlit app keeps using its own environment
+    assert logins == [("operator@example.test", "not-for-users")]

@@ -105,6 +105,10 @@ class GarminSync:
     email: str | None = None
     password: str | None = None
     tokenstore: str | None = None
+    # GARMIN_EMAIL / GARMIN_PASSWORD / GARMINTOKENS belong to the single-user Streamlit app only.
+    # Multi-user cloud sync must pass False, so a user without a stored session can never fall back
+    # to the server operator's Garmin account.
+    use_environment: bool = True
 
     def __post_init__(self) -> None:
         self.cache_dir = Path(self.cache_dir or os.getenv("CACHE_DIR", "data"))
@@ -119,8 +123,9 @@ class GarminSync:
         return self.cache_dir / "garmin_cache.json"
 
     def authenticate(self) -> Garmin:
-        email, password = self.email or os.getenv("GARMIN_EMAIL"), self.password or os.getenv("GARMIN_PASSWORD")
-        tokenstore = self.tokenstore or os.getenv("GARMINTOKENS")
+        env = os.getenv if self.use_environment else (lambda _name: None)
+        email, password = self.email or env("GARMIN_EMAIL"), self.password or env("GARMIN_PASSWORD")
+        tokenstore = self.tokenstore or env("GARMINTOKENS")
         if not tokenstore and (not email or not password):
             raise GarminSyncError("Nincs érvényes Garmin-munkamenet. Csatlakoztasd újra a fiókot a Beállításokban.")
         try:
