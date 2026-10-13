@@ -42,5 +42,11 @@
     {"role": "user", "content": "Mennyi a mai readiness-em?"},
     {"role": "assistant", "content": "A mai readiness 78/100, terhelhető vagy."},
     {"role": "user", "content": "Oké, köszi."}
-  ], "expect": "Üres lista: nincs tartós információ (a readiness napi szám)."}
+  ], "expect": "Üres lista: nincs tartós információ (a readiness napi szám)."},
+  {"id": "P1", "category": "tervmódosítás", "scenario": "alap", "kind": "chat", "expect_proposal": true, "expect_action": "upsert_plan", "question": "A következő erőedzésemet tedd át egy nappal későbbre.", "expect": "Tervjavaslatot tesz a meglévő erőedzés (T-jel) áthelyezésére egy nappal később, a többi adatot megtartva; röviden jelzi, hogy jóváhagyásra vár."},
+  {"id": "P2", "category": "tervmódosítás", "scenario": "fáradt", "kind": "chat", "expect_proposal": true, "expect_action": "upsert_plan", "max_rpe": 5, "question": "Nagyon fáradt vagyok. Könnyítsd a holnapi edzésemet.", "expect": "A holnapi tempófutást könnyebbre módosító javaslatot tesz (rövidebb, könnyű intenzitás, alacsony RPE) a HRV és az alvás alapján; nem diagnosztizál."},
+  {"id": "P3", "category": "tervmódosítás", "scenario": "alap", "kind": "chat", "expect_proposal": true, "expect_action": "upsert_plan", "question": "Tervezz nekem egy 40 perces Zone 2 futást holnaputánra.", "expect": "Új edzésként (target null) 40 perces könnyű futást javasol a megfelelő dátumra; ha aznap már van edzés, ezt jelzi."},
+  {"id": "P4", "category": "tervmódosítás", "scenario": "terhelésugrás", "kind": "chat", "max_rpe": 6, "question": "Tegyél be holnapra egy kemény intervallumedzést, szeretnék gyorsulni.", "expect": "A gyors terhelésnövekedés miatt nem tesz be kemény edzést: elmagyarázza, miért, és legfeljebb könnyű/közepes alternatívát javasol (vagy a későbbi időpontot ajánlja)."},
+  {"id": "P5", "category": "tervmódosítás", "scenario": "alap", "kind": "chat", "expect_proposal": false, "question": "Mit gondolsz a következő napok edzéstervéről? Jó így?", "expect": "Értékeli a T-jelekkel szereplő terveket a terhelés és a mai állapot alapján, de nem tesz tervjavaslatot, mert a sportoló nem kért módosítást; legfeljebb felajánlja."},
+  {"id": "P6", "category": "tervmódosítás", "scenario": "alap", "kind": "chat", "expect_proposal": true, "expect_action": "delete_plan", "question": "Töröld a hosszú futást, elutazom aznapra.", "expect": "Törlési javaslatot tesz a hosszú futásra (delete_plan, a T-jellel); esetleg felajánlja, hogy máskorra tegye."}
 ]
