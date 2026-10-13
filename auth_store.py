@@ -421,6 +421,36 @@ def create_password_reset(email: str) -> tuple[str, str] | None:
         db.close()
 
 
+def request_password_reset(email: str, client_id: str) -> tuple[str, str] | None:
+    """Self-service reset: a link only for an active account, rate-limited per address and per client.
+
+    Every request counts against the limits (whether or not the account exists), so the endpoint cannot be
+    used to probe addresses or to flood someone's inbox.
+    """
+    clean_email = str(email or "").strip().lower()[:254]
+    if not EMAIL_PATTERN.fullmatch(clean_email):
+        raise ValueError("Adj meg egy érvényes e-mail-címet.")
+    db = connect()
+    try:
+        initialize_auth(db)
+        # Per address+client, per client, and per address overall (the last one caps mail to one inbox from many IPs).
+        keys = (
+            _limit_key(f"reset:{clean_email}", client_id),
+            _limit_key("reset-client", client_id),
+            _limit_key(f"reset:{clean_email}", "any-client"),
+        )
+        for key in keys:
+            _check_login_limit(db, key)
+        for key in keys:
+            _record_login_failure(db, key)
+        row = db.execute(
+            "SELECT id FROM hybrid_users WHERE email = %s AND access_status = 'active'", (clean_email,)
+        ).fetchone()
+        return (clean_email, _new_auth_token(db, str(row[0]), "reset_password")) if row else None
+    finally:
+        db.close()
+
+
 def _require_admin(db: Any, user_id: str) -> None:
     row = db.execute("SELECT role FROM hybrid_users WHERE id = %s", (user_id,)).fetchone()
     if not row or row[0] != "admin":

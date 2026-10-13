@@ -70,7 +70,14 @@ npm --prefix frontend run dev
 
 ### Zárt hozzáférés és fiókbiztonság
 
-Új fiók csak adminisztrátori meghívóval (`/?invite=…`, 7 napig érvényes, egyszer használható) nyitható. A `HYBRID_ADMIN_EMAILS`-ben felsorolt címek meghívó nélkül is regisztrálhatnak, és admin szerepet kapnak; így hozható létre az első admin. Elfelejtett jelszóhoz az admin a Beállítások › Adminisztráció részen egyszer használható visszaállító linket készít (`/?auth=reset&token=…`). Az adminisztrátori műveletek naplózódnak.
+Új fiók csak adminisztrátori meghívóval (`/?invite=…`, 7 napig érvényes, egyszer használható) nyitható. A `HYBRID_ADMIN_EMAILS`-ben felsorolt címek meghívó nélkül is regisztrálhatnak, és admin szerepet kapnak; így hozható létre az első admin. Elfelejtett jelszónál a felhasználó a belépőoldalon kér visszaállító levelet: aktív fióknál 30 percig érvényes, egyszer használható linket kap (`/?auth=reset&token=…`), a válasz pedig minden címre ugyanaz, így a végpontról nem deríthető ki, kinek van fiókja. A kérések címenként, kliensenként és címenként összesítve is korlátozottak (15 percenként 5). Az admin a Beállítások › Adminisztráció részen a meghívót és a visszaállító linket e-mailben is elküldheti; a link sikertelen küldésnél is kimásolható marad. Az adminisztrátori műveletek naplózódnak.
+
+Az e-maileket a Resend HTTP API-ja küldi (`auth_email.py`, külön függőség nélkül). Élesben ezek a környezeti változók kellenek:
+
+- `RESEND_API_KEY` – a Resend API-kulcsa;
+- `AUTH_EMAIL_FROM` – feladó egy a Resendben igazolt domainről, pl. `Hybrid Athlete <noreply@sajatdomain.hu>`;
+- `AUTH_PUBLIC_URL` – az alkalmazás nyilvános címe (a levélbeli linkekhez); Vercelen enélkül a projekt éles domainje;
+- `AUTH_EMAIL_TEST_MODE` – helyi fejlesztéshez: `1` esetén nem megy ki levél. Élesben ne legyen beállítva.
 
 A Beállítások › Fiók és biztonság részen kezelhető a jelszócsere (utána minden eszköz kijelentkezik), az aktív munkamenetek, a saját adatok JSON-exportja (`/api/state?export=1`, jelszó, token és Garmin-munkamenet nélkül) és a végleges fióktörlés. A Garmin-kapcsolat csak titkosított munkamenettokent tárol, Garmin-jelszót nem; kétlépcsős (MFA) belépésnél a kódot a felület külön kéri.
 
