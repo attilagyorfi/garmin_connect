@@ -1,6 +1,8 @@
 """Validation and persistence for the single-user desktop application state."""
 from __future__ import annotations
 
+import re
+
 from datetime import date, datetime, timezone
 from typing import Any
 
@@ -13,6 +15,8 @@ EXPERIENCE = {"kezdő", "középhaladó", "haladó"}
 GOALS = {"Hibrid teljesítmény", "Futóteljesítmény", "Erőfejlesztés", "Hegyi állóképesség", "Általános egészség"}
 PREFERENCES = {"kiegyensúlyozott", "teljesítmény", "regeneráció"}
 DAYS = {"H", "K", "Sze", "Cs", "P", "Szo", "V"}
+EVENT_TYPES = {"", "marathon", "half", "10k", "5k"}
+RACE_TIME = re.compile(r"^(\d{1,2}:)?[0-5]?\d:[0-5]\d$")
 PLAN_TYPES = {"Kardió", "Erő", "Futás", "Túrázás", "Kerékpár", "Mobilitás", "Pihenő"}
 PLAN_INTENSITIES = {"regeneráló", "könnyű", "könnyű–közepes", "közepes", "közepes–magas", "magas"}
 AVATAR_PRESETS = {"athlete", "strength", "endurance", "classic", "photo"}
@@ -40,6 +44,11 @@ def validate_profile(value: Any) -> dict[str, Any]:
     rest_day = value.get("restDay", "V")
     if experience not in EXPERIENCE or goal not in GOALS or preference not in PREFERENCES or rest_day not in DAYS:
         raise ValueError("A profil választott értéke érvénytelen.")
+    event_type = str(value.get("eventType") or "")
+    reference_key = str(value.get("referenceRaceKey") or "")
+    reference_time = _text(value.get("referenceRaceTime"), 8)
+    if event_type not in EVENT_TYPES or reference_key not in EVENT_TYPES or (reference_time and not RACE_TIME.match(reference_time)):
+        raise ValueError("Az esemény vagy a referenciaidő értéke érvénytelen.")
     avatar_preset = value.get("avatarPreset", "athlete")
     avatar_image = str(value.get("avatarImage") or "")
     if avatar_preset not in AVATAR_PRESETS:
@@ -52,6 +61,9 @@ def validate_profile(value: Any) -> dict[str, Any]:
         "goal": goal,
         "eventName": _text(value.get("eventName"), 120),
         "eventDate": _text(value.get("eventDate"), 10),
+        "eventType": event_type,
+        "referenceRaceKey": reference_key,
+        "referenceRaceTime": reference_time,
         "weeklyHours": max(1, min(30, int(value.get("weeklyHours", 8)))),
         "strengthRatio": max(0, min(100, int(value.get("strengthRatio", 30)))),
         "trainingDays": list(dict.fromkeys(training_days)) or ["H", "K", "Sze", "Cs", "P", "Szo"],

@@ -47,7 +47,8 @@ def build_context(dashboard: dict[str, Any], memory_notes: list[str] | None = No
         "adatforrás": "bemutató adat" if dashboard.get("source") == "demo" else "Garmin",
         "sportoló": {key: value for key, value in {
             "nem": {"male": "férfi", "female": "nő"}.get(person.get("sex")), "életkor": person.get("age"),
-            "cél": profile.get("goal"), "esemény": profile.get("eventName"), "esemény_dátuma": profile.get("eventDate"),
+            "cél": profile.get("goal"), "esemény": profile.get("eventName"), "esemény_dátuma": profile.get("eventDate"), "esemény_típusa": {"marathon": "maraton", "half": "félmaraton", "10k": "10 km", "5k": "5 km"}.get(profile.get("eventType") or ""),
+            "referenciaeredmény": f"{profile.get('referenceRaceKey')} {profile.get('referenceRaceTime')}" if profile.get("referenceRaceKey") and profile.get("referenceRaceTime") else None,
             "heti_órakeret": profile.get("weeklyHours"), "erő_arány_cél_%": profile.get("strengthRatio"),
             "tapasztalat": profile.get("experience"), "korlátozások": profile.get("limitations"),
         }.items() if value not in (None, "")},

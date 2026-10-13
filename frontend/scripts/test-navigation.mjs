@@ -1,6 +1,4 @@
 import { JSDOM } from "jsdom";
-import React, { act } from "react";
-import { createRoot } from "react-dom/client";
 import { createServer } from "vite";
 
 const dom = new JSDOM('<!doctype html><div id="root"></div>', { url: "http://localhost/" });
@@ -11,8 +9,11 @@ globalThis.localStorage = dom.window.localStorage;
 globalThis.HTMLElement = dom.window.HTMLElement;
 globalThis.SVGElement = dom.window.SVGElement;
 globalThis.MutationObserver = dom.window.MutationObserver;
-dom.window.HTMLElement.prototype.attachEvent = () => {};
 globalThis.ResizeObserver = class { observe() {} unobserve() {} disconnect() {} };
+// React DOM must load after the DOM globals exist: imported earlier (static imports are hoisted) it decides
+// there is no DOM and falls back to a legacy IE input polyfill, so typed text never reaches onChange.
+const { default: React, act } = await import("react");
+const { createRoot } = await import("react-dom/client");
 const budapestDay=(offset=0)=>{const date=new Date(Date.now()+offset*86400000);return new Intl.DateTimeFormat("en-CA",{timeZone:"Europe/Budapest",year:"numeric",month:"2-digit",day:"2-digit"}).format(date)};
 const TODAY=budapestDay(),YESTERDAY=budapestDay(-1),budapestToday=()=>TODAY;
 const dashboardFixture={
@@ -400,6 +401,34 @@ try {
     }
     console.log(`OK ${label}`);
   }
+  // Event plan: set a marathon with a reference 10 km in the profile, then build and save the plan from the goal page.
+  const navTo = async label => act(async () => [...document.querySelectorAll(".sidebar nav button")].find(node => node.textContent.trim() === label).click());
+  await navTo("Cél");
+  if (!document.querySelector(".event-planner-empty")) throw new Error("Esemény nélkül nem az eseménymegadásra hívó kártya jelent meg.");
+  await navTo("Profil");
+  const setField = async (element, value) => act(async () => { const proto = element.tagName === "SELECT" ? window.HTMLSelectElement.prototype : window.HTMLInputElement.prototype; Object.getOwnPropertyDescriptor(proto, "value").set.call(element, value); element.dispatchEvent(new window.Event(element.tagName === "SELECT" ? "change" : "input", { bubbles: true })); });
+  const eventDate = new Date(`${TODAY}T12:00:00`); eventDate.setDate(eventDate.getDate() + 18 * 7);
+  const labelled = text => [...document.querySelectorAll(".field")].find(node => node.querySelector("label")?.textContent === text);
+  await setField(labelled("Esemény neve")?.querySelector("input") || [...document.querySelectorAll('input[placeholder="Például: félmaraton"]')][0], "Tavaszi Maraton");
+  await setField(labelled("Esemény dátuma").querySelector("input"), eventDate.toISOString().slice(0, 10));
+  await setField(labelled("Esemény típusa").querySelector("select"), "marathon");
+  await setField(document.querySelector('select[aria-label="Referenciaverseny távja"]'), "10k");
+  await setField(document.querySelector('input[aria-label="Referenciaidő"]'), "50:00");
+  await act(async () => [...document.querySelectorAll("button")].find(node => node.textContent.trim() === "Profil mentése").click());
+  if (!cloudPatches.some(patch => patch.profile?.eventType === "marathon" && patch.profile?.referenceRaceTime === "50:00")) throw new Error("Az eseménytípus és a referenciaidő nem mentődött a profilba.");
+  await navTo("Cél");
+  const eventCard = document.querySelector(".event-planner:not(.event-planner-empty)");
+  if (!eventCard?.textContent.includes("MARATON") || !eventCard.textContent.includes("TAPER")) throw new Error("A maratoni felkészülési kártya nem jelent meg.");
+  await act(async () => [...eventCard.querySelectorAll("button")].find(node => node.textContent.trim() === "TERV ELŐNÉZETE").click());
+  const eventModal = document.querySelector(".event-plan-modal");
+  if (!eventModal?.querySelector(".event-plan-paces")?.textContent.includes("Küszöbtempó")) throw new Error("A tempózónák hiányoznak a felkészülési tervből.");
+  if (eventModal.querySelectorAll(".event-plan-weeks details").length !== 18 || !eventModal.textContent.includes("Taper")) throw new Error("A 18 hetes maratoni szakaszolás hiányos.");
+  if (!eventModal.querySelector(".event-plan-sources")?.textContent.includes("Bosquet")) throw new Error("A forrásmegjelölés hiányzik.");
+  if (eventModal.querySelector(".metric-help-icon,[aria-label*='?']")) throw new Error("Kérdőjeles jelvény a felkészülési tervben.");
+  await act(async () => [...eventModal.querySelectorAll("button")].find(node => node.textContent.trim() === "Felkészülési terv mentése a Naptárba").click());
+  const eventPatch = cloudPatches.find(patch => patch.plans?.some(item => item.id.startsWith("event-marathon-")));
+  if (!eventPatch || !eventPatch.plans.some(item => item.title.startsWith("Verseny: Maraton")) || eventPatch.replacePlanDates.length !== 18 * 7) throw new Error("A felkészülési terv nem mentődött a Naptárba.");
+  console.log("OK forrásolt maratoni felkészülési terv: profil, tempózónák, szakaszok, mentés");
   await act(async () => root.unmount());
 
   localStorage.clear();
