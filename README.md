@@ -92,6 +92,10 @@ Az edzőtárs kérésre edzéstervet is javasolhat (`assistant_actions.py`, szig
 
 A modell- és promptteszt szintetikus demóadaton fut: `python evals/assistant/run_eval.py --dry-run` (költségbecslés), `--prompts` (rögzített v1 vs. aktuális prompt), alapból Sonnet 5.5 vs. Haiku 4.5. Az eredmények a Gitből kizárt `evals/assistant/results/` mappába kerülnek.
 
+## Függőségek biztonsága
+
+A `.github/workflows/security-audit.yml` hetente (hétfő 06:00 UTC) és kézzel indítva lefuttatja a `pip-audit`-ot a Python-függőségekre és az `npm audit`-ot a frontendre. Helyben: `pip-audit -r requirements.txt` és `npm --prefix frontend audit`. A `cryptography` a beépített OpenSSL miatt legalább 50-es; az alkalmazás csak a `Fernet` titkosítást használja.
+
 ## Környezeti változók
 
 Másold a `.env.example` tartalmát saját, Gitből kizárt `.env` fájlba vagy állítsd be a platformon:
