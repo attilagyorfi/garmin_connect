@@ -1,7 +1,7 @@
 import { JSDOM } from "jsdom";
 import { createServer } from "vite";
 
-const dom = new JSDOM('<!doctype html><div id="root"></div>', { url: "http://localhost/" });
+const dom = new JSDOM('<!doctype html><html lang="hu"><head><title>Hybrid Athlete</title></head><body><div id="root"></div></body></html>', { url: "http://localhost/" });
 globalThis.window = dom.window;
 globalThis.document = dom.window.document;
 Object.defineProperty(globalThis, "navigator", { value: dom.window.navigator, configurable: true });
@@ -14,6 +14,14 @@ globalThis.ResizeObserver = class { observe() {} unobserve() {} disconnect() {} 
 // there is no DOM and falls back to a legacy IE input polyfill, so typed text never reaches onChange.
 const { default: React, act } = await import("react");
 const { createRoot } = await import("react-dom/client");
+// Accessibility regression check (axe-core). jsdom has no layout, so colour contrast is checked in a real browser
+// during audits; here every page must stay free of critical and serious violations of the remaining rules.
+const { default: axe } = await import("axe-core");
+const assertAccessible = async (label, context = document) => {
+  const { violations } = await axe.run(context, { rules: { "color-contrast": { enabled: false }, "link-in-text-block": { enabled: false } }, resultTypes: ["violations"] });
+  const blocking = violations.filter(item => item.impact === "critical" || item.impact === "serious");
+  if (blocking.length) throw new Error(`Akadálymentességi hiba (${label}): ${blocking.map(item => `${item.id} → ${item.nodes.slice(0, 3).map(node => node.target.join(" ")).join(", ")}`).join("; ")}`);
+};
 const budapestDay=(offset=0)=>{const date=new Date(Date.now()+offset*86400000);return new Intl.DateTimeFormat("en-CA",{timeZone:"Europe/Budapest",year:"numeric",month:"2-digit",day:"2-digit"}).format(date)};
 const TODAY=budapestDay(),YESTERDAY=budapestDay(-1),budapestToday=()=>TODAY;
 const dashboardFixture={
@@ -279,6 +287,9 @@ try {
     if (label === "Naptár") {
       const add = [...document.querySelectorAll("button")].find(node => node.textContent.includes("EDZÉS HOZZÁADÁSA"));
       await act(async () => add.click());
+      const editorDialog = document.querySelector(".plan-editor");
+      await act(async () => assertAccessible("edzésszerkesztő ablak", editorDialog));
+      if (editorDialog.getAttribute("role") !== "dialog" || !document.getElementById(editorDialog.getAttribute("aria-labelledby")) || !editorDialog.contains(document.activeElement)) throw new Error("Az edzésszerkesztő nem kapott dialógusszerepet, nevet vagy fókuszt.");
       const savePlan = [...document.querySelectorAll(".plan-editor button")].find(node => node.textContent.trim() === "Edzésterv mentése");
       await act(async () => savePlan.click());
       const createdPatch=cloudPatches.find(patch=>patch.plan?.id);
@@ -461,6 +472,7 @@ try {
       await act(async () => saveAccent.click());
       if (!cloudPatches.some(patch=>patch.accent==="blue")) throw new Error("Az akcentusszín nem indított Neon-mentést.");
     }
+    await act(async () => assertAccessible(label));
     console.log(`OK ${label}`);
   }
   // Event plan: set a marathon with a reference 10 km in the profile, then build and save the plan from the goal page.

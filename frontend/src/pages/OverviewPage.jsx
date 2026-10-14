@@ -60,7 +60,7 @@ export function OverviewPage({ profile, onDataChanged }) {
   ];
   const syncLabel = syncing ? `${Math.round(job?.progress || 0)}%` : resumeRunId ? "SZINKRON FOLYTATÁSA" : "SZINKRON";
   return <><PageHeader eyebrow="TELJESÍTMÉNYKÉP" title="Áttekintés"><div className="header-actions"><span>{syncError || "A rögzített edzéseid és a számított terhelés alakulása."}</span><button onClick={() => syncNow(resumeRunId)} disabled={syncing}>{syncing ? <AnimatedBrandMark className="sync-brand-mark" /> : <RefreshCw size={14} />} {syncLabel}</button></div></PageHeader>
-  <main className="overview-page">
+  <div className="overview-page">
     <div className="overview-period"><div className="segmented" role="group" aria-label="Megjelenített időszak">{[[30, "30 nap"], [90, "90 nap"], [365, "1 év"]].map(([days, label]) => <button key={days} aria-pressed={range === days} className={range === days ? "active" : ""} onClick={() => setRange(days)}>{label}</button>)}</div><p>{dateLabel(model.from)} – {dateLabel(model.today)}</p></div>
     <div className="overview-data-state" role={result.status === "error" ? "alert" : "status"}>
       {result.status === "loading" && "A személyes adatok betöltése…"}
@@ -86,5 +86,5 @@ export function OverviewPage({ profile, onDataChanged }) {
       <details className="overview-chart-details"><summary>Mit jelentenek a görbék</summary><p>A CTL/ATL/TSB itt saját teljesítménymenedzsment-becslés, nem a Garmin Training Load vagy Training Status.</p><div className="overview-explanations"><p><b>Hybrid edzettség (CTL):</b> a hosszabb távú terhelésből becsült edzettség. Emelkedése tartósabb edzésmunkát jelezhet, de önmagában nem bizonyít teljesítményjavulást.</p><p><b>Hybrid fáradtság (ATL):</b> a közelmúlt terhelésének rövid távú becslése. Gyors emelkedése nagyobb regenerációs igényt jelezhet.</p><p><b>Hybrid forma (TSB):</b> a becsült edzettség és fáradtság különbsége. Negatív értéknél a friss terhelés dominál; pozitív érték kipihentebb állapotra utalhat, de a tartós pihenés is növelheti.</p></div></details>
     </section>
     <section className="overview-bottom"><div className="card"><span className="eyebrow">EDZÉSMEGOSZLÁS</span><h2>{available && model.known ? `${strength} erőedzés · ${model.sessions.length - strength} egyéb edzés` : "Nincs megjeleníthető összesítés"}</h2><p>{available && model.known && model.sessions.length === 0 ? "A betöltött adatokban nincs edzés erre az időszakra. A szinkronizálás teljességét is érdemes ellenőrizni." : "Az alkalmak számát mutatjuk, nem az idő vagy a terhelés arányát. Egy nap több edzése külön-külön szerepel."}</p></div><div className="card"><span className="eyebrow">BEÁLLÍTOTT CÉLOD</span><h2>{profile?.goal || "Még nincs megadva"}</h2><p>Heti időkeret: {profile?.weeklyHours ?? "—"} óra · Erőedzés cél-aránya: {profile?.strengthRatio ?? "—"}%. Ezek tervezési beállítások, nem mért teljesítményadatok.</p></div></section>
-  </main></>;
+  </div></>;
 }

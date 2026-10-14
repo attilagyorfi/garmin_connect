@@ -9,7 +9,7 @@ import { PageHeader } from "../components/PageHeader.jsx";
 const Group = ({id,eyebrow,title,text,children}) => <section className="settings-group" id={id} aria-labelledby={`${id}-title`}><div className="settings-group-heading"><span className="eyebrow">{eyebrow}</span><h2 id={`${id}-title`}>{title}</h2><p>{text}</p></div>{children}</section>;
 
 export function SettingsPage({accent,onAccent,profile,onProfileSave,user,onLogout,garminStatus,onGarminStatus,onPasswordChanged,onAccountDeleted}){const [draft,setDraft]=useState(accent),[avatarDraft,setAvatarDraft]=useState(profile),[saved,setSaved]=useState(false);useEffect(()=>setAvatarDraft(profile),[profile]);
-  return <><PageHeader eyebrow="SZEMÉLYRE SZABÁS" title="Beállítások"/><main className="accent-page settings-stack">
+  return <><PageHeader eyebrow="SZEMÉLYRE SZABÁS" title="Beállítások"/><div className="accent-page settings-stack">
     <nav className="settings-section-nav" aria-label="Beállítási csoportok"><span>UGRÁS IDE</span><a href="#settings-data">Garmin és adatok</a><a href="#settings-personalization">Személyre szabás</a><a href="#settings-account">Fiók és biztonság</a>{user?.role==="admin"&&<a href="#settings-admin">Adminisztráció</a>}</nav>
     <Group id="settings-data" eyebrow="KAPCSOLAT ÉS ADATOK" title="Garmin és adatok" text="Itt kezelheted a Garmin-kapcsolatot, és ellenőrizheted, milyen adatok állnak rendelkezésre."><GarminConnectionCard onStatus={onGarminStatus}/><DataManagementOverview garminStatus={garminStatus}/></Group>
     <Group id="settings-personalization" eyebrow="MEGJELENÉS" title="Személyre szabás" text="A profilképed és az akcentusszín minden belépés után megmarad.">
@@ -19,4 +19,4 @@ export function SettingsPage({accent,onAccent,profile,onProfileSave,user,onLogou
       <section className="card account-card"><span className="eyebrow">FIÓK</span><h2>{user?.name}</h2><p>{user?.email}</p><button className="logout-button" onClick={onLogout}><LogOut size={17}/> Kijelentkezés</button></section>
       <PasswordChangeCard onChanged={onPasswordChanged}/><DataExportCard/><ActiveSessionsCard/><AccountDeletionCard onDeleted={onAccountDeleted}/></Group>
     {user?.role==="admin"&&<Group id="settings-admin" eyebrow="ADMIN" title="Adminisztráció" text="A zárt rendszer felhasználóihoz és meghívóihoz kapcsolódó műveletek."><AdminAccessCard/></Group>}
-  </main></>}
+  </div></>}

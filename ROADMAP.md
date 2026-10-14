@@ -4,7 +4,6 @@
 
 - Pro előfizetés és fizetés (2 990 Ft/hó vagy 29 900 Ft/év, 14 napos próba) – a felhasználó döntése szerint egyelőre halasztva
 - valós fiókos, többéves backfill terhelés- és rate-limit teszt Vercelen
-- billentyűzetes és képernyőolvasós accessibility audit valódi böngészőben
 
 ## Elkészült 2026-10 – Claude-átállás, üzem és bővítések
 
@@ -15,6 +14,7 @@
 - Edzőtárs: folyamatos (streamelt) válasz (#41); eval az éles hívási úton, tervmódosítási esetekkel (#42); v4 prompt – nincs kemény edzés figyelmeztető jelzésnél, tervjavaslat csak kérésre, napnevek a kontextusban, mért átlag 4,33 → 4,46 (#43)
 - forrásolt eseményfelkészülési sablonok: maraton–5 km (#37), egynapos hegyi túra és többnapos túra (#44)
 - a régi, egyfelhasználós Streamlit/Railway-változat kivezetve (#45)
+- akadálymentességi audit (axe-core valódi böngészőben, minden oldal és ablak): kontraszt, címkék, tartományok, közös dialóguskezelés (fókusz, Tab-csapda, Esc), látható fókusz; axe-ellenőrzés a navigációs tesztben
 - e-mail-cím megerősítése regisztráció után (24 órás link, újraküldés; csak beállított e-mail-küldésnél kötelező)
 - globális havi AI-keret (alapból 25 USD): 80%-nál admin-riasztás e-mailben, 100%-nál az Edzőtárs a hónap végéig szünetel
 
@@ -84,7 +84,7 @@
 ## Következő P1 finomítások
 
 - pulzuszóna-payloadok anonim, valós eszközfixture-ökkel történő további schema-drift validációja
-- billentyűzetes és képernyőolvasós accessibility audit valódi böngészőben
+- elkészült: billentyűzetes és képernyőolvasós akadálymentességi audit valódi böngészőben, axe-regressziós ellenőrzéssel
 - elkészült: a generált napi ajánlások és heti összefoglalók külön historikus UI-ja, grafikonokkal és JSON-exporttal
 
 ## Elkészült P2 – Célok és tervezés
