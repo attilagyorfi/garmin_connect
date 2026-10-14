@@ -23,3 +23,5 @@
 .reference-race{display:grid;grid-template-columns:140px 1fr;gap:8px}
 @media(max-width:1100px){.event-planner{grid-template-columns:1fr}.event-planner-actions{justify-items:start}.event-planner-stats,.event-plan-paces>div{grid-template-columns:1fr 1fr}}
 .event-planner-alert{grid-column:1/-1;display:grid;grid-template-columns:20px 1fr;gap:10px;margin:0;padding:12px 14px;border:1px solid #5a4a22;border-radius:10px;background:#221d10;color:#f3dfa6;font-size:14px;line-height:1.55}.event-planner-alert svg{color:#f59e0b;margin-top:2px}
+.hike-fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px}
+.hike-fields label{display:grid;gap:6px;font-size:13px;color:var(--muted)}

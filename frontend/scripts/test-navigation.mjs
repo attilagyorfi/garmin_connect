@@ -457,6 +457,28 @@ try {
   const eventPatch = cloudPatches.find(patch => patch.plans?.some(item => item.id.startsWith("event-marathon-")));
   if (!eventPatch || !eventPatch.plans.some(item => item.title.startsWith("Verseny: Maraton")) || eventPatch.replacePlanDates.length !== 18 * 7) throw new Error("A felkészülési terv nem mentődött a Naptárba.");
   console.log("OK forrásolt maratoni felkészülési terv: profil, tempózónák, szakaszok, mentés");
+  // Hiking event: switch the profile to a multi-day trek, enter the route, then preview and save the plan.
+  await navTo("Profil");
+  await setField(labelled("Esemény típusa").querySelector("select"), "trek");
+  if (document.querySelector('input[aria-label="Referenciaidő"]')) throw new Error("Túránál a futó referenciaidő mezője nem kell.");
+  const hikeInput = text => [...document.querySelectorAll(".hike-fields label")].find(node => node.querySelector("span")?.textContent === text)?.querySelector("input");
+  for (const [text, value] of [["Táv (km)", "22"], ["Szintemelkedés (m)", "900"], ["Napok száma", "4"], ["Hátizsák (kg)", "10"]]) {
+    if (!hikeInput(text)) throw new Error(`Hiányzik a túramező: ${text}`);
+    await setField(hikeInput(text), value);
+  }
+  await act(async () => [...document.querySelectorAll("button")].find(node => node.textContent.trim() === "Profil mentése").click());
+  if (!cloudPatches.some(patch => patch.profile?.eventType === "trek" && patch.profile?.hikeKm === 22 && patch.profile?.hikeDays === 4 && patch.profile?.hikePackKg === 10)) throw new Error("A túra adatai nem mentődtek a profilba.");
+  await navTo("Cél");
+  const hikeCard = document.querySelector(".event-planner:not(.event-planner-empty)");
+  if (!hikeCard?.textContent.includes("TÖBBNAPOS TÚRA") || !hikeCard.textContent.includes("LEGHOSSZABB TÚRA")) throw new Error("A túrafelkészülési kártya nem jelent meg.");
+  await act(async () => [...hikeCard.querySelectorAll("button")].find(node => node.textContent.trim() === "TERV ELŐNÉZETE").click());
+  const hikeModal = document.querySelector(".event-plan-modal");
+  if (!hikeModal?.querySelector(".event-plan-sources")?.textContent.includes("Knapik") || !hikeModal.textContent.includes("szombat–vasárnap")) throw new Error("A túraterv forrásai vagy a hétvégi túranapokra vonatkozó figyelmeztetés hiányzik (a vasárnap pihenőnap).");
+  if (hikeModal.querySelector(".metric-help-icon,[aria-label*='?']")) throw new Error("Kérdőjeles jelvény a túratervben.");
+  await act(async () => [...hikeModal.querySelectorAll("button")].find(node => node.textContent.trim() === "Felkészülési terv mentése a Naptárba").click());
+  const hikePatch = cloudPatches.find(patch => patch.plans?.some(item => item.id.startsWith("event-trek-")));
+  if (!hikePatch || hikePatch.plans.filter(item => / túranap: Tavaszi Maraton$/.test(item.title)).length !== 4 || !hikePatch.plans.some(item => item.type === "Erő")) throw new Error("A túrafelkészülési terv nem mentődött a Naptárba.");
+  console.log("OK forrásolt túrafelkészülés: profil, terv, források, mentés");
   await act(async () => root.unmount());
 
   localStorage.clear();

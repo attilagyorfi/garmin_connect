@@ -15,7 +15,10 @@ EXPERIENCE = {"kezdő", "középhaladó", "haladó"}
 GOALS = {"Hibrid teljesítmény", "Futóteljesítmény", "Erőfejlesztés", "Hegyi állóképesség", "Általános egészség"}
 PREFERENCES = {"kiegyensúlyozott", "teljesítmény", "regeneráció"}
 DAYS = {"H", "K", "Sze", "Cs", "P", "Szo", "V"}
-EVENT_TYPES = {"", "marathon", "half", "10k", "5k"}
+RACE_KEYS = {"", "marathon", "half", "10k", "5k"}
+EVENT_TYPES = RACE_KEYS | {"hike", "trek"}
+# Hiking event parameters: (min, max); out-of-range or missing values are stored as None.
+HIKE_FIELDS = {"hikeKm": (3, 80), "hikeGainM": (100, 3500), "hikeDays": (2, 21), "hikePackKg": (0, 25), "hikeMaxAltitudeM": (0, 6000)}
 RACE_TIME = re.compile(r"^(\d{1,2}:)?[0-5]?\d:[0-5]\d$")
 PLAN_TYPES = {"Kardió", "Erő", "Futás", "Túrázás", "Kerékpár", "Mobilitás", "Pihenő"}
 PLAN_INTENSITIES = {"regeneráló", "könnyű", "könnyű–közepes", "közepes", "közepes–magas", "magas"}
@@ -34,6 +37,16 @@ def _text(value: Any, maximum: int) -> str:
     return str(value or "").strip()[:maximum]
 
 
+def _bounded(value: Any, low: float, high: float) -> float | None:
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    if not low <= number <= high:
+        return None
+    return int(number) if number.is_integer() else round(number, 1)
+
+
 def validate_profile(value: Any) -> dict[str, Any]:
     if not isinstance(value, dict):
         raise ValueError("Érvénytelen profil.")
@@ -47,7 +60,7 @@ def validate_profile(value: Any) -> dict[str, Any]:
     event_type = str(value.get("eventType") or "")
     reference_key = str(value.get("referenceRaceKey") or "")
     reference_time = _text(value.get("referenceRaceTime"), 8)
-    if event_type not in EVENT_TYPES or reference_key not in EVENT_TYPES or (reference_time and not RACE_TIME.match(reference_time)):
+    if event_type not in EVENT_TYPES or reference_key not in RACE_KEYS or (reference_time and not RACE_TIME.match(reference_time)):
         raise ValueError("Az esemény vagy a referenciaidő értéke érvénytelen.")
     avatar_preset = value.get("avatarPreset", "athlete")
     avatar_image = str(value.get("avatarImage") or "")
@@ -64,6 +77,7 @@ def validate_profile(value: Any) -> dict[str, Any]:
         "eventType": event_type,
         "referenceRaceKey": reference_key,
         "referenceRaceTime": reference_time,
+        **{key: _bounded(value.get(key), *limits) for key, limits in HIKE_FIELDS.items()},
         "weeklyHours": max(1, min(30, int(value.get("weeklyHours", 8)))),
         "strengthRatio": max(0, min(100, int(value.get("strengthRatio", 30)))),
         "trainingDays": list(dict.fromkeys(training_days)) or ["H", "K", "Sze", "Cs", "P", "Szo"],
@@ -114,7 +128,7 @@ def validate_plan(value: Any, plan_id: str | None = None) -> dict[str, Any]:
         "date": planned_date,
         "type": plan_type,
         "title": _text(value.get("title"), 160) or f"{plan_type} edzés",
-        "duration": max(0 if plan_type == "Pihenő" else 10, min(600, int(value.get("duration", 60)))),
+        "duration": max(0 if plan_type == "Pihenő" else 10, min(1440, int(value.get("duration", 60)))),
         "intensity": intensity,
         "rpe": max(1, min(10, int(value.get("rpe", 5)))),
         "purpose": _text(value.get("purpose"), 500),

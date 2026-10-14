@@ -102,3 +102,17 @@ def test_event_type_and_reference_race_are_kept(memory_store):
     assert (profile["eventType"], profile["referenceRaceKey"], profile["referenceRaceTime"]) == ("marathon", "10k", "49:30")
     assert user_state.apply_patch({"profile": {"referenceRaceKey": "half", "referenceRaceTime": "1:52:05"}})["profile"]["referenceRaceTime"] == "1:52:05"
     assert user_state.apply_patch({"profile": {}})["profile"]["eventType"] == ""
+
+
+def test_hiking_event_fields_are_bounded(memory_store):
+    profile = user_state.apply_patch({"profile": {"eventType": "trek", "hikeKm": "22.5", "hikeGainM": 900, "hikeDays": 5,
+                                                  "hikePackKg": 40, "hikeMaxAltitudeM": "magas"}})["profile"]
+    assert (profile["eventType"], profile["hikeKm"], profile["hikeGainM"], profile["hikeDays"]) == ("trek", 22.5, 900, 5)
+    assert profile["hikePackKg"] is None and profile["hikeMaxAltitudeM"] is None  # out of range / not a number
+    with pytest.raises(ValueError):
+        user_state.apply_patch({"profile": {"eventType": "marathon", "referenceRaceKey": "hike"}})
+
+
+def test_long_hiking_day_fits_in_a_plan():
+    plan = user_state.validate_plan({"date": "2027-01-17", "type": "Túrázás", "title": "Túra", "duration": 780}, "event-hike-1")
+    assert plan["duration"] == 780
