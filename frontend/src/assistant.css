@@ -19,3 +19,4 @@
 .assistant-message.streaming>:last-child::after{content:"";display:inline-block;width:7px;height:1em;margin-left:3px;vertical-align:-2px;background:var(--accent);animation:assistant-caret 1s steps(2,start) infinite}
 @keyframes assistant-caret{to{visibility:hidden}}
 @media (prefers-reduced-motion:reduce){.assistant-message.streaming>:last-child::after{animation:none}}
+.assistant-paused{margin:0 14px 8px;padding:10px 12px;border:1px solid #5a4a22;border-radius:8px;background:#221d10;color:#f3dfa6}

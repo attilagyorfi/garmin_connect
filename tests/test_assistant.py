@@ -1,3 +1,4 @@
+from unittest.mock import Mock
 from types import SimpleNamespace
 
 import pytest
@@ -297,3 +298,12 @@ def test_context_carries_hiking_event_parameters_only_for_hikes():
     assert hike["sportoló"]["esemény_típusa"] == "többnapos túra"
     assert hike["sportoló"]["túra"] == {"napi_táv_km": 22, "napi_szintemelkedés_m": 900, "napok": 5, "hátizsák_kg": 12}
     assert "túra" not in build_context(DASHBOARD, app_profile={"eventType": "marathon"})["sportoló"]
+
+
+def test_paused_service_answers_with_the_budget_message(store, monkeypatch):
+    update_settings("u1", {"action": "consent", "value": True})
+    monkeypatch.setattr(assistant.ai_usage, "reserve", Mock(side_effect=ai_usage.BudgetExceededError(ai_usage.PAUSED_MESSAGE)))
+    client = FakeClient()
+    with pytest.raises(AssistantError, match="hónap végéig szünetel"):
+        ask("u1", "Mit eddzek?", client)
+    assert client.calls == []
