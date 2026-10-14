@@ -5,7 +5,27 @@ addresses or activity IDs. The deterministic engine computes; the model interpre
 """
 from __future__ import annotations
 
+from datetime import date, timedelta
 from typing import Any
+
+WEEKDAYS = ("hétfő", "kedd", "szerda", "csütörtök", "péntek", "szombat", "vasárnap")
+
+
+def weekday_name(value: Any) -> str | None:
+    """Hungarian weekday for an ISO date, so the model never has to work it out (it got it wrong in the eval)."""
+    try:
+        return WEEKDAYS[date.fromisoformat(str(value)[:10]).weekday()]
+    except ValueError:
+        return None
+
+
+def _days(today: Any) -> dict[str, Any] | None:
+    try:
+        start = date.fromisoformat(str(today)[:10])
+    except ValueError:
+        return None
+    return {label: {"dátum": (start + timedelta(days=offset)).isoformat(), "nap": WEEKDAYS[(start + timedelta(days=offset)).weekday()]}
+            for offset, label in enumerate(("ma", "holnap", "holnapután"))}
 
 RECENT_SESSIONS = 10
 TREND_WEEKS = 8
@@ -44,6 +64,7 @@ def build_context(dashboard: dict[str, Any], memory_notes: list[str] | None = No
     profile = app_profile or {}
     return {
         "dátum": dashboard.get("today"),
+        "napok": _days(dashboard.get("today")),
         "adatforrás": "bemutató adat" if dashboard.get("source") == "demo" else "Garmin",
         "sportoló": {key: value for key, value in {
             "nem": {"male": "férfi", "female": "nő"}.get(person.get("sex")), "életkor": person.get("age"),

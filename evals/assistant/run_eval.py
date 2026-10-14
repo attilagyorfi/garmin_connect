@@ -2,7 +2,7 @@
 
     python evals/assistant/run_eval.py --dry-run     # cases and rough cost, no API calls
     python evals/assistant/run_eval.py               # Claude Sonnet 5.5 vs Haiku 4.5, judged by Opus 5.5 (ANTHROPIC_API_KEY)
-    python evals/assistant/run_eval.py --prompts     # frozen v1 prompt vs current prompt, both on Sonnet 5.5
+    python evals/assistant/run_eval.py --prompts     # previous production (frozen v3 prompt, context without weekdays) vs current, Sonnet 5.5
 
 Chat cases run through the production code path (assistant._answer): the same system prompt and cached context
 block, the plan-proposal tool with T1/T2 plan handles, and the follow-up turn after a proposal. Proposals are
@@ -41,7 +41,8 @@ import assistant_actions  # noqa: E402
 from assistant_context import build_context  # noqa: E402
 from assistant_prompts import MEMORY_TASK, SUMMARY_TASK, SYSTEM_PROMPT, context_block  # noqa: E402
 from dashboard_api import build_dashboard_payload  # noqa: E402
-from evals.assistant.prompts import v1 as prompt_v1  # noqa: E402
+from evals.assistant.prompts import v1 as prompt_v1  # noqa: E402,F401 (first baseline, kept for reference)
+from evals.assistant.prompts import v3 as prompt_v3  # noqa: E402
 
 HERE = Path(__file__).resolve().parent
 MAX_USD = 8.0
@@ -50,9 +51,10 @@ MAX_OUTPUT = 2500
 PRICES = {"claude-opus-5-5": (4.0, 20.0), "claude-sonnet-5-5": (2.0, 10.0), "claude-haiku-4-5": (1.0, 5.0)}
 # Each comparison: two models answering the same cases (None = every case kind).
 CLAUDE_ONLY = {"comparisons": {"Sonnet 5.5 vs Haiku 4.5": ("claude-sonnet-5-5", "claude-haiku-4-5", None)}, "judges": ["claude-opus-5-5"]}
-PROMPTS = {"comparisons": {"Prompt v1 vs v3 (Sonnet 5.5)": (
-    {"label": "v1", "model": "claude-sonnet-5-5", "system": prompt_v1.SYSTEM_PROMPT, "summary_task": prompt_v1.SUMMARY_TASK},
-    {"label": "v3", "model": "claude-sonnet-5-5", "system": SYSTEM_PROMPT, "summary_task": SUMMARY_TASK}, None)},
+# "legacy_context" strips what the context gained since v3 (weekday names), so the pair compares old vs new production.
+PROMPTS = {"comparisons": {"Prompt v3 vs v4 (Sonnet 5.5)": (
+    {"label": "v3", "model": "claude-sonnet-5-5", "system": prompt_v3.SYSTEM_PROMPT, "summary_task": prompt_v3.SUMMARY_TASK, "legacy_context": True},
+    {"label": "v4", "model": "claude-sonnet-5-5", "system": SYSTEM_PROMPT, "summary_task": SUMMARY_TASK}, None)},
     "judges": ["claude-opus-5-5"]}
 APP_PROFILE = {"goal": "Hibrid teljesítmény", "weeklyHours": 8, "strengthRatio": 30, "experience": "középhaladó"}
 
@@ -194,6 +196,15 @@ def chat_context(ctx: dict[str, Any], case: dict[str, Any]) -> tuple[dict[str, A
     return ctx, plans, handles
 
 
+def legacy_context(ctx: dict[str, Any]) -> dict[str, Any]:
+    """The context as v3 production built it: no weekday fields."""
+    ctx = copy.deepcopy(ctx)
+    ctx.pop("napok", None)
+    for plan in ctx.get("tervek", []):
+        plan.pop("nap", None)
+    return ctx
+
+
 @contextlib.contextmanager
 def patched(target: Any, name: str, value: Any):
     saved = getattr(target, name)
@@ -293,7 +304,7 @@ def judge_message(case: dict[str, Any], prompt: str, answer_a: str, answer_b: st
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--dry-run", action="store_true")
-    parser.add_argument("--prompts", action="store_true", help="frozen v1 prompt vs current prompt on Sonnet 5.5")
+    parser.add_argument("--prompts", action="store_true", help="previous production (v3) vs current prompt and context on Sonnet 5.5")
     parser.add_argument("--limit", type=int, default=None)
     parser.add_argument("--seed", type=int, default=7)
     args = parser.parse_args()
@@ -331,9 +342,10 @@ def main() -> None:
         answers = {}
         for player in (first, second):
             model = player["model"]
-            player_prompt = user_message(case, ctx, player["summary_task"])
+            player_ctx = legacy_context(ctx) if player.get("legacy_context") else ctx
+            player_prompt = user_message(case, player_ctx, player["summary_task"])
             if case["kind"] == "chat":
-                result = production_answer(client, player, case, ctx, plans, handles)
+                result = production_answer(client, player, case, player_ctx, plans, handles)
             else:
                 result = call_claude(client, model, player_prompt, schema, player["system"])
             if "error" not in result:
