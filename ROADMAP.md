@@ -1,15 +1,34 @@
 # Roadmap
 
+## Következő lépések (2026-10-14)
+
+- Pro előfizetés és fizetés (2 990 Ft/hó vagy 29 900 Ft/év, 14 napos próba) – a felhasználó döntése szerint egyelőre halasztva
+- globális havi AI-költségriasztás és vészfék a felhasználónkénti napi keret mellé
+- e-mail-cím megerősítése regisztráció után (a háttérfüggvény megvan, levél még nem megy ki)
+- valós fiókos, többéves backfill terhelés- és rate-limit teszt Vercelen
+- billentyűzetes és képernyőolvasós accessibility audit valódi böngészőben
+
+## Elkészült 2026-10 – Claude-átállás, üzem és bővítések
+
+- minden AI-funkció Claude-alapú (Anthropic API); a korábbi OpenAI/codex-ág teljesen kivezetve, funkciói átültetve (#30–#36)
+- Vercel a GitHub-repóhoz kötve, az éles app a `main` ágból automatikusan élesedik
+- felhős szinkron kizárólag a felhasználó titkosított Garmin-munkamenetével; a szerver környezeti Garmin-adataira nem esik vissza (#38)
+- önkiszolgáló jelszó-visszaállítás és e-mailes meghívó Resenddel, fiókfelderítés elleni semleges válasszal (#40)
+- Edzőtárs: folyamatos (streamelt) válasz (#41); eval az éles hívási úton, tervmódosítási esetekkel (#42); v4 prompt – nincs kemény edzés figyelmeztető jelzésnél, tervjavaslat csak kérésre, napnevek a kontextusban, mért átlag 4,33 → 4,46 (#43)
+- forrásolt eseményfelkészülési sablonok: maraton–5 km (#37), egynapos hegyi túra és többnapos túra (#44)
+- a régi, egyfelhasználós Streamlit/Railway-változat kivezetve (#45)
+
 ## P0 – Többfelhasználós fiók- és adatszigetelési alap
 
 - elkészült: PostgreSQL-alapú regisztráció és bejelentkezés scrypt jelszóhash-sel
 - elkészült: véletlen, lejáró munkamenet HttpOnly + SameSite cookie-ban
 - elkészült: profil, terv, check-in, Garmin-cache, dashboard és szinkronállapot elkülönítése `user_id` szerint
 - elkészült: felhasználónkénti szinkronzár
-- következő: e-mail-megerősítés, jelszó-visszaállítás és belépési próbálkozások korlátozása
+- elkészült: jelszó-visszaállítás (adminlink és önkiszolgáló e-mail) és belépési próbálkozások korlátozása
+- következő: e-mail-megerősítés regisztráció után
 - elkészült: felhasználónkénti, Fernet-titkosított Garmin-kapcsolat; a jelszó nem kerül vissza a klienshez
 - elkészült: tartós, Fernet-titkosított Garmin-session tokenek; a szinkronlépések tokennel lépnek be, jelszót csak elutasított token esetén használnak
-- következő: MFA bootstrap; addig az MFA-s többfelhasználós Garmin-szinkron nem tekinthető késznek
+- elkészült: MFA-s Garmin-belépés: a kódot a felület külön kéri, a szerver csak titkosított munkamenettokent tárol
 
 ## P0 – Vercel teljes történeti szinkron
 
@@ -18,7 +37,7 @@
 - elkészült: böngészőből vezérelt folytatás és automatikus újracsatlakozás oldal-újratöltés után
 - elkészült: asztali szinkronfolyamat-panel a futó Hybrid Athlete logóval
 - elkészült: a lekért rekordok tételenkénti staging táblába kerülnek (`hybrid_sync_items`), a job-állapot nem hordozza a teljes nyers payloadot
-- következő: MFA bootstrap folyamat
+- elkészült: MFA bootstrap folyamat
 - következő: valós fiókos, többéves backfill terhelés- és rate-limit teszt Vercelen
 
 ## P5 – Személyes AI-asszisztens
@@ -35,7 +54,10 @@
 - adatminimalizálás: nyers Garmin payload helyett célzott, összesített kontextus; hitelesítő és token soha nem kerül modellpromptba
 - elkészült: Edzőtárs chat (Claude Sonnet 5.5, Anthropic API) összesített kontextussal, hozzájárulással, napi 15 kérdéssel és tokenkerettel, törölhető memóriával
 - elkészült: modellválasztás méréssel (30 esetes magyar teszt, Sonnet 5.5 vs Haiku 4.5, promptváltozatok)
-- következő: jóváhagyásos tervmódosító műveletek és admin-oldali AI-használatkövetés
+- elkészült: jóváhagyásos tervmódosító műveletek (24 órás függő javaslat, T-jeles tervhivatkozás) és admin-oldali, névtelen AI-használatkövetés
+- elkészült: folyamatos válasz NDJSON-streammel; megszakadt kapcsolatnál is elkészül és mentődik
+- elkészült: eval az éles hívási úton (eszköz, kontextus, magyarázó kör) és v4 prompt méréssel
+- következő: globális havi költségriasztás; Pro csomag (halasztva)
 
 ## Elkészült üzemi megerősítés
 
@@ -56,7 +78,6 @@
 - aktivitásonkénti pulzuszóna-részletek a read-only `get_activity_hr_in_timezones` metódussal és több formátumot lefedő tesztekkel
 - alsótest-terhelési sorozat és két erős alsótestnap közötti regenerációs jelzés
 - Zone 2 és magas intenzitású percek összesítése, hiányzó zónaadat egyértelmű jelzésével
-- heti összefoglalók és napi ajánlások automatikus SQLite-snapshotja
 - reszponzív havi kártyás naptár és magyar nyelvű alapfelület
 
 ## Következő P1 finomítások
@@ -103,16 +124,16 @@
 - elkészült: három bővülő idősoros fold, baseline-összevetés és automatikus élesítési kapu
 - elkészült: foldonkénti feature-együttható-, iránystabilitási és lefedettségi audit
 - elkészült: 60+60 napos PSI-, IQR-eltolódás- és missingness-alapú drift-audit
-- elkészült: auditálható SQLite modellverziók reprodukálható artifacttal
+- elkészült: auditálható modellverziók reprodukálható artifacttal
 - elkészült: automatikus aktiválás csak validált és az aktív modellnél jobb MAE-jű jelöltnél
 - elkészült: 30 új adatnap, 30 napos modellkor vagy magas drift alapján magyar újratanítási jelzés
 - elkészült: aktív modell auditnézet, kétverziós összevetés és megerősített visszaállítás
-- következő: opcionális ütemezett újratanítás a telepítési környezet ütemezőjével
+- elkészült: napi ütemezett újratanítás Vercel Cronnal (`/api/retrain`, 03:15 UTC), validációs kapuval
 
 ## Ismert korlátok
 
-- Az SQLite-adattár egyszemélyes, nincs auth vagy titkosítás.
+- Az AI-költséget felhasználónkénti napi keret korlátozza; globális havi riasztás még nincs.
 - A Garmin nem hivatalos web API-ja változhat; nincs élő accountos CI.
 - A jelenlegi cardio zóna-load akkor elsődleges, ha a payload már tartalmaz zónaperceket; külön részletlekérés még nincs.
-- A demo Mountain példákat ad, de a külön Mountain UI/score P3.
+- A túrasablon menetideje a DIN 33466 irányértékéből és a saját Garmin-túrák tempójából becsült; terep, időjárás és pihenők nincsenek benne.
 - Az eseményspecifikus periodizáció és a Garmin-tényadatokra reagáló heti adaptáció első szabályalapú változata elkészült; az automatikus alkalmazás továbbra is felhasználói jóváhagyást igényel.
