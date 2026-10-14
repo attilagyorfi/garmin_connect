@@ -49,6 +49,13 @@ globalThis.fetch = async (input,options={}) => {
   }
   if(url.endsWith("/api/dashboard")&&!dashboardAvailable)return {ok:false,status:404,json:async()=>({error:"Még nincs szinkronizált Garmin-adat.",code:"no_dashboard_data"}),text:async()=>JSON.stringify({error:"Még nincs szinkronizált Garmin-adat.",code:"no_dashboard_data"})};
   if(url.endsWith("/api/model"))return {ok:true,status:200,json:async()=>({active:{id:7,trained_at:"2026-09-22T03:15:00+00:00",data_start:"2025-09-01",data_end:"2026-09-21",samples:340,model_mae:0.42,baseline_mae:0.61,eligible:true,active:true,promotion_reason:"A jelölt MAE-je jobb.",validation:{improvementPct:31.1,windowsWon:3,windowCount:3}},latest:null,readiness:{availableSamples:340,requiredSamples:132,progressPct:100,observedDays:365,dataStart:"2025-09-01",dataEnd:"2026-09-22",readyForValidation:true,coverage:[{key:"sleep_score",label:"Alváspontszám",availableDays:350,coveragePct:96},{key:"hrv",label:"Éjszakai HRV",availableDays:340,coveragePct:93},{key:"resting_hr",label:"Nyugalmi pulzus",availableDays:355,coveragePct:97},{key:"hybrid_load",label:"Edzésterhelés",availableDays:365,coveragePct:100},{key:"session_rpe",label:"Saját edzésérzet (RPE)",availableDays:40,coveragePct:11}]},schedule:{nextCheckAt:"2026-09-23T03:15:00+00:00",frequency:"daily"},lastRun:{checkedAt:"2026-09-22T03:15:00+00:00",status:"candidate_ready",due:true,reasons:["30 új adatnap érkezett"],dataEnd:"2026-09-22",message:"A validált jelölt aktiválva."}}),text:async()=>""};
+  if(url.endsWith("/api/auth")&&options.method==="POST"&&["register","resend_verification","verify_email"].includes(JSON.parse(options.body).action)||url.endsWith("/api/auth")&&options.method==="POST"&&JSON.parse(options.body).email==="uj@example.test"){
+    const body=JSON.parse(options.body);authRequests.push(body);
+    if(body.action==="register")return {ok:true,status:201,json:async()=>({verificationRequired:true,message:"Megerősítő levelet küldtünk ide: uj@example.test."}),text:async()=>""};
+    if(body.action==="login")return {ok:false,status:403,json:async()=>({error:"A belépés előtt erősítsd meg az e-mail-címedet.",code:"email_unverified"}),text:async()=>""};
+    if(body.action==="resend_verification")return {ok:true,status:200,json:async()=>({ok:true,message:"Ha ehhez a címhez megerősítésre váró fiók tartozik, megérkezik a megerősítő levél."}),text:async()=>""};
+    return {ok:true,status:200,json:async()=>({user:{id:"verified-user",email:"uj@example.test",name:"Új"}}),text:async()=>""};
+  }
   if(url.endsWith("/api/auth")&&options.method==="POST"&&JSON.parse(options.body).action==="request_password_reset"){authRequests.push(JSON.parse(options.body));return {ok:true,status:200,json:async()=>({ok:true,message:"Ha ehhez a címhez tartozik aktív fiók, néhány percen belül megérkezik a jelszó-visszaállító levél."}),text:async()=>""};}
   if(url.endsWith("/api/auth"))return {ok:true,status:200,json:async()=>({user:{id:"test-user",email:"attilla@example.com",name:"Attila"}}),text:async()=>""};
   if(url.endsWith("/api/garmin"))return {ok:true,status:200,json:async()=>({status:"connected",email_hint:"at••••@example.com"}),text:async()=>""};
@@ -97,6 +104,33 @@ try {
   if (!authHost.querySelector(".auth-success")?.textContent.includes("jelszó-visszaállító levél") || !authButton("Bejelentkezés")) throw new Error("A kérés után nem a semleges üzenet és a belépés jelent meg.");
   await act(async () => authRoot.unmount()); authHost.remove();
   console.log("OK elfelejtett jelszó: e-mail-kérés, semleges válasz, vissza a belépéshez");
+
+  // E-mail verification: register from an invite, try to log in unconfirmed, resend, then open the e-mailed link.
+  const typeInto = async (host, selector, value) => act(async () => { const input = host.querySelector(selector); Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value").set.call(input, value); input.dispatchEvent(new window.Event("input", { bubbles: true })); });
+  const submitForm = async host => act(async () => host.querySelector("form").dispatchEvent(new window.Event("submit", { bubbles: true, cancelable: true })));
+  window.history.replaceState(null, "", "/?invite=test-invite");
+  const verifyHost = document.createElement("div"); document.body.appendChild(verifyHost);
+  let verifyRoot = createRoot(verifyHost); const signedIn = [];
+  await act(async () => verifyRoot.render(React.createElement(AuthScreen, { onAuthenticated: user => signedIn.push(user) })));
+  await typeInto(verifyHost, 'input[autocomplete="name"]', "Új Tag");
+  await typeInto(verifyHost, 'input[type="email"]', "uj@example.test");
+  await typeInto(verifyHost, 'input[type="password"]', "hosszu-biztonsagos");
+  await submitForm(verifyHost);
+  if (signedIn.length || !verifyHost.querySelector(".auth-success")?.textContent.includes("Megerősítő levelet küldtünk") || window.location.search) throw new Error("Regisztráció után nem a megerősítő üzenet jelent meg (vagy belépett).");
+  await typeInto(verifyHost, 'input[type="password"]', "hosszu-biztonsagos");
+  await submitForm(verifyHost);
+  const resendButton = [...verifyHost.querySelectorAll("button")].find(node => node.textContent.trim() === "Megerősítő levél újraküldése");
+  if (!resendButton || !verifyHost.querySelector(".auth-error")?.textContent.includes("erősítsd meg")) throw new Error("Megerősítetlen belépésnél hiányzik az újraküldés.");
+  await act(async () => resendButton.click());
+  if (!authRequests.some(item => item.action === "resend_verification" && item.email === "uj@example.test") || !verifyHost.querySelector(".auth-success")?.textContent.includes("megerősítő levél")) throw new Error("Az újraküldés nem ment el.");
+  await act(async () => verifyRoot.unmount());
+  window.history.replaceState(null, "", "/?auth=verify&token=verify-token");
+  verifyRoot = createRoot(verifyHost);
+  await act(async () => verifyRoot.render(React.createElement(AuthScreen, { onAuthenticated: user => signedIn.push(user) })));
+  await act(async () => new Promise(resolve => setTimeout(resolve, 5)));
+  if (signedIn[0]?.id !== "verified-user" || !authRequests.some(item => item.action === "verify_email" && item.token === "verify-token") || window.location.search) throw new Error("A megerősítő link nem léptetett be.");
+  await act(async () => verifyRoot.unmount()); verifyHost.remove(); window.history.replaceState(null, "", "/");
+  console.log("OK e-mail-megerősítés: regisztráció, újraküldés, megerősítő link");
   const gateRoot = createRoot(document.getElementById("root"));
   await act(async () => gateRoot.render(React.createElement(App)));
   await act(async () => new Promise(resolve=>setTimeout(resolve,5)));

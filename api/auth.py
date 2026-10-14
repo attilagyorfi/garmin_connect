@@ -5,11 +5,13 @@ import sys
 from http.server import BaseHTTPRequestHandler
 from urllib.parse import quote
 
-from auth_email import EmailError, _public_base_url, _validated_base_url, password_reset_message, send_email  # noqa: F401 (re-exported for tests)
+from auth_email import EmailError, _public_base_url, _validated_base_url, password_reset_message, send_email, verification_message, verification_required  # noqa: F401 (re-exported for tests)
 from auth_store import (
-    RateLimitError, client_ip_from, change_password, clear_cookie_header, cookie_header, delete_account,
-    TOKEN_MINUTES, current_user, login, logout, register, request_password_reset, reset_password, verify_email,
+    RateLimitError, UnverifiedEmailError, client_ip_from, change_password, clear_cookie_header, cookie_header, delete_account,
+    TOKEN_MINUTES, VERIFY_MINUTES, current_user, login, logout, register, request_password_reset, resend_verification, reset_password, verify_email,
 )
+
+SENT_VERIFICATION = "Ha ehhez a címhez megerősítésre váró fiók tartozik, néhány percen belül megérkezik a megerősítő levél. Nézd meg a spam mappát is."
 
 
 class handler(BaseHTTPRequestHandler):
@@ -23,6 +25,15 @@ class handler(BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(len(encoded)))
         self.end_headers()
         self.wfile.write(encoded)
+
+    def _send_verification(self, email: str, token: str) -> bool:
+        subject, text, markup = verification_message(_public_base_url(self.headers) + f"/?auth=verify&token={quote(token)}", VERIFY_MINUTES // 60)
+        try:
+            send_email(email, subject, text, markup)
+            return True
+        except EmailError as exc:
+            sys.stderr.write(f"verification e-mail not sent: {exc}\n")
+            return False
 
     def do_GET(self) -> None:  # noqa: N802
         try:
@@ -45,8 +56,15 @@ class handler(BaseHTTPRequestHandler):
                 user, token = register(
                     payload.get("email", ""), payload.get("password", ""),
                     payload.get("name", ""), payload.get("inviteToken", ""),
-                    self.headers.get("User-Agent", ""), client_ip,
+                    self.headers.get("User-Agent", ""), client_ip, require_verification=verification_required(),
                 )
+                if not user["emailVerified"]:
+                    sent = self._send_verification(user["email"], token)
+                    self._send({"verificationRequired": True, "message": (
+                        f"Megerősítő levelet küldtünk ide: {user['email']}. Kattints a benne lévő linkre, és már be is léptél. Nézd meg a spam mappát is."
+                        if sent else "A fiók elkészült, de a megerősítő levelet most nem sikerült elküldeni. Kérj újat lent, a belépésnél."
+                    )}, 201)
+                    return
                 status = 201
             elif action == "login":
                 client_id = client_ip_from(self.headers, getattr(self, "client_address", None))
@@ -62,7 +80,11 @@ class handler(BaseHTTPRequestHandler):
                 )
                 status = 200
             elif action == "resend_verification":
-                self._send({"error": "A zárt rendszerben nincs e-mailes megerősítés."}, 403)
+                client_ip = client_ip_from(self.headers, getattr(self, "client_address", None))
+                result = resend_verification(payload.get("email", ""), client_ip)
+                if result:
+                    self._send_verification(*result)
+                self._send({"ok": True, "message": SENT_VERIFICATION})
                 return
             elif action == "request_password_reset":
                 # Same answer whether or not the address has an account, so accounts cannot be enumerated.
@@ -118,6 +140,8 @@ class handler(BaseHTTPRequestHandler):
             self._send({"user": user}, status, cookie_header(token, secure))
         except RateLimitError as exc:
             self._send({"error": str(exc)}, 429)
+        except UnverifiedEmailError as exc:
+            self._send({"error": str(exc), "code": "email_unverified"}, 403)
         except (ValueError, TypeError, json.JSONDecodeError) as exc:
             self._send({"error": str(exc) or "Érvénytelen fiókadat."}, 400)
         except Exception:
