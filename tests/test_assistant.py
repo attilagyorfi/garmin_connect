@@ -275,3 +275,18 @@ def test_streamed_proposal_resets_the_draft_and_streams_the_follow_up(store, act
     assert "".join(events[:reset]) == "Javaslom, hogy könnyíts."
     assert "".join(events[reset + 1:]) == result["answer"] == "A javaslatot lent jóváhagyhatod."
     assert client.streamed == 2 and result["conversation"][-1]["actions"][0]["status"] == "pending"
+
+
+def test_context_names_weekdays_so_the_model_does_not_compute_them():
+    context = build_context({**DASHBOARD, "today": "2026-10-13"})
+    assert context["napok"]["ma"] == {"dátum": "2026-10-13", "nap": "kedd"}
+    assert context["napok"]["holnapután"] == {"dátum": "2026-10-15", "nap": "csütörtök"}
+    listing, _handles = assistant.assistant_actions.plan_handles(
+        [{"id": "p1", "date": "2026-10-18", "type": "Futás", "title": "Hosszú futás"}], today=assistant.datetime(2026, 10, 13).date())
+    assert listing[0]["nap"] == "vasárnap" and "p1" not in str(listing)
+    assert build_context({**DASHBOARD, "today": None})["napok"] is None
+
+
+def test_prompt_forbids_hard_sessions_under_warning_signals():
+    from assistant_prompts import SYSTEM_PROMPT
+    assert "akkor se javasold és ne tedd a tervbe" in SYSTEM_PROMPT and "csak akkor tegyél, ha a sportoló kifejezetten kéri" in SYSTEM_PROMPT and "„nap” értékével" in SYSTEM_PROMPT

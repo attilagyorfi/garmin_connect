@@ -11,6 +11,7 @@ import uuid
 from datetime import date, datetime, timedelta, timezone
 from typing import Any
 
+from assistant_context import weekday_name
 from cloud_cache import SCHEMA_READY, connect
 from user_state import PLAN_INTENSITIES, PLAN_TYPES, apply_patch, load_state, validate_plan
 
@@ -85,7 +86,7 @@ def plan_handles(plans: list[dict[str, Any]], today: date | None = None) -> tupl
     for index, plan in enumerate(upcoming, start=1):
         handle = f"T{index}"
         handles[handle] = plan["id"]
-        listing.append({"jel": handle, "dátum": plan["date"], "típus": plan.get("type"), "cím": plan.get("title"),
+        listing.append({"jel": handle, "dátum": plan["date"], "nap": weekday_name(plan["date"]), "típus": plan.get("type"), "cím": plan.get("title"),
                         "perc": plan.get("duration"), "intenzitás": plan.get("intensity"), "rpe": plan.get("rpe")})
     return listing, handles
 
