@@ -3,7 +3,6 @@
 ## Következő lépések (2026-10-14)
 
 - Pro előfizetés és fizetés (2 990 Ft/hó vagy 29 900 Ft/év, 14 napos próba) – a felhasználó döntése szerint egyelőre halasztva
-- globális havi AI-költségriasztás és vészfék a felhasználónkénti napi keret mellé
 - e-mail-cím megerősítése regisztráció után (a háttérfüggvény megvan, levél még nem megy ki)
 - valós fiókos, többéves backfill terhelés- és rate-limit teszt Vercelen
 - billentyűzetes és képernyőolvasós accessibility audit valódi böngészőben
@@ -17,6 +16,7 @@
 - Edzőtárs: folyamatos (streamelt) válasz (#41); eval az éles hívási úton, tervmódosítási esetekkel (#42); v4 prompt – nincs kemény edzés figyelmeztető jelzésnél, tervjavaslat csak kérésre, napnevek a kontextusban, mért átlag 4,33 → 4,46 (#43)
 - forrásolt eseményfelkészülési sablonok: maraton–5 km (#37), egynapos hegyi túra és többnapos túra (#44)
 - a régi, egyfelhasználós Streamlit/Railway-változat kivezetve (#45)
+- globális havi AI-keret (alapból 25 USD): 80%-nál admin-riasztás e-mailben, 100%-nál az Edzőtárs a hónap végéig szünetel
 
 ## P0 – Többfelhasználós fiók- és adatszigetelési alap
 
@@ -57,7 +57,8 @@
 - elkészült: jóváhagyásos tervmódosító műveletek (24 órás függő javaslat, T-jeles tervhivatkozás) és admin-oldali, névtelen AI-használatkövetés
 - elkészült: folyamatos válasz NDJSON-streammel; megszakadt kapcsolatnál is elkészül és mentődik
 - elkészült: eval az éles hívási úton (eszköz, kontextus, magyarázó kör) és v4 prompt méréssel
-- következő: globális havi költségriasztás; Pro csomag (halasztva)
+- elkészült: globális havi költségkeret riasztással és vészfékkel
+- következő: Pro csomag (halasztva)
 
 ## Elkészült üzemi megerősítés
 
@@ -132,7 +133,7 @@
 
 ## Ismert korlátok
 
-- Az AI-költséget felhasználónkénti napi keret korlátozza; globális havi riasztás még nincs.
+- Az AI-költséget felhasználónkénti napi keret és globális havi keret korlátozza; a havi keretet az utolsó engedélyezett kérdés legfeljebb egy kérdésnyi összeggel lépheti túl.
 - A Garmin nem hivatalos web API-ja változhat; nincs élő accountos CI.
 - A jelenlegi cardio zóna-load akkor elsődleges, ha a payload már tartalmaz zónaperceket; külön részletlekérés még nincs.
 - A túrasablon menetideje a DIN 33466 irányértékéből és a saját Garmin-túrák tempójából becsült; terep, időjárás és pihenők nincsenek benne.

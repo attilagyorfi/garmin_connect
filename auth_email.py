@@ -113,6 +113,23 @@ def invite_message(link: str, days: int) -> tuple[str, str, str]:
     return subject, text, markup
 
 
+def budget_alert_message(level: int, month: str, spent: float, budget: float) -> tuple[str, str, str]:
+    """Operator e-mail for the monthly AI budget (no user data, only totals)."""
+    paused = level >= 100
+    subject = f"{APP_NAME}: {'az Edzőtárs szünetel – elérte a havi AI-keretet' if paused else f'a havi AI-keret {level}%-a elfogyott'}"
+    text_lines = [
+        f"A {month} hónap becsült AI-költsége {spent:.2f} USD, a havi keret {budget:.2f} USD.",
+        "Az Edzőtárs a hónap végéig szünetel; a felhasználók erről üzenetet látnak, az alkalmazás többi része működik."
+        if paused else "A keret elérésekor az Edzőtárs a hónap végéig szünetel.",
+        "A keret az AI_MONTHLY_BUDGET_USD környezeti változóval módosítható (Vercel), a részletek a Beállítások › Adminisztráció oldalon láthatók.",
+    ]
+    body = "".join(f'<p style="margin:0 0 14px;line-height:1.6">{html.escape(item)}</p>' for item in text_lines)
+    markup = (f'<div style="font-family:Arial,sans-serif;color:#1d2321;max-width:520px;margin:0 auto;padding:24px">'
+              f'<h1 style="font-size:20px;margin:0 0 16px">{html.escape(subject)}</h1>{body}'
+              f'<p style="margin:18px 0 0;color:#5b6461;font-size:13px">– {APP_NAME}</p></div>')
+    return subject, "\n\n".join([subject, *text_lines, f"– {APP_NAME}"]), markup
+
+
 def send_email(to: str, subject: str, text: str, markup: str, *, opener: Any = None) -> dict[str, Any]:
     """Hand one message to Resend. Returns {"sent": bool, "testMode": bool}; raises EmailError on failure."""
     if test_mode():
