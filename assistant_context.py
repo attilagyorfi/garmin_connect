@@ -56,6 +56,15 @@ def _tips(dashboard: dict[str, Any]) -> list[dict[str, Any]]:
     return [{"jelzés": tip.get("title"), "típus": tip.get("tone"), "miért": tip.get("why"), "javaslat": tip.get("action")} for tip in tips]
 
 
+def _hike(profile: dict[str, Any]) -> dict[str, Any] | None:
+    """Hiking event parameters as the athlete entered them (only for hiking events)."""
+    if profile.get("eventType") not in {"hike", "trek"}:
+        return None
+    fields = {"napi_táv_km": profile.get("hikeKm"), "napi_szintemelkedés_m": profile.get("hikeGainM"), "napok": profile.get("hikeDays") if profile.get("eventType") == "trek" else 1,
+              "hátizsák_kg": profile.get("hikePackKg"), "legmagasabb_pont_m": profile.get("hikeMaxAltitudeM")}
+    return {key: value for key, value in fields.items() if value is not None}
+
+
 def build_context(dashboard: dict[str, Any], memory_notes: list[str] | None = None, app_profile: dict[str, Any] | None = None) -> dict[str, Any]:
     benchmarks = dashboard.get("benchmarks") or {}
     person = benchmarks.get("profile") or {}
@@ -68,7 +77,8 @@ def build_context(dashboard: dict[str, Any], memory_notes: list[str] | None = No
         "adatforrás": "bemutató adat" if dashboard.get("source") == "demo" else "Garmin",
         "sportoló": {key: value for key, value in {
             "nem": {"male": "férfi", "female": "nő"}.get(person.get("sex")), "életkor": person.get("age"),
-            "cél": profile.get("goal"), "esemény": profile.get("eventName"), "esemény_dátuma": profile.get("eventDate"), "esemény_típusa": {"marathon": "maraton", "half": "félmaraton", "10k": "10 km", "5k": "5 km"}.get(profile.get("eventType") or ""),
+            "cél": profile.get("goal"), "esemény": profile.get("eventName"), "esemény_dátuma": profile.get("eventDate"), "esemény_típusa": {"marathon": "maraton", "half": "félmaraton", "10k": "10 km", "5k": "5 km", "hike": "egynapos hegyi túra", "trek": "többnapos túra"}.get(profile.get("eventType") or ""),
+            "túra": _hike(profile),
             "referenciaeredmény": f"{profile.get('referenceRaceKey')} {profile.get('referenceRaceTime')}" if profile.get("referenceRaceKey") and profile.get("referenceRaceTime") else None,
             "heti_órakeret": profile.get("weeklyHours"), "erő_arány_cél_%": profile.get("strengthRatio"),
             "tapasztalat": profile.get("experience"), "korlátozások": profile.get("limitations"),

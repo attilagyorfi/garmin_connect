@@ -123,6 +123,7 @@ def build_dashboard_payload(cache_dir: str | Path = "data", *, allow_demo: bool 
             "trainingEffectLabel": row.get("training_effect_label"),
             "vo2Max": _number(row.get("vo2_max"), None),
             "distanceKm": round(_number(row["distance_km"]), 1),
+            "ascentM": round(_number(row.get("ascent_m"), 0)) if "ascent_m" in row else None,
         }
         for _, row in all_sessions.iterrows()
     ]

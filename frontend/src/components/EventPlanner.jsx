@@ -3,19 +3,26 @@ import { AlertTriangle, BookOpen, Flag, X } from "lucide-react";
 import { MetricHelp } from "./Explainability.jsx";
 import { isoDate } from "../lib/dates.js";
 import { EVENTS, SOURCES, buildEventPlan, formatDuration, formatPace, inferEventType, parseRaceTime } from "../lib/eventTemplates.js";
+import { isHikeEvent } from "../lib/hikeTemplates.js";
+import { HikePlanner } from "./HikePlanner.jsx";
 
 const shortDay = value => new Date(`${value}T12:00:00`).toLocaleDateString("hu-HU", { month: "short", day: "numeric" });
 const weekday = value => new Date(`${value}T12:00:00`).toLocaleDateString("hu-HU", { weekday: "short", month: "short", day: "numeric" });
 
+// Hiking events get their own planner; separate components keep each one's hooks stable when the event type changes.
+export function EventPlanner(props) {
+  return isHikeEvent(props.profile?.eventType) ? <HikePlanner {...props} /> : <RunningPlanner {...props} />;
+}
+
 // Event-specific running plan (5 km – marathon) from the profile's event, the athlete's recent Garmin running
 // and an optional reference race. Saved sessions stay editable in the calendar like any other plan.
-export function EventPlanner({ profile, data, plans, onSave, onEditProfile }) {
+function RunningPlanner({ profile, data, plans, onSave, onEditProfile }) {
   const eventType = inferEventType(profile);
   const [open, setOpen] = useState(false), [replace, setReplace] = useState(true), [saved, setSaved] = useState(false);
   const referenceSeconds = parseRaceTime(profile.referenceRaceTime);
   const plan = useMemo(() => eventType ? buildEventPlan({ profile, data, eventType, referenceKey: profile.referenceRaceKey, referenceSeconds }) : null,
     [profile, data, eventType, referenceSeconds]);
-  if (!plan) return <section className="card event-planner event-planner-empty"><div><span className="eyebrow">FUTÓVERSENY-FELKÉSZÜLÉS</span><h2>Maraton, félmaraton, 10 vagy 5 km?</h2><p>Add meg a Profilban az esemény típusát és dátumát, és a mostani futásaidból forrásolt, szakaszolt felkészülési tervet készítünk: fokozatos volumenemelés, hosszú futás, kulcsedzések és taper.</p></div><button className="primary" onClick={onEditProfile}>ESEMÉNY MEGADÁSA</button></section>;
+  if (!plan) return <section className="card event-planner event-planner-empty"><div><span className="eyebrow">ESEMÉNYFELKÉSZÜLÉS</span><h2>Futóverseny vagy hegyi túra?</h2><p>Add meg a Profilban az esemény típusát és dátumát – maraton, félmaraton, 10 vagy 5 km, egynapos hegyi túra vagy többnapos túra –, és a Garmin-adataidból forrásolt, szakaszolt felkészülési tervet készítünk.</p></div><button className="primary" onClick={onEditProfile}>ESEMÉNY MEGADÁSA</button></section>;
 
   const { summary, weeks, paces, warnings } = plan;
   const sessions = weeks.flatMap(week => week.sessions);

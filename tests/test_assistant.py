@@ -290,3 +290,10 @@ def test_context_names_weekdays_so_the_model_does_not_compute_them():
 def test_prompt_forbids_hard_sessions_under_warning_signals():
     from assistant_prompts import SYSTEM_PROMPT
     assert "akkor se javasold és ne tedd a tervbe" in SYSTEM_PROMPT and "csak akkor tegyél, ha a sportoló kifejezetten kéri" in SYSTEM_PROMPT and "„nap” értékével" in SYSTEM_PROMPT
+
+
+def test_context_carries_hiking_event_parameters_only_for_hikes():
+    hike = build_context(DASHBOARD, app_profile={"eventType": "trek", "hikeKm": 22, "hikeGainM": 900, "hikeDays": 5, "hikePackKg": 12, "hikeMaxAltitudeM": None})
+    assert hike["sportoló"]["esemény_típusa"] == "többnapos túra"
+    assert hike["sportoló"]["túra"] == {"napi_táv_km": 22, "napi_szintemelkedés_m": 900, "napok": 5, "hátizsák_kg": 12}
+    assert "túra" not in build_context(DASHBOARD, app_profile={"eventType": "marathon"})["sportoló"]
