@@ -105,7 +105,7 @@ class GarminSync:
     email: str | None = None
     password: str | None = None
     tokenstore: str | None = None
-    # GARMIN_EMAIL / GARMIN_PASSWORD / GARMINTOKENS belong to the single-user Streamlit app only.
+    # GARMIN_EMAIL / GARMIN_PASSWORD / GARMINTOKENS are for local single-user developer tools only.
     # Multi-user cloud sync must pass False, so a user without a stored session can never fall back
     # to the server operator's Garmin account.
     use_environment: bool = True

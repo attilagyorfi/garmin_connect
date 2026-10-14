@@ -10,7 +10,7 @@ Magyar nyelvű edzésdöntés-támogató alkalmazás hibrid sportolóknak (futá
 - `garmin_sync.py`, `garmin_profile.py`, `cloud_sync_job.py` – csak olvasó Garmin-szinkron, folytatható, lépésenkénti felhős backfill.
 - `benchmarks.py` (forrásolt korosztályos összevetés), `tips.py` (szabályalapú tippek, heti összefoglaló), `assistant*.py` (Claude-alapú Edzőtárs).
 - `evals/assistant/` – az Edzőtárs modell- és prompttesztje szintetikus demóadaton.
-- `app.py`, `storage.py` – a régi, egyfelhasználós Streamlit-változat (Railway); új funkció ide nem kerül.
+- `storage.py` – a szinkron munkakönyvtárának SQLite-tárolója, amelyből a dashboard-összesítés készül. A régi Streamlit/Railway-változatot 2026-10-ben kivezettük; ne hozd vissza.
 
 ## Futtatás és ellenőrzés
 

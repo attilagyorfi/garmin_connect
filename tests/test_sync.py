@@ -133,5 +133,5 @@ def test_cloud_mode_ignores_operator_environment_credentials(monkeypatch, tmp_pa
     with pytest.raises(GarminSyncError, match="Garmin-munkamenet"):
         GarminSync(tmp_path, use_environment=False).authenticate()
     assert logins == []
-    GarminSync(tmp_path).authenticate()  # the single-user Streamlit app keeps using its own environment
+    GarminSync(tmp_path).authenticate()  # local single-user developer tools keep using their own environment
     assert logins == [("operator@example.test", "not-for-users")]

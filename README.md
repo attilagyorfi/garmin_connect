@@ -1,57 +1,43 @@
-# Hybrid Training Decision System
+# Hybrid Athlete
 
-Személyre szabott, magyararázható Streamlit döntéstámogató rendszer futáshoz, strength/functional edzéshez és trekkinghez. A fő kérdése: **mit eddzek ma, milyen intenzitással, mennyi ideig és milyen adatok alapján?**
+Magyar nyelvű, többfelhasználós edzésdöntés-támogató webalkalmazás hibrid sportolóknak (futás, erőedzés, túrázás) Garmin Connect-adatokkal. A fő kérdése: **mit eddzek ma, milyen intenzitással, mennyi ideig és milyen adatok alapján?**
 
 > Sportteljesítményi segédeszköz, nem orvosi eszköz. Nem diagnosztizál és nem helyettesít orvost vagy szakképzett edzőt.
 
+Élesben: React + Vite felület és Vercel Python-függvények, Neon Postgres adatbázissal (`garmin-connect-six.vercel.app`, a `main` ágból automatikusan élesítve).
+
 ## Fő funkciók
 
-- 90 napos, determinisztikus demo mód Garmin-fiók nélkül
-- kézi, read-only Garmin-szinkron és konfigurálható JSON-cache TTL
-- személyes 21–60 napos robusztus baseline (alapérték: 28 nap)
-- külön cardio, strength/functional, musculoskeletal és normalizált Hybrid Load
-- aktivitásonkénti pulzuszóna-idő, heti Zone 2 és magas intenzitású percek
-- alsótest-terhelés és két egymást követő erős alsótestnap regenerációs jelzése
-- τ=7 napos ATL, τ=42 napos CTL és előző napi TSB mindhárom fő loadhoz
-- 0–100 explainable readiness komponensenkénti ponttal, súllyal és eltéréssel
-- adatminőségi pontszám és magas/közepes/alacsony confidence
-- konkrét napi edzéstípus, időtartam, pulzuszóna, RPE, alternatíva és kerülendő terhelés
-- fájdalom- és betegség-felülbírálás, prioritásos red flagek
-- módosítható napi wellness check-in és aktivitásonkénti session RPE
-- reszponzív havi kártyás naptár, terhelési trendek, egyensúly és determinisztikus heti összefoglaló
-- automatikus napi ajánlás- és heti összefoglaló-snapshot SQLite-ban
-- külön előzményoldal a napi ajánlások és heti terhelés idővonalával, grafikonokkal és JSON-exporttal
-- cél- és eseménykezelés heti időkerettel, pihenőnappal és kardió–erő célaránnyal
-- napi edzéstervezés, automatikus/kézi Garmin-párosítás és terv–tény visszacsatolás
-- verziózott SQLite-séma manuális és generált adatokhoz
+- zárt, meghívós hozzáférés, önkiszolgáló jelszó-visszaállítás e-mailben, munkamenet-kezelés, adatexport és fióktörlés
+- Garmin-kapcsolat titkosított munkamenettokennel (MFA-támogatással), folytatható, teljes történetet visszatöltő felhős szinkron
+- determinisztikus elemzőmotor: személyes baseline, terhelés (ATL/CTL/TSB), magyarázható readiness, adatminőség és napi edzésdöntés
+- szabályalapú tippek, heti összefoglaló, forrásolt korosztályos összevetés, trendek és fejlődéstörténet
+- naptár és edzéstervezés: heti sablon, adaptív újratervezés, terv–tény párosítás
+- forrásolt eseményfelkészülési sablonok: maraton–5 km és egynapos/többnapos hegyi túra
+- személyes regenerációs modell napi, validált újratanítással
+- Claude-alapú Edzőtárs: folyamatos válasz, napi keret, memória és jóváhagyásos tervmódosítás
 
 ## Könyvtárstruktúra
 
 ```text
-app.py               Streamlit navigáció és UI
-analytics.py         tiszta baseline/load/readiness/döntési függvények
-garmin_sync.py       read-only Garmin-lekérés és JSON cache
-storage.py           verziózott SQLite adattár
-tests/               unit-, integrációs és Streamlit AppTest tesztek
-ARCHITECTURE.md       adatfolyam, modulhatárok és audit
-METHODOLOGY.md        algoritmusok, súlyok, küszöbök és korlátok
-ROADMAP.md            a későbbi P2–P4 fejlesztések
+frontend/            React 19 + Vite felület (src/pages, src/components, src/lib)
+api/                 Vercel Python-függvények (auth, admin, dashboard, garmin, state, sync, assistant, model, retrain)
+analytics.py         determinisztikus baseline/terhelés/readiness/döntés
+garmin_sync.py       csak olvasó Garmin-lekérés és JSON-cache
+cloud_sync_job.py    lépésenkénti, folytatható felhős szinkron
+auth_store.py        fiókok, munkamenetek, meghívók, korlátozás
+assistant*.py        Edzőtárs (Claude), kontextus, promptok, tervjavaslatok
+evals/assistant/     az Edzőtárs modell- és prompttesztje
+scripts/             helyi fejlesztői eszközök (dev_api.py, demóadat, Garmin-payload vizsgálat)
+tests/               Python-tesztek; a frontend tesztjei a frontend/tests és frontend/scripts alatt
+ARCHITECTURE.md      adatfolyam, modulhatárok, biztonság
+METHODOLOGY.md       algoritmusok, súlyok, küszöbök és korlátok
+ROADMAP.md           elkészült és tervezett fejlesztések
 ```
 
 ## Helyi futtatás
 
-Python 3.12+ szükséges.
-
-```bash
-python -m venv .venv
-source .venv/bin/activate       # Windows: .venv\Scripts\activate
-pip install -r requirements-legacy-streamlit.txt
-streamlit run app.py
-```
-
-Hitelesítő adatok nélkül az app automatikusan demo módban indul. A demo 90+ nap konzisztens cardio, strength és trekking adatot, check-int, RPE-t, fáradási és betegségpéldát tartalmaz.
-
-### A React-app helyben (többfelhasználós felület)
+Python 3.12+ és Node 20+ szükséges.
 
 A `scripts/dev_api.py` ugyanazokat az `api/*.py` handlereket szolgálja ki a `127.0.0.1:8765` címen, mint a Vercel; a Vite dev szerver ide proxyzza az `/api` kéréseket. Kell hozzá egy helyi PostgreSQL és egy Gitből kizárt `.env.local`:
 
@@ -62,6 +48,8 @@ HYBRID_ADMIN_EMAILS=<a saját e-mail-címed>
 ```
 
 ```bash
+python -m venv .venv && .venv/Scripts/pip install -r requirements-dev.txt   # Linux/macOS: .venv/bin/pip
+npm --prefix frontend ci
 initdb -D .local/pgdata -U postgres -A trust -E UTF8      # egyszer; a .local/ Gitből kizárt
 postgres -D .local/pgdata -p 55432 -c listen_addresses=127.0.0.1
 python scripts/dev_api.py
@@ -91,9 +79,11 @@ A production telepítés naponta egyszer (03:15 UTC, Vercel Cron) meghívja a `/
 
 Az ütemező (`model_registry.py`) futásonként legfeljebb tíz fiókot ellenőriz, felhasználónként elkülönítve. Ugyanazt az adatállapotot nem tanítja újra, és az időrendi validációs kaput nem kerüli meg: gyengébb vagy elégtelen jelöltet eltárol ellenőrzési eredményként, de nem aktivál. Az Insights oldalon (`/api/model`) csak a mintanagyság, az adat-időszak, a lefedettség és a közérthetően magyarázott hibaérték jelenik meg; a modell együtthatói és a nyers Garmin-adatok nem kerülnek a böngészőbe. Fióktörléskor a modellverziók is törlődnek.
 
-### Futóverseny-felkészülési sablonok
+### Eseményfelkészülési sablonok
 
 A Cél oldalon a Profilban megadott esemény (maraton, félmaraton, 10 km, 5 km; dátum és opcionális friss verseny- vagy időfutam-eredmény) alapján szakaszolt felkészülési terv készül (`frontend/src/lib/eventTemplates.js`): alapozás, építés, versenyspecifikus szakasz és taper. A kiindulás az elmúlt 4 hét Garmin-futásai; a heti volumen legfeljebb 10%-kal nő, minden negyedik hét könnyebb, a tehermentesítés után a terhelés csak visszatér az előző szintre. A taper a heti volument 41–60%-kal csökkenti megtartott intenzitással (Bosquet és mtsai, 2007; Wang és mtsai, 2023), a hetek túlnyomó része könnyű futás (Seiler, 2010), a tempózónák és a célidő Riegel-formulából (k = 1,06) becsültek. Ha a mostani volumenből a hosszú futás nem éri el a táv szokásos minimumát, a felület ezt kimondja, és rövidebb távot vagy későbbi versenyt javasol. A csúcsvolumen, a hosszú futás felső határa és a négyhetes ritmus edzői gyakorlat, a felület ezt külön jelöli; a források a tervben kattinthatók.
+
+Egynapos hegyi túrára és többnapos, hátizsákos túrára külön sablon készül (`frontend/src/lib/hikeTemplates.js`). A Profilban a túra távja, szintemelkedése, (többnaposnál) a napok száma, a hátizsák súlya és opcionálisan a legmagasabb pont adható meg. A menetidő a DIN 33466 szerint becsült (óránként 300 m fel, 500 m le vagy 4 km), legalább két szintemelkedéssel rögzített Garmin-túra után a saját tempóhoz igazítva. A hosszú edzéstúra hetente legfeljebb 10%-kal nő a túranap kb. 75%-áig, a szint a túra arányát követi, a hátizsák hetente legfeljebb 2 kg-mal nehezedik; többnapos túránál hétvégi, egymást követő túranapok jönnek. Mellette heti két erőedzés és könnyű állóképességi munka (Knapik és mtsai, 2012), lejtmenet-fókuszú túrák (Bontemps és mtsai, 2020) és visszaterhelés; 2500 m felett magassági figyelmeztetés (Luks és mtsai, 2019).
 
 ### AI edzőtárs
 
@@ -113,13 +103,13 @@ Másold a `.env.example` tartalmát saját, Gitből kizárt `.env` fájlba vagy 
 
 | Változó | Jelentés | Alapérték |
 |---|---|---|
-| `GARMIN_EMAIL` | Garmin-fiók e-mail – **csak a régi, egyfelhasználós Streamlit-app** (Railway) | nincs |
-| `GARMIN_PASSWORD` | Garmin-jelszó – **csak a Streamlit-app** | nincs |
-| `CACHE_DIR` | JSON, token és SQLite könyvtár | `data` |
+| `GARMIN_EMAIL` | Garmin-fiók e-mail – **csak helyi, egyfelhasználós fejlesztői eszközökhöz** | nincs |
+| `GARMIN_PASSWORD` | Garmin-jelszó – **csak helyi fejlesztői eszközökhöz** | nincs |
+| `CACHE_DIR` | helyi JSON-cache és SQLite könyvtár | `data` |
 | `CACHE_TTL_HOURS` | friss cache időtartama | `12` |
 | `BASELINE_DAYS` | személyes baseline ablaka | `28` |
 
-A többfelhasználós Vercel-appban ezeket **ne** állítsd be: ott minden felhasználó a saját, titkosítva tárolt Garmin-munkamenetével szinkronizál, a felhős szinkron (`use_environment=False`) a szerver Garmin-adataira sosem esik vissza.
+Élesben ezeket **ne** állítsd be: ott minden felhasználó a saját, titkosítva tárolt Garmin-munkamenetével szinkronizál, a felhős szinkron (`use_environment=False`) a szerver Garmin-adataira sosem esik vissza.
 
 A `.env`, tokenkönyvtár, cache, SQLite, export és egészségadat Gitből kizárt. A repóba soha ne commitolj valódi hitelesítőt vagy személyes egészségadatot.
 
@@ -127,32 +117,18 @@ A `.env`, tokenkönyvtár, cache, SQLite, export és egészségadat Gitből kiz�
 
 Az app kizárólag lekérő metódusokat használ: `get_activities`, `get_activities_by_date`, `get_activity_hr_in_timezones`, `get_hrv_data`, `get_sleep_data`, `get_heart_rates`, `get_morning_training_readiness`, valamint a sportprofil- és erőedzés-végpontok. A szinkron csak a felhasználó gombnyomására fut; rerenderkor nem. Az **Összes rendelkezésre álló adat** mód lapozva lekéri a teljes aktivitástörténetet, a legkorábbi aktivitásig tölti vissza a napi wellness adatokat, 30 naponként részleges cache-t ment, és újrafuttatáskor kihagyja a már cache-elt napokat. Részleges végponthiba nem állítja le a teljes folyamatot, teljes sikertelenségnél pedig az utolsó érvényes cache marad látható. A pulzuszóna-normalizáló anonim, valós eszközszerkezetből készült fixture-ökkel védi az ismert lista-, wrapper-, mapping- és nullaalapú indexváltozatokat; ismeretlen vagy hibás válaszból nem készít kitalált zónaadatot.
 
-A `garminconnect` a Garmin nem hivatalos webes szolgáltatásait használja, ezért API-változás előfordulhat. MFA esetén az első bejelentkezést interaktív helyi környezetben végezd, majd a tokenkönyvtárat biztonságosan tartsd a perzisztens volume-on. A token jelszóértékű adat.
-
-## Railway deployment
-
-1. Deploy from GitHub Repo.
-2. Állítsd be a fenti környezeti változókat.
-3. Adj Railway volume-ot `/data` mountponttal.
-4. Állítsd `CACHE_DIR=/data` értékre.
-5. A `railway.toml` és `Procfile` változatlanul Streamlitet indít és health checket ad.
-
-Volume nélkül a token, cache, check-in és RPE új deploynál elveszhet. A Railway marad az elsődleges platform; a projekt nincs Vercelre optimalizálva.
-
-## Adatmodell és manuális bevitel
-
-Az SQLite táblák Garmin-aktivitást, wellness/normalizált napi metrikát, napi check-int, edzés-visszajelzést, célt/eseményt, napi tervet, ajánlást, heti összefoglalót, szinkronmetaadatot és adatminőségi jelzést támogatnak. A `schema_meta` egyszerű verziózást biztosít. A felületen a check-in, edzés-visszajelzés, cél/esemény és napi edzésterv létrehozható, módosítható és törölhető.
-
-Session load: `edzésidő percben × RPE`. Strength/functional aktivitásnál ez elsődleges, ha van RPE.
+A `garminconnect` a Garmin nem hivatalos webes szolgáltatásait használja, ezért API-változás előfordulhat. MFA esetén a kódot a felület külön kéri; a szerver csak a titkosított munkamenettokent tárolja, amely jelszóértékű adat.
 
 ## Tesztelés
 
 ```bash
-pytest -q
-python -m py_compile app.py analytics.py garmin_sync.py storage.py
+python -m pytest -q
+npm --prefix frontend run build
+npm --prefix frontend run test:unit
+npm --prefix frontend run test:navigation
 ```
 
-A tesztek nem használnak valódi Garmin-fiókot. Lefedik a baseline-t, robust z-score-t, load fallbacket, session/musculoskeletal loadot, ATL/CTL/TSB-t, confidence-t, readiness újrasúlyozást, red flageket, biztonsági override-okat, heti összefoglalót, SQLite-ot, cache-t, demo módot és a főképernyő AppTest renderét.
+A tesztek nem használnak valódi Garmin-fiókot. A CI ezeken felül ellenőrzi, hogy a Vercel-függvények csak a `requirements.txt` függőségeivel is importálhatók.
 
 ## További dokumentáció
 
