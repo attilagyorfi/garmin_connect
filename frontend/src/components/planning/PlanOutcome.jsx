@@ -199,7 +199,7 @@ export function PlanOutcomeHistory({
               <p>{history.insight}</p>
             </div>
           </article>
-          <div className="plan-history-table-wrap">
+          <div className="plan-history-table-wrap" tabIndex={0} role="region" aria-label="Tervek és teljesítések táblázata (vízszintesen görgethető)">
             <table className="plan-history-table">
               <thead>
                 <tr>

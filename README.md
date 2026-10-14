@@ -128,7 +128,7 @@ npm --prefix frontend run test:unit
 npm --prefix frontend run test:navigation
 ```
 
-A tesztek nem használnak valódi Garmin-fiókot. A CI ezeken felül ellenőrzi, hogy a Vercel-függvények csak a `requirements.txt` függőségeivel is importálhatók.
+A tesztek nem használnak valódi Garmin-fiókot. A `test:navigation` minden oldalon és a szerkesztőablakban axe-core akadálymentességi ellenőrzést is futtat (kritikus vagy súlyos hiba esetén bukik); a színkontrasztot a jsdom nem méri, azt valódi böngészőben ellenőrizzük. A CI ezeken felül ellenőrzi, hogy a Vercel-függvények csak a `requirements.txt` függőségeivel is importálhatók.
 
 ## További dokumentáció
 
