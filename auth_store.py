@@ -19,6 +19,7 @@ from cloud_cache import connect
 SESSION_COOKIE = "hybrid_session"
 SESSION_DAYS = 30
 TOKEN_MINUTES = 30
+VERIFY_MINUTES = 24 * 60  # an e-mail confirmation link may wait until the next day
 INVITE_DAYS = 7
 MAX_LOGIN_FAILURES = 5
 LOGIN_WINDOW_MINUTES = 15
@@ -251,12 +252,16 @@ def _public_user(row: Any) -> dict[str, Any]:
     }
 
 
-def _new_auth_token(db: Any, user_id: str, purpose: str, *, commit: bool = True) -> str:
+class UnverifiedEmailError(ValueError):
+    """Correct password, but the e-mail address has not been confirmed yet."""
+
+
+def _new_auth_token(db: Any, user_id: str, purpose: str, *, commit: bool = True, minutes: int | None = None) -> str:
     token = secrets.token_urlsafe(32)
     db.execute("DELETE FROM hybrid_auth_tokens WHERE user_id = %s AND purpose = %s", (user_id, purpose))
     db.execute(
         "INSERT INTO hybrid_auth_tokens (token_hash, user_id, purpose, expires_at) VALUES (%s, %s, %s, %s)",
-        (hashlib.sha256(token.encode()).hexdigest(), user_id, purpose, datetime.now(timezone.utc) + timedelta(minutes=TOKEN_MINUTES)),
+        (hashlib.sha256(token.encode()).hexdigest(), user_id, purpose, datetime.now(timezone.utc) + timedelta(minutes=minutes or TOKEN_MINUTES)),
     )
     if commit:
         db.commit()
@@ -291,8 +296,10 @@ def _record_login_failure(db: Any, key: str) -> None:
 
 def register(
     email: str, password: str, name: str, invite_token: str,
-    user_agent: str = "", client_ip: str = "",
+    user_agent: str = "", client_ip: str = "", *, require_verification: bool = False,
 ) -> tuple[dict[str, Any], str]:
+    """Create the account from an invite. Returns (user, session token); with require_verification the address is
+    left unconfirmed and the second value is the e-mail verification token instead (user["emailVerified"] is False)."""
     email, password, name = _clean_credentials(email, password, name)
     if not name:
         raise ValueError("Add meg a nevedet.")
@@ -316,8 +323,8 @@ def register(
             db.execute(
                 """INSERT INTO hybrid_users
                    (id, email, password_hash, display_name, email_verified_at, role)
-                   VALUES (%s, %s, %s, %s, NOW(), 'member')""",
-                (user_id, email, _password_hash(password), name),
+                   VALUES (%s, %s, %s, %s, CASE WHEN %s THEN NULL ELSE NOW() END, 'member')""",
+                (user_id, email, _password_hash(password), name, require_verification),
             )
             if invite:
                 db.execute(
@@ -325,6 +332,7 @@ def register(
                     (user_id, invite_hash),
                 )
             _apply_bootstrap_admin(db)
+            verification = _new_auth_token(db, user_id, "verify_email", commit=False, minutes=VERIFY_MINUTES) if require_verification else None
             db.commit()
         except Exception as exc:
             db.rollback()
@@ -333,8 +341,10 @@ def register(
             raise
         user = {
             "id": user_id, "email": email, "name": name,
-            "emailVerified": True, "role": "admin" if email in _admin_emails() else "member", "accessStatus": "active",
+            "emailVerified": not require_verification, "role": "admin" if email in _admin_emails() else "member", "accessStatus": "active",
         }
+        if verification:
+            return user, verification
         return user, _new_session(db, user_id, user_agent, client_ip)
     finally:
         db.close()
@@ -360,23 +370,34 @@ def login(
         db.commit()
         user = _public_user(row)
         if not user["emailVerified"]:
-            raise ValueError("A belépés előtt erősítsd meg az e-mail-címedet.")
+            raise UnverifiedEmailError("A belépés előtt erősítsd meg az e-mail-címedet: kattints a regisztrációkor kapott levélben lévő linkre.")
         return user, _new_session(db, user["id"], user_agent, client_ip)
     finally:
         db.close()
 
 
-def resend_verification(email: str) -> tuple[str, str] | None:
+def resend_verification(email: str, client_id: str = "unknown") -> tuple[str, str] | None:
+    """A new verification link for an unconfirmed, active account; rate-limited like the password reset, and
+    every request counts, so the endpoint can neither probe addresses nor flood an inbox."""
     clean_email = str(email or "").strip().lower()[:254]
     if not EMAIL_PATTERN.fullmatch(clean_email):
-        return None
+        raise ValueError("Adj meg egy érvényes e-mail-címet.")
     db = connect()
     try:
         initialize_auth(db)
-        row = db.execute("SELECT id, email_verified_at FROM hybrid_users WHERE email = %s", (clean_email,)).fetchone()
-        if not row or row[1]:
-            return None
-        return clean_email, _new_auth_token(db, str(row[0]), "verify_email")
+        keys = (
+            _limit_key(f"verify:{clean_email}", client_id),
+            _limit_key("verify-client", client_id),
+            _limit_key(f"verify:{clean_email}", "any-client"),
+        )
+        for key in keys:
+            _check_login_limit(db, key)
+        for key in keys:
+            _record_login_failure(db, key)
+        row = db.execute(
+            "SELECT id FROM hybrid_users WHERE email = %s AND email_verified_at IS NULL AND access_status = 'active'", (clean_email,)
+        ).fetchone()
+        return (clean_email, _new_auth_token(db, str(row[0]), "verify_email", minutes=VERIFY_MINUTES)) if row else None
     finally:
         db.close()
 

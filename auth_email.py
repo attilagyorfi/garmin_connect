@@ -101,6 +101,24 @@ def password_reset_message(link: str, minutes: int) -> tuple[str, str, str]:
     return subject, text, markup
 
 
+def verification_message(link: str, hours: int) -> tuple[str, str, str]:
+    subject = f"{APP_NAME}: erősítsd meg az e-mail-címedet"
+    text, markup = _layout(
+        "E-mail-cím megerősítése",
+        ["Köszönjük a regisztrációt! A belépéshez erősítsd meg, hogy ez a te e-mail-címed.",
+         f"Az alábbi hivatkozás {hours} óráig érvényes, és csak egyszer használható; utána azonnal be is léptetünk."],
+        link, "E-mail-cím megerősítése",
+        "Ha nem te regisztráltál, hagyd figyelmen kívül ezt a levelet; a fiók megerősítés nélkül nem használható.",
+    )
+    return subject, text, markup
+
+
+def verification_required() -> bool:
+    """New accounts must confirm their address only when real e-mail delivery is set up; otherwise (local
+    development, test mode, missing Resend settings) nobody could ever receive the link."""
+    return is_configured() and not test_mode()
+
+
 def invite_message(link: str, days: int) -> tuple[str, str, str]:
     subject = f"Meghívó a {APP_NAME} alkalmazásba"
     text, markup = _layout(

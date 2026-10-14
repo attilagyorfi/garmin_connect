@@ -3,7 +3,6 @@
 ## Következő lépések (2026-10-14)
 
 - Pro előfizetés és fizetés (2 990 Ft/hó vagy 29 900 Ft/év, 14 napos próba) – a felhasználó döntése szerint egyelőre halasztva
-- e-mail-cím megerősítése regisztráció után (a háttérfüggvény megvan, levél még nem megy ki)
 - valós fiókos, többéves backfill terhelés- és rate-limit teszt Vercelen
 - billentyűzetes és képernyőolvasós accessibility audit valódi böngészőben
 
@@ -16,6 +15,7 @@
 - Edzőtárs: folyamatos (streamelt) válasz (#41); eval az éles hívási úton, tervmódosítási esetekkel (#42); v4 prompt – nincs kemény edzés figyelmeztető jelzésnél, tervjavaslat csak kérésre, napnevek a kontextusban, mért átlag 4,33 → 4,46 (#43)
 - forrásolt eseményfelkészülési sablonok: maraton–5 km (#37), egynapos hegyi túra és többnapos túra (#44)
 - a régi, egyfelhasználós Streamlit/Railway-változat kivezetve (#45)
+- e-mail-cím megerősítése regisztráció után (24 órás link, újraküldés; csak beállított e-mail-küldésnél kötelező)
 - globális havi AI-keret (alapból 25 USD): 80%-nál admin-riasztás e-mailben, 100%-nál az Edzőtárs a hónap végéig szünetel
 
 ## P0 – Többfelhasználós fiók- és adatszigetelési alap
@@ -25,7 +25,7 @@
 - elkészült: profil, terv, check-in, Garmin-cache, dashboard és szinkronállapot elkülönítése `user_id` szerint
 - elkészült: felhasználónkénti szinkronzár
 - elkészült: jelszó-visszaállítás (adminlink és önkiszolgáló e-mail) és belépési próbálkozások korlátozása
-- következő: e-mail-megerősítés regisztráció után
+- elkészült: e-mail-megerősítés regisztráció után
 - elkészült: felhasználónkénti, Fernet-titkosított Garmin-kapcsolat; a jelszó nem kerül vissza a klienshez
 - elkészült: tartós, Fernet-titkosított Garmin-session tokenek; a szinkronlépések tokennel lépnek be, jelszót csak elutasított token esetén használnak
 - elkészült: MFA-s Garmin-belépés: a kódot a felület külön kéri, a szerver csak titkosított munkamenettokent tárol
