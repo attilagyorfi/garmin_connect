@@ -3,7 +3,6 @@
 ## Következő lépések (2026-10-14)
 
 - Pro előfizetés és fizetés (2 990 Ft/hó vagy 29 900 Ft/év, 14 napos próba) – a felhasználó döntése szerint egyelőre halasztva
-- valós fiókos, többéves backfill terhelés- és rate-limit teszt Vercelen
 
 ## Elkészült 2026-10 – Claude-átállás, üzem és bővítések
 
@@ -14,6 +13,8 @@
 - Edzőtárs: folyamatos (streamelt) válasz (#41); eval az éles hívási úton, tervmódosítási esetekkel (#42); v4 prompt – nincs kemény edzés figyelmeztető jelzésnél, tervjavaslat csak kérésre, napnevek a kontextusban, mért átlag 4,33 → 4,46 (#43)
 - forrásolt eseményfelkészülési sablonok: maraton–5 km (#37), egynapos hegyi túra és többnapos túra (#44)
 - a régi, egyfelhasználós Streamlit/Railway-változat kivezetve (#45)
+- valós fiókos, hidegindítású backfill-terhelésteszt élesben (2026-10-14, külön tesztfiókkal): 13 hónap, 490 aktivitás, 406 nap, kb. 1700 Garmin-hívás 147 lépésben 4 perc 41 mp alatt, 0 újrapróbálással és 0 hibával; leghosszabb lépés 4,3 s
+- e-mail-küldés állapota és próbalevél az adminoldalon; a feladócím automatikus javítása; a belépett állapotban megnyitott fióklinkek (megerősítés, visszaállítás, meghívó) magyarázatot és kijelentkezési lehetőséget kapnak
 - akadálymentességi audit (axe-core valódi böngészőben, minden oldal és ablak): kontraszt, címkék, tartományok, közös dialóguskezelés (fókusz, Tab-csapda, Esc), látható fókusz; axe-ellenőrzés a navigációs tesztben
 - e-mail-cím megerősítése regisztráció után (24 órás link, újraküldés; csak beállított e-mail-küldésnél kötelező)
 - globális havi AI-keret (alapból 25 USD): 80%-nál admin-riasztás e-mailben, 100%-nál az Edzőtárs a hónap végéig szünetel
@@ -38,7 +39,7 @@
 - elkészült: asztali szinkronfolyamat-panel a futó Hybrid Athlete logóval
 - elkészült: a lekért rekordok tételenkénti staging táblába kerülnek (`hybrid_sync_items`), a job-állapot nem hordozza a teljes nyers payloadot
 - elkészült: MFA bootstrap folyamat
-- következő: valós fiókos, többéves backfill terhelés- és rate-limit teszt Vercelen
+- elkészült: valós fiókos backfill-terhelésteszt Vercelen (13 hónap 4 perc 41 mp alatt, korlátozás nélkül)
 
 ## P5 – Személyes AI-asszisztens
 

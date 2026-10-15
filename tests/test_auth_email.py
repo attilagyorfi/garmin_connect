@@ -206,3 +206,37 @@ def test_admin_reset_mail_failure_keeps_copyable_link(mail_env, monkeypatch):
     body, status = handler._send.call_args.args
     assert status == 201 and body["path"] == "/?auth=reset&token=tok"
     assert body["emailSent"] is False and "kézzel" in body["emailError"]
+
+
+@pytest.mark.parametrize("raw, expected", [
+    ("<info@example.test>", "info@example.test"),
+    ('"Hybrid Athlete <info@example.test>" ', "Hybrid Athlete <info@example.test>"),
+    ("info@example.test", "info@example.test"),
+])
+def test_sender_is_tidied_so_resend_accepts_it(monkeypatch, raw, expected):
+    monkeypatch.setenv("AUTH_EMAIL_FROM", raw)
+    assert auth_email.sender() == expected
+
+
+def test_status_reports_setup_without_the_key(mail_env):
+    status = auth_email.status()
+    assert status == {"configured": True, "testMode": False, "hasApiKey": True, "sender": "Hybrid Athlete <noreply@example.test>", "verificationRequired": True}
+    assert "re_test_key" not in str(status)
+
+
+def test_provider_reason_is_passed_on(mail_env):
+    body = BytesIO(json.dumps({"name": "validation_error", "message": "Invalid `from` field."}).encode())
+    failure = urllib.error.HTTPError(auth_email.RESEND_URL, 422, "bad", {}, body)
+    with pytest.raises(EmailError, match=r"\(422\): Invalid `from` field"):
+        send_email("a@example.test", "s", "t", "h", opener=Mock(side_effect=failure))
+
+
+def test_admin_can_send_a_test_email_to_themselves(mail_env, monkeypatch):
+    module = endpoint("admin")
+    sent = Mock(return_value={"sent": True, "testMode": False})
+    monkeypatch.setattr(module, "current_user", lambda _headers: {"id": "admin-1", "role": "admin", "email": "admin@example.test"})
+    monkeypatch.setattr(module, "send_email", sent)
+    handler = admin_handler(module, {"action": "send_test_email"})
+    handler.do_POST()
+    assert handler._send.call_args.args[0] == {"emailSent": True, "emailTo": "admin@example.test"}
+    assert sent.call_args.args[0] == "admin@example.test" and "próbalevél" in sent.call_args.args[1]

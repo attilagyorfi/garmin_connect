@@ -10,6 +10,7 @@ import { fetchCloudState, mergeCloudState, patchCloudState } from "./lib/api.js"
 import { useModalAccessibility } from "./lib/modalA11y.js";
 import { defaultProfile, readProfile } from "./lib/profile.js";
 import { AuthScreen } from "./pages/AuthScreen.jsx";
+import { AuthLinkNotice, pendingAuthLink } from "./components/AuthLinkNotice.jsx";
 import { BenchmarksPage } from "./pages/BenchmarksPage.jsx";
 import { GoalPage } from "./pages/GoalPage.jsx";
 import { InsightsPage } from "./pages/InsightsPage.jsx";
@@ -25,6 +26,7 @@ import { TodayLive } from "./pages/TodayLive.jsx";
 
 export function App(){
   useModalAccessibility();
+  const [authLink,setAuthLink]=useState(pendingAuthLink);
   const [collapsed,setCollapsed]=useState(false),[active,setActive]=useState("Ma"),[accent,setAccent]=useState(()=>localStorage.getItem("hybrid-accent")||"teal"),[profile,setProfile]=useState(readProfile),[onboarded,setOnboarded]=useState(()=>localStorage.getItem("hybrid-onboarding-version")==="2"),[cloudState,setCloudState]=useState(null),[showSplash,setShowSplash]=useState(()=>forceSplashPreview()||!splashWasShown()),[user,setUser]=useState(null),[authReady,setAuthReady]=useState(false),[dataReady,setDataReady]=useState(null),[garminStatus,setGarminStatus]=useState(null),[authNotice,setAuthNotice]=useState(""),[pageContext,setPageContext]=useState({});
   const applyAccent=value=>{const option=accentOptions.find(x=>x.id===value)||accentOptions[0],root=document.documentElement;setAccent(option.id);localStorage.setItem("hybrid-accent",option.id);root.style.setProperty("--accent",option.color);root.style.setProperty("--accent-soft",option.soft);root.style.setProperty("--accent-deep",option.deep);root.style.setProperty("--accent-text",option.text)};
   const saveProfile=value=>{setProfile(value);localStorage.setItem("hybrid-profile",JSON.stringify(value))};
@@ -41,6 +43,7 @@ export function App(){
   const gated=dataReady!==true&&DATA_PAGES.includes(active),gate=dataReady===null?<p className="sync-gate-loading">Adatok ellenőrzése…</p>:<SyncGate garminStatus={garminStatus} onGarminStatus={setGarminStatus} onDataChanged={checkData}/>;
   const finishSplash=()=>{globalThis.sessionStorage?.setItem("hybrid-splash-shown","1");setShowSplash(false)};
   if(!authReady)return <div className="auth-loading"><img src={brandMarkUrl} alt=""/><span>Biztonságos munkamenet ellenőrzése…</span></div>;
+  if(user&&authLink)return <AuthLinkNotice kind={authLink} user={user} onSignOut={async()=>{setAuthLink(null);await logout()}} onStay={()=>{window.history.replaceState(null,"",window.location.pathname);setAuthLink(null)}}/>;
   if(!user)return <AuthScreen key={authNotice} notice={authNotice} onAuthenticated={value=>{setAuthNotice("");setUser(value)}}/>;
   return <div className="app"><Sidebar collapsed={collapsed} onToggle={()=>setCollapsed(!collapsed)} active={active} onActive={openPage} profile={profile} locked={dataReady===true?[]:DATA_PAGES.filter(page=>page!=="Ma")} garminStatus={garminStatus}/><main className="content" id="fo-tartalom">{gated?gate:pages[active]||<Placeholder page={active}/>}</main>{dataReady===true&&<AssistantPanel onPlansChanged={()=>fetchCloudState().then(setCloudState).catch(()=>{})}/>}<ExplainabilityLayer page={gated?`${active}:gate`:active}/><MetricHeaderLayer page={gated?`${active}:gate`:active}/>{showSplash&&onboarded&&<BrandSplash onDone={finishSplash}/>} {!onboarded&&<PersonalOnboarding profile={{...profile,name:user.name||profile.name}} accent={accent} onAccent={applyAccentCloud} onSave={saveProfileCloud} onDone={()=>{localStorage.setItem("hybrid-onboarding-version","2");setOnboarded(true)}}/>}</div>
 }
