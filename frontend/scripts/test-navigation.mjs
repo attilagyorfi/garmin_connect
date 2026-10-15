@@ -38,7 +38,7 @@ let dashboardAvailable=false;
 let assistantState={consent:false,memoryEnabled:true,memory:[],conversation:[],usage:{questions:0,limit:15,remaining:15,tokenBudgetLeft:true}};
 const assistantCalls=[];
 let releaseStream;const streamGate=new Promise(resolve=>{releaseStream=resolve});
-let mockedCloudState={version:2,profile:null,accent:"teal",checkins:{},feedback:{},plans:[]};
+let mockedCloudState={version:2,profile:null,accent:"teal",checkins:{},feedback:{},plans:[],tour:{status:"done",version:1}};
 globalThis.fetch = async (input,options={}) => {
   const url=String(input);
   if(url.endsWith("/api/assistant")){
@@ -81,6 +81,7 @@ globalThis.fetch = async (input,options={}) => {
       const patch=JSON.parse(options.body);cloudPatches.push(patch);
       if(patch.profile)mockedCloudState.profile=patch.profile;
       if(patch.accent)mockedCloudState.accent=patch.accent;
+      if(patch.tour)mockedCloudState.tour=patch.tour;
       if(patch.checkin)mockedCloudState.checkins[patch.checkin.date]=patch.checkin.value;
       if(patch.feedback)mockedCloudState.feedback[patch.feedback.activityId]=patch.feedback.value;
       if(patch.plan)mockedCloudState.plans=[...mockedCloudState.plans.filter(item=>item.id!==patch.plan.id),patch.plan];
@@ -496,13 +497,16 @@ try {
   const setField = async (element, value) => act(async () => { const proto = element.tagName === "SELECT" ? window.HTMLSelectElement.prototype : window.HTMLInputElement.prototype; Object.getOwnPropertyDescriptor(proto, "value").set.call(element, value); element.dispatchEvent(new window.Event(element.tagName === "SELECT" ? "change" : "input", { bubbles: true })); });
   const eventDate = new Date(`${TODAY}T12:00:00`); eventDate.setDate(eventDate.getDate() + 18 * 7);
   const labelled = text => [...document.querySelectorAll(".field")].find(node => node.querySelector("label")?.textContent === text);
-  await setField(labelled("Esemény neve")?.querySelector("input") || [...document.querySelectorAll('input[placeholder="Például: félmaraton"]')][0], "Tavaszi Maraton");
-  await setField(labelled("Esemény dátuma").querySelector("input"), eventDate.toISOString().slice(0, 10));
-  await setField(labelled("Esemény típusa").querySelector("select"), "marathon");
+  // the concrete events come first in the goal chooser; picking one sets the matching general goal
+  const pickEvent = async label => act(async () => [...document.querySelectorAll('.event-choice-grid [role="radio"]')].find(node => node.querySelector("b")?.textContent === label).click());
+  if (document.querySelector(".event-choice-grid [role=radio]")?.querySelector("b")?.textContent !== "Maraton") throw new Error("A Profilban nem a konkrét események állnak elöl.");
+  await pickEvent("Maraton");
+  await setField(document.querySelector('input[aria-label="Esemény neve"]'), "Tavaszi Maraton");
+  await setField(document.querySelector('input[aria-label="Esemény dátuma"]'), eventDate.toISOString().slice(0, 10));
   await setField(document.querySelector('select[aria-label="Referenciaverseny távja"]'), "10k");
   await setField(document.querySelector('input[aria-label="Referenciaidő"]'), "50:00");
   await act(async () => [...document.querySelectorAll("button")].find(node => node.textContent.trim() === "Profil mentése").click());
-  if (!cloudPatches.some(patch => patch.profile?.eventType === "marathon" && patch.profile?.referenceRaceTime === "50:00")) throw new Error("Az eseménytípus és a referenciaidő nem mentődött a profilba.");
+  if (!cloudPatches.some(patch => patch.profile?.eventType === "marathon" && patch.profile?.referenceRaceTime === "50:00" && patch.profile?.goal === "Futóteljesítmény")) throw new Error("Az eseménytípus és a referenciaidő nem mentődött a profilba.");
   await navTo("Cél");
   const eventCard = document.querySelector(".event-planner:not(.event-planner-empty)");
   if (!eventCard?.textContent.includes("MARATON") || !eventCard.textContent.includes("TAPER")) throw new Error("A maratoni felkészülési kártya nem jelent meg.");
@@ -518,7 +522,7 @@ try {
   console.log("OK forrásolt maratoni felkészülési terv: profil, tempózónák, szakaszok, mentés");
   // Hiking event: switch the profile to a multi-day trek, enter the route, then preview and save the plan.
   await navTo("Profil");
-  await setField(labelled("Esemény típusa").querySelector("select"), "trek");
+  await pickEvent("Többnapos túra");
   if (document.querySelector('input[aria-label="Referenciaidő"]')) throw new Error("Túránál a futó referenciaidő mezője nem kell.");
   const hikeInput = text => [...document.querySelectorAll(".hike-fields label")].find(node => node.querySelector("span")?.textContent === text)?.querySelector("input");
   for (const [text, value] of [["Táv (km)", "22"], ["Szintemelkedés (m)", "900"], ["Napok száma", "4"], ["Hátizsák (kg)", "10"]]) {
@@ -547,6 +551,13 @@ try {
   const onboardingRoot = createRoot(document.getElementById("root"));
   await act(async () => onboardingRoot.render(React.createElement(App)));
   for (let step = 1; step <= 3; step += 1) {
+    if (document.querySelector(".onboarding-backdrop .goal-chooser")) {
+      // the goal step offers the concrete, sourced events first
+      const halfMarathon = [...document.querySelectorAll('.goal-chooser [role="radio"]')].find(node => node.querySelector("b")?.textContent === "Félmaraton");
+      if (!halfMarathon) throw new Error("A beállítóvarázsló cél-lépésében nincsenek konkrét események.");
+      await act(async () => halfMarathon.click());
+      if (!document.querySelector('.goal-chooser input[aria-label="Esemény dátuma"]')) throw new Error("Eseményválasztás után nem kéri a dátumot.");
+    }
     const next = [...document.querySelectorAll("button")].find(node => node.textContent.trim() === "Folytatás");
     if (!next) throw new Error(`Hiányzó Folytatás gomb a(z) ${step}. onboarding lépésben.`);
     await act(async () => next.click());
@@ -555,7 +566,9 @@ try {
   if (!finish) throw new Error("Hiányzó Profil létrehozása gomb.");
   await act(async () => finish.click());
   if (localStorage.getItem("hybrid-onboarding-version") !== "2") throw new Error("Az onboarding állapota nem mentődött el.");
-  if (!JSON.parse(localStorage.getItem("hybrid-profile") || "null")?.name) throw new Error("A személyes profil nem mentődött el.");
+  const savedProfile = JSON.parse(localStorage.getItem("hybrid-profile") || "null");
+  if (!savedProfile?.name) throw new Error("A személyes profil nem mentődött el.");
+  if (savedProfile.eventType !== "half" || savedProfile.goal !== "Futóteljesítmény") throw new Error("A választott esemény vagy a hozzá tartozó cél nem mentődött.");
   if (document.querySelector(".onboarding-backdrop")) throw new Error("Az onboarding nem zárult be.");
   console.log("OK onboarding és profilmentés");
   // Guided tour: starts by itself after the first-login setup, is remembered with the account, and restarts from Settings.
@@ -585,6 +598,16 @@ try {
   if (document.querySelector(".tour-popover")) throw new Error("Az Esc nem zárja be a bemutatót.");
   console.log("OK bemutató: automatikus indulás, lépések, mentés, újraindítás a Beállításokból");
   await act(async () => onboardingRoot.unmount());
+  // An existing account that has never finished the tour sees it once on the next sign-in.
+  mockedCloudState={version:2,profile:{...savedProfile},accent:"teal",checkins:{},feedback:{},plans:[]};
+  const existingRoot = createRoot(document.getElementById("root"));
+  await act(async () => existingRoot.render(React.createElement(App)));
+  await act(async () => new Promise(resolve => setTimeout(resolve, 20)));
+  if (!document.querySelector(".tour-popover")) throw new Error("Meglévő fióknál nem indult el egyszer a bemutató.");
+  await act(async () => [...document.querySelectorAll(".tour-popover button")].find(node => node.textContent.trim() === "Kihagyás").click());
+  if (document.querySelector(".tour-popover") || mockedCloudState.tour?.status !== "done") throw new Error("A kihagyott bemutató nem mentődött késznek.");
+  await act(async () => existingRoot.unmount());
+  console.log("OK bemutató meglévő fióknál: egyszer elindul, kihagyás után nem");
 } finally {
   await vite.close();
 }

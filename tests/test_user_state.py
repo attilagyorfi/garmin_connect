@@ -125,3 +125,25 @@ def test_guided_tour_progress_is_kept_with_the_account(memory_store):
     for bad in ({"status": "started"}, "done", {"status": "done", "version": "x"}):
         with pytest.raises(ValueError):
             user_state.apply_patch({"tour": bad})
+
+
+def test_account_patch_is_read_and_written_under_one_lock(monkeypatch):
+    events, stored = [], {"tour": {"status": "pending", "version": 1, "updatedAt": ""}}
+
+    class Db:
+        def execute(self, sql, params=()):
+            events.append(("lock" if "pg_advisory_xact_lock" in sql else "sql", params))
+
+        def close(self):
+            events.append(("close", None))
+
+    db = Db()
+    monkeypatch.setattr(user_state, "connect", lambda: db)
+    monkeypatch.setattr(user_state, "initialize_user_state", lambda _db: events.append(("init", None)))
+    monkeypatch.setattr(user_state, "load_user_json", lambda user, key, connection=None: events.append(("load", connection is db)) or dict(stored))
+    monkeypatch.setattr(user_state, "save_user_json", lambda user, key, payload, connection=None: events.append(("save", connection is db)) or stored.update(payload))
+    user_state.apply_patch({"accent": "blue"}, "00000000-0000-0000-0000-000000000001")
+    assert [name for name, _ in events] == ["init", "lock", "load", "save", "close"]
+    assert events[1][1] == ("user-state:00000000-0000-0000-0000-000000000001",)
+    assert events[2][1] is True and events[3][1] is True  # same connection, so the lock covers both
+    assert stored["accent"] == "blue" and stored["tour"]["status"] == "pending"  # earlier fields survive
