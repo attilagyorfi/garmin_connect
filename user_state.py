@@ -6,7 +6,7 @@ import re
 from datetime import date, datetime, timezone
 from typing import Any
 
-from cloud_cache import load_json, load_user_json, save_json, save_user_json
+from cloud_cache import connect, initialize_user_state, load_json, load_user_json, save_json, save_user_json
 
 
 STATE_KEY = "user_state_v1"
@@ -174,8 +174,8 @@ def validate_tour(value: Any) -> dict[str, Any]:
     return {"status": value["status"], "version": version, "updatedAt": _text(value.get("updatedAt"), 40)}
 
 
-def load_state(user_id: str | None = None) -> dict[str, Any]:
-    stored = (load_user_json(user_id, STATE_KEY) if user_id else load_json(STATE_KEY)) or {}
+def load_state(user_id: str | None = None, connection: Any = None) -> dict[str, Any]:
+    stored = (load_user_json(user_id, STATE_KEY, connection) if user_id else load_json(STATE_KEY)) or {}
     return {
         **empty_state(), **stored, "version": 3,
         "checkins": stored.get("checkins") or {},
@@ -186,9 +186,27 @@ def load_state(user_id: str | None = None) -> dict[str, Any]:
 
 
 def apply_patch(patch: Any, user_id: str | None = None) -> dict[str, Any]:
+    """Merge one change into the stored state. For an account the read-modify-write runs in one transaction under a
+    per-user lock: two patches sent at the same moment (e.g. profile + tour after the first-login setup) would
+    otherwise both read the old state, and the later write would silently drop the earlier change."""
     if not isinstance(patch, dict):
         raise ValueError("Érvénytelen módosítás.")
-    state = load_state(user_id)
+    if not user_id:
+        state = _merge_patch(load_state(), patch)
+        save_json(STATE_KEY, state)
+        return state
+    db = connect()
+    try:
+        initialize_user_state(db)  # may run DDL and commit, so it comes before the transaction-scoped lock
+        db.execute("SELECT pg_advisory_xact_lock(hashtext(%s))", (f"user-state:{user_id}",))
+        state = _merge_patch(load_state(user_id, db), patch)
+        save_user_json(user_id, STATE_KEY, state, db)  # commits, which also releases the lock
+        return state
+    finally:
+        db.close()
+
+
+def _merge_patch(state: dict[str, Any], patch: dict[str, Any]) -> dict[str, Any]:
     if "profile" in patch:
         state["profile"] = validate_profile(patch["profile"])
     if "accent" in patch:
@@ -251,8 +269,4 @@ def apply_patch(patch: Any, user_id: str | None = None) -> dict[str, Any]:
         state["assistant"] = validate_assistant(patch["assistant"])
     if "tour" in patch:
         state["tour"] = validate_tour(patch["tour"])
-    if user_id:
-        save_user_json(user_id, STATE_KEY, state)
-    else:
-        save_json(STATE_KEY, state)
     return state
