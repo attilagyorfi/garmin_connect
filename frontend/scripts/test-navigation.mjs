@@ -507,6 +507,12 @@ try {
   await setField(document.querySelector('input[aria-label="Referenciaidő"]'), "50:00");
   await act(async () => [...document.querySelectorAll("button")].find(node => node.textContent.trim() === "Profil mentése").click());
   if (!cloudPatches.some(patch => patch.profile?.eventType === "marathon" && patch.profile?.referenceRaceTime === "50:00" && patch.profile?.goal === "Futóteljesítmény")) throw new Error("Az eseménytípus és a referenciaidő nem mentődött a profilba.");
+  const saveProfileButton = () => [...document.querySelectorAll("button")].find(node => node.textContent.trim() === "Profil mentése");
+  await setField(document.querySelector('input[aria-label="Esemény neve"]'), "");
+  await act(async () => saveProfileButton().click());
+  if (!document.querySelector(".profile-summary")?.textContent.includes("Maraton ·")) throw new Error("Név nélküli eseménynél a profilösszegzés nem mutatja az esemény típusát és dátumát.");
+  await setField(document.querySelector('input[aria-label="Esemény neve"]'), "Tavaszi Maraton");
+  await act(async () => saveProfileButton().click());
   await navTo("Cél");
   const eventCard = document.querySelector(".event-planner:not(.event-planner-empty)");
   if (!eventCard?.textContent.includes("MARATON") || !eventCard.textContent.includes("TAPER")) throw new Error("A maratoni felkészülési kártya nem jelent meg.");
