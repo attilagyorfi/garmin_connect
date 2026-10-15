@@ -25,6 +25,7 @@ import "./coaching.css";
 import "./assistant.css";
 import "./overview.css";
 import "./model-status.css";
+import "./tour.css";
 
 createRoot(document.getElementById("root")).render(
   <React.StrictMode>

@@ -159,6 +159,21 @@ def validate_assistant(value: Any) -> dict[str, Any]:
     return {"memoryEnabled": enabled, "messages": clean if enabled else []}
 
 
+TOUR_STATUSES = {"pending", "done"}
+
+
+def validate_tour(value: Any) -> dict[str, Any]:
+    """Guided-tour progress: "pending" after the first-login setup (survives a closed browser), "done" once
+    finished or skipped. Kept with the account, so it follows the user across devices."""
+    if not isinstance(value, dict) or value.get("status") not in TOUR_STATUSES:
+        raise ValueError("Érvénytelen bemutató-állapot.")
+    try:
+        version = max(1, min(99, int(value.get("version", 1))))
+    except (TypeError, ValueError) as exc:
+        raise ValueError("Érvénytelen bemutató-állapot.") from exc
+    return {"status": value["status"], "version": version, "updatedAt": _text(value.get("updatedAt"), 40)}
+
+
 def load_state(user_id: str | None = None) -> dict[str, Any]:
     stored = (load_user_json(user_id, STATE_KEY) if user_id else load_json(STATE_KEY)) or {}
     return {
@@ -234,6 +249,8 @@ def apply_patch(patch: Any, user_id: str | None = None) -> dict[str, Any]:
         state["plans"] = [plan for plan in state["plans"] if plan.get("id") != plan_id]
     if "assistant" in patch:
         state["assistant"] = validate_assistant(patch["assistant"])
+    if "tour" in patch:
+        state["tour"] = validate_tour(patch["tour"])
     if user_id:
         save_user_json(user_id, STATE_KEY, state)
     else:

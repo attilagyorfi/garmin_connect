@@ -116,3 +116,12 @@ def test_hiking_event_fields_are_bounded(memory_store):
 def test_long_hiking_day_fits_in_a_plan():
     plan = user_state.validate_plan({"date": "2027-01-17", "type": "Túrázás", "title": "Túra", "duration": 780}, "event-hike-1")
     assert plan["duration"] == 780
+
+
+def test_guided_tour_progress_is_kept_with_the_account(memory_store):
+    state = user_state.apply_patch({"tour": {"status": "pending", "version": 1, "updatedAt": "2026-10-15T08:00:00Z"}})
+    assert state["tour"] == {"status": "pending", "version": 1, "updatedAt": "2026-10-15T08:00:00Z"}
+    assert user_state.apply_patch({"tour": {"status": "done", "version": "2"}})["tour"]["status"] == "done"
+    for bad in ({"status": "started"}, "done", {"status": "done", "version": "x"}):
+        with pytest.raises(ValueError):
+            user_state.apply_patch({"tour": bad})
