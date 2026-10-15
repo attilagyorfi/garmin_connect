@@ -5,7 +5,8 @@ from http.server import BaseHTTPRequestHandler
 from urllib.parse import quote
 
 from ai_usage import admin_summary
-from auth_email import EmailError, invite_message, password_reset_message, public_link, send_email
+from auth_email import EmailError, invite_message, password_reset_message, public_link, send_email, test_message
+from auth_email import status as email_status
 from auth_store import (
     EMAIL_PATTERN,
     INVITE_DAYS,
@@ -62,7 +63,7 @@ class handler(BaseHTTPRequestHandler):
         try:
             user = self._admin()
             if user:
-                self._send({**list_access_admin(user["id"]), "aiUsage": admin_summary(30)})
+                self._send({**list_access_admin(user["id"]), "aiUsage": admin_summary(30), "email": email_status()})
         except Exception:
             self._send({"error": "A hozzáférések most nem kérdezhetők le."}, 500)
 
@@ -73,6 +74,9 @@ class handler(BaseHTTPRequestHandler):
                 return
             payload = self._payload()
             action = payload.get("action")
+            if action == "send_test_email":
+                self._send(self._mail(user["email"], *test_message()))
+                return
             if action == "create_invite":
                 recipient = str(payload.get("email") or "").strip().lower()[:254]
                 if recipient and not EMAIL_PATTERN.fullmatch(recipient):

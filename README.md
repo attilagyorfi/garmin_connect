@@ -67,6 +67,8 @@ Az e-maileket a Resend HTTP API-ja küldi (`auth_email.py`, külön függőség 
 - `AUTH_PUBLIC_URL` – az alkalmazás nyilvános címe (a levélbeli linkekhez); Vercelen enélkül a projekt éles domainje;
 - `AUTH_EMAIL_TEST_MODE` – helyi fejlesztéshez: `1` esetén nem megy ki levél. Élesben ne legyen beállítva.
 
+Az adminoldalon (Beállítások › Adminisztráció) látszik az e-mail-küldés állapota (beállítva / teszt üzemmód / hiányzó kulcs, feladócím), és egy gombbal próbalevél küldhető a saját címre; a Resend hibaüzenete (pl. hibás feladócím-formátum) a hibában is megjelenik. A név nélküli `<cím>` formátumú feladót a kód automatikusan javítja. Ha valaki belépett állapotban nyit meg megerősítő, visszaállító vagy meghívó linket, a felület ezt jelzi, és felajánlja a kijelentkezést, amely után a link automatikusan folytatódik.
+
 A Beállítások › Fiók és biztonság részen kezelhető a jelszócsere (utána minden eszköz kijelentkezik), az aktív munkamenetek, a saját adatok JSON-exportja (`/api/state?export=1`, jelszó, token és Garmin-munkamenet nélkül) és a végleges fióktörlés. A Garmin-kapcsolat csak titkosított munkamenettokent tárol, Garmin-jelszót nem; kétlépcsős (MFA) belépésnél a kódot a felület külön kéri.
 
 Regisztráció után Garmin-fiók nélkül is kipróbálható: `python scripts/dev_api.py --seed-demo <e-mail>` demó dashboardot ment a fiókhoz.

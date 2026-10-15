@@ -113,6 +113,29 @@ def verification_message(link: str, hours: int) -> tuple[str, str, str]:
     return subject, text, markup
 
 
+def sender() -> str:
+    """AUTH_EMAIL_FROM tidied up: surrounding quotes/spaces and a bare "<address>" (which Resend rejects with 422)."""
+    value = os.getenv("AUTH_EMAIL_FROM", "").strip().strip("'\"").strip()
+    if value.startswith("<") and value.endswith(">") and value.count("<") == 1:
+        value = value[1:-1].strip()
+    return value
+
+
+def status() -> dict[str, Any]:
+    """Admin overview of the e-mail setup; never contains the API key."""
+    return {"configured": is_configured() and not test_mode(), "testMode": test_mode(), "hasApiKey": bool(os.getenv("RESEND_API_KEY", "").strip()),
+            "sender": sender() or None, "verificationRequired": verification_required()}
+
+
+def test_message() -> tuple[str, str, str]:
+    subject = f"{APP_NAME}: próbalevél"
+    lines = ["Ez egy próbalevél az adminisztrációs felületről.", "Ha megkaptad, a tranzakciós e-mailek (megerősítés, jelszó-visszaállítás, meghívó, AI-keret riasztás) kimennek."]
+    body = "".join(f'<p style="margin:0 0 14px;line-height:1.6">{html.escape(item)}</p>' for item in lines)
+    markup = (f'<div style="font-family:Arial,sans-serif;color:#1d2321;max-width:520px;margin:0 auto;padding:24px">'
+              f'<h1 style="font-size:20px;margin:0 0 16px">{html.escape(subject)}</h1>{body}<p style="margin:18px 0 0;color:#5b6461;font-size:13px">– {APP_NAME}</p></div>')
+    return subject, "\n\n".join([subject, *lines, f"– {APP_NAME}"]), markup
+
+
 def verification_required() -> bool:
     """New accounts must confirm their address only when real e-mail delivery is set up; otherwise (local
     development, test mode, missing Resend settings) nobody could ever receive the link."""
@@ -148,16 +171,25 @@ def budget_alert_message(level: int, month: str, spent: float, budget: float) ->
     return subject, "\n\n".join([subject, *text_lines, f"– {APP_NAME}"]), markup
 
 
+def _provider_reason(exc: urllib.error.HTTPError) -> str:
+    """Resend's own explanation (e.g. "Invalid `from` field…"), so an admin can fix the setting; never the request."""
+    try:
+        message = json.loads(exc.read() or b"{}").get("message")
+    except (ValueError, OSError, AttributeError):
+        return ""
+    return f": {str(message)[:200]}" if message else ""
+
+
 def send_email(to: str, subject: str, text: str, markup: str, *, opener: Any = None) -> dict[str, Any]:
     """Hand one message to Resend. Returns {"sent": bool, "testMode": bool}; raises EmailError on failure."""
     if test_mode():
         return {"sent": False, "testMode": True}
-    api_key, sender = os.getenv("RESEND_API_KEY", "").strip(), os.getenv("AUTH_EMAIL_FROM", "").strip()
-    if not api_key or not sender:
+    api_key, from_address = os.getenv("RESEND_API_KEY", "").strip(), sender()
+    if not api_key or not from_address:
         raise EmailError("Az e-mail-küldés nincs beállítva.")
     request = urllib.request.Request(
         RESEND_URL,
-        data=json.dumps({"from": sender, "to": [to], "subject": subject, "text": text, "html": markup}).encode("utf-8"),
+        data=json.dumps({"from": from_address, "to": [to], "subject": subject, "text": text, "html": markup}).encode("utf-8"),
         headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json", "User-Agent": "hybrid-athlete/1.0"},
         method="POST",
     )
@@ -166,7 +198,7 @@ def send_email(to: str, subject: str, text: str, markup: str, *, opener: Any = N
             if response.status >= 300:
                 raise EmailError(f"Az e-mail-szolgáltató hibát jelzett ({response.status}).")
     except urllib.error.HTTPError as exc:
-        raise EmailError(f"Az e-mail-szolgáltató hibát jelzett ({exc.code}).") from exc
+        raise EmailError(f"Az e-mail-szolgáltató hibát jelzett ({exc.code}){_provider_reason(exc)}.") from exc
     except (urllib.error.URLError, TimeoutError) as exc:
         raise EmailError("Az e-mail-szolgáltató nem érhető el.") from exc
     return {"sent": True, "testMode": False}

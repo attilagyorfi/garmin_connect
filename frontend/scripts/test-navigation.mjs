@@ -139,6 +139,19 @@ try {
   if (signedIn[0]?.id !== "verified-user" || !authRequests.some(item => item.action === "verify_email" && item.token === "verify-token") || window.location.search) throw new Error("A megerősítő link nem léptetett be.");
   await act(async () => verifyRoot.unmount()); verifyHost.remove(); window.history.replaceState(null, "", "/");
   console.log("OK e-mail-megerősítés: regisztráció, újraküldés, megerősítő link");
+
+  // An account link opened while signed in: never swallowed, the user chooses to sign out or stay.
+  const { AuthLinkNotice, pendingAuthLink } = await vite.ssrLoadModule("/src/components/AuthLinkNotice.jsx");
+  if (pendingAuthLink("?auth=verify&token=x") !== "verify" || pendingAuthLink("?auth=reset&token=x") !== "reset" || pendingAuthLink("?invite=x") !== "invite" || pendingAuthLink("?auth=verify") !== null || pendingAuthLink("") !== null) throw new Error("A fióklink felismerése hibás.");
+  const noticeHost = document.createElement("div"); document.body.appendChild(noticeHost);
+  const noticeRoot = createRoot(noticeHost), choices = [];
+  await act(async () => noticeRoot.render(React.createElement(AuthLinkNotice, { kind: "verify", user: { email: "fo@example.test" }, onSignOut: () => choices.push("out"), onStay: () => choices.push("stay") })));
+  if (!noticeHost.textContent.includes("e-mail-megerősítő link") || !noticeHost.textContent.includes("fo@example.test")) throw new Error("A belépett állapotban megnyitott link nem kapott magyarázatot.");
+  for (const label of ["Kijelentkezés és folytatás", "Maradok belépve, a linket nem használom"]) await act(async () => [...noticeHost.querySelectorAll("button")].find(node => node.textContent.trim() === label).click());
+  if (choices.join() !== "out,stay") throw new Error("A kijelentkezés vagy a maradás gomb nem működik.");
+  await act(async () => assertAccessible("fióklink-értesítő", noticeHost));
+  await act(async () => noticeRoot.unmount()); noticeHost.remove();
+  console.log("OK fióklink belépett állapotban: magyarázat, kijelentkezés vagy maradás");
   const gateRoot = createRoot(document.getElementById("root"));
   await act(async () => gateRoot.render(React.createElement(App)));
   await act(async () => new Promise(resolve=>setTimeout(resolve,5)));

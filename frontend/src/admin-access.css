@@ -52,3 +52,5 @@
 .admin-ai-budget-bar{display:block;height:8px;border-radius:999px;background:#262a28;overflow:hidden}.admin-ai-budget-bar i{display:block;height:100%;background:var(--accent)}
 .admin-ai-budget.warn{border-color:#5a4a22}.admin-ai-budget.warn .admin-ai-budget-bar i{background:#f59e0b}.admin-ai-budget.paused{border-color:#6b2a2a}.admin-ai-budget.paused .admin-ai-budget-bar i{background:#ef4444}
 @media(max-width:900px){.admin-ai-budget{grid-template-columns:1fr}}
+.admin-email-status{display:flex;align-items:center;justify-content:space-between;gap:14px;margin:14px 0 4px;padding:12px 14px;border:1px solid #303431;border-radius:10px;background:#151716}.admin-email-status b{display:block;font-size:14px;color:#fff}.admin-email-status small{display:block;margin-top:4px;color:var(--muted);font-size:12px;line-height:1.45}.admin-email-status button{min-height:40px;white-space:nowrap}
+.admin-email-status.warn{border-color:#5a4a22;background:#221d10}
