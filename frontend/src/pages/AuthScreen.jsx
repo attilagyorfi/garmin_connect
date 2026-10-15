@@ -3,7 +3,7 @@ import { LockKeyhole } from "lucide-react";
 import brandMarkUrl from "../assets/hybrid-athlete-mark-on-dark.svg";
 import { authRequest } from "../lib/api.js";
 
-const TITLES={login:["ÜDV ÚJRA","Lépj be a dashboardodba","Bejelentkezés"],register:["SZEMÉLYES MEGHÍVÓ","Hozd létre a meghívott fiókodat","Meghívás elfogadása"],reset:["ÚJ JELSZÓ","Állíts be új jelszót","Jelszó mentése"],forgot:["ELFELEJTETT JELSZÓ","Kérj visszaállító levelet","Levél küldése"]};
+const TITLES={login:["ÜDV ÚJRA","Jelentkezz be","Bejelentkezés"],register:["MEGHÍVÓ","Hozd létre a fiókodat","Fiók létrehozása"],reset:["ÚJ JELSZÓ","Állíts be új jelszót","Jelszó mentése"],forgot:["ELFELEJTETT JELSZÓ","Kérj új jelszót","Levél küldése"]};
 const ACTIONS={reset:"reset_password",forgot:"request_password_reset"};
 
 // Closed access: accounts are created from an admin invite link (?invite=...). Passwords are reset from an e-mailed or
@@ -12,19 +12,19 @@ const ACTIONS={reset:"reset_password",forgot:"request_password_reset"};
 export function AuthScreen({onAuthenticated,notice=""}){const query=new URLSearchParams(window.location.search),inviteToken=query.get("invite")||"",authToken=query.get("token")||"",[mode,setMode]=useState(query.get("auth")==="reset"?"reset":inviteToken?"register":"login"),[name,setName]=useState(""),[email,setEmail]=useState(""),[password,setPassword]=useState(""),[error,setError]=useState(""),[message,setMessage]=useState(notice),[busy,setBusy]=useState(false),[unverified,setUnverified]=useState(false),verifying=useRef(false);
   const switchMode=next=>{setMode(next);setError("");setMessage("");setUnverified(false)};
   const clearQuery=()=>window.history.replaceState(null,"",window.location.pathname);
-  useEffect(()=>{if(query.get("auth")!=="verify"||!authToken||verifying.current)return;verifying.current=true;setBusy(true);setMessage("Az e-mail-cím megerősítése folyamatban…");
-    authRequest({action:"verify_email",token:authToken}).then(result=>{clearQuery();onAuthenticated(result.user)}).catch(reason=>{clearQuery();setMessage("");setError(`${reason.message} Lépj be, és kérj új megerősítő levelet.`)}).finally(()=>setBusy(false))},[]);
+  useEffect(()=>{if(query.get("auth")!=="verify"||!authToken||verifying.current)return;verifying.current=true;setBusy(true);setMessage("Megerősítjük az e-mail-címedet…");
+    authRequest({action:"verify_email",token:authToken}).then(result=>{clearQuery();onAuthenticated(result.user)}).catch(reason=>{clearQuery();setMessage("");setError(`${reason.message} Jelentkezz be, és kérj újat.`)}).finally(()=>setBusy(false))},[]);
   const resend=async()=>{setBusy(true);setError("");try{const result=await authRequest({action:"resend_verification",email});setMessage(result.message);setUnverified(false)}catch(reason){setError(reason.message)}finally{setBusy(false)}};
   const submit=async event=>{event.preventDefault();setBusy(true);setError("");setMessage("");setUnverified(false);try{const result=await authRequest({action:ACTIONS[mode]||mode,email,password,name,token:authToken,inviteToken});if(result.verificationRequired){clearQuery();setMode("login");setPassword("");setMessage(result.message)}else if(result.user){clearQuery();onAuthenticated(result.user)}else{setMessage(result.message||"A kérés sikeresen megtörtént.");if(mode==="reset"){window.history.replaceState(null,"",window.location.pathname);setMode("login");setPassword("")}if(mode==="forgot")setMode("login")}}catch(reason){setError(reason.message);setUnverified(reason.code==="email_unverified")}finally{setBusy(false)}};
   const [eyebrow,title,action]=TITLES[mode];
-  return <main className="auth-shell"><section className="auth-brand"><img src={brandMarkUrl} alt="Hybrid Athlete"/><span className="eyebrow">HYBRID ATHLETE</span><h1>A teljesítményed.<br/>Érthetően.</h1><p>Személyes edzésadatok, fejlődéstörténet és döntéstámogatás egy biztonságos fiókban.</p></section>
-    <section className="auth-card card">{inviteToken&&mode!=="reset"&&<div className="auth-tabs"><button className={mode==="login"?"active":""} onClick={()=>switchMode("login")}>Bejelentkezés</button><button className={mode==="register"?"active":""} onClick={()=>switchMode("register")}>Meghívás elfogadása</button></div>}
+  return <main className="auth-shell"><section className="auth-brand"><img src={brandMarkUrl} alt="Hybrid Athlete"/><span className="eyebrow">HYBRID ATHLETE</span><h1>A teljesítményed.<br/>Érthetően.</h1><p>A Garmin-adataidból megmondjuk, mit eddz ma, és hogyan fejlődsz.</p></section>
+    <section className="auth-card card">{inviteToken&&mode!=="reset"&&<div className="auth-tabs"><button className={mode==="login"?"active":""} onClick={()=>switchMode("login")}>Bejelentkezés</button><button className={mode==="register"?"active":""} onClick={()=>switchMode("register")}>Fiók létrehozása</button></div>}
       <span className="eyebrow">{eyebrow}</span><h2>{title}</h2>
       <form onSubmit={submit}>{mode==="register"&&<label>Név<input autoComplete="name" value={name} onChange={event=>setName(event.target.value)} required maxLength="80"/></label>}{mode!=="reset"&&<label>E-mail-cím<input type="email" autoComplete="email" value={email} onChange={event=>setEmail(event.target.value)} required/></label>}{mode!=="forgot"&&<label>{mode==="reset"?"Új jelszó":"Jelszó"}<input type="password" autoComplete={mode==="login"?"current-password":"new-password"} value={password} onChange={event=>setPassword(event.target.value)} minLength="10" required/><small>Legalább 10 karakter</small></label>}
         {message&&<p className="auth-success" role="status">{message}</p>}{error&&<p className="auth-error" role="alert">{error}</p>}{unverified&&<button type="button" className="auth-link" disabled={busy} onClick={resend}>Megerősítő levél újraküldése</button>}
-        <button className="primary" disabled={busy}>{busy?"Feldolgozás…":action}</button>
+        <button className="primary" disabled={busy}>{busy?"Egy pillanat…":action}</button>
         {mode==="login"&&<button type="button" className="auth-link" onClick={()=>switchMode("forgot")}>Elfelejtetted a jelszavad?</button>}
-        {mode==="login"&&<p className="auth-admin-note">Új fiók csak meghívóval nyitható.</p>}
-        {mode==="forgot"&&<p className="auth-admin-note">Ha a címhez aktív fiók tartozik, egy 30 percig érvényes, egyszer használható linket küldünk.</p>}
+        {mode==="login"&&<p className="auth-admin-note">Új fiókot csak meghívóval lehet nyitni.</p>}
+        {mode==="forgot"&&<p className="auth-admin-note">Ha van fiókod ezzel a címmel, küldünk egy linket. 30 percig érvényes, és csak egyszer használható.</p>}
         {(mode==="reset"||mode==="forgot")&&<button type="button" className="auth-link" onClick={()=>switchMode("login")}>Vissza a bejelentkezéshez</button>}</form>
-      <p className="auth-privacy"><LockKeyhole size={15}/> A munkamenetet biztonságos, HttpOnly cookie védi. A Garmin-adataid elkülönítve maradnak.</p></section></main>}
+      <p className="auth-privacy"><LockKeyhole size={15}/> A belépésed védett. A Garmin-adataidat csak te látod.</p></section></main>}

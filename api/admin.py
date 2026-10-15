@@ -33,7 +33,7 @@ class handler(BaseHTTPRequestHandler):
     def _admin(self) -> dict | None:
         user = current_user(self.headers)
         if not user:
-            self._send({"error": "A művelethez bejelentkezés szükséges."}, 401)
+            self._send({"error": "Ehhez be kell jelentkezned."}, 401)
             return None
         if user.get("role") != "admin":
             self._send({"error": "Ehhez a művelethez adminisztrátori jogosultság szükséges."}, 403)
@@ -45,9 +45,9 @@ class handler(BaseHTTPRequestHandler):
         try:
             result = send_email(recipient, subject, text, markup)
         except EmailError as exc:
-            return {"emailSent": False, "emailError": f"{exc} A linket másold ki és küldd el kézzel."}
+            return {"emailSent": False, "emailError": f"{exc} Másold ki a linket, és küldd el kézzel."}
         if result["testMode"]:
-            return {"emailSent": False, "emailError": "Teszt üzemmód (AUTH_EMAIL_TEST_MODE): e-mail nem ment ki."}
+            return {"emailSent": False, "emailError": "Teszt üzemmódban vagyunk (AUTH_EMAIL_TEST_MODE), ezért nem ment ki levél."}
         return {"emailSent": True, "emailTo": recipient}
 
     def _payload(self) -> dict:
@@ -65,7 +65,7 @@ class handler(BaseHTTPRequestHandler):
             if user:
                 self._send({**list_access_admin(user["id"]), "aiUsage": admin_summary(30), "email": email_status()})
         except Exception:
-            self._send({"error": "A hozzáférések most nem kérdezhetők le."}, 500)
+            self._send({"error": "Most nem tudjuk betölteni a fiókokat. Próbáld újra pár perc múlva."}, 500)
 
     def do_POST(self) -> None:  # noqa: N802
         try:
@@ -80,7 +80,7 @@ class handler(BaseHTTPRequestHandler):
             if action == "create_invite":
                 recipient = str(payload.get("email") or "").strip().lower()[:254]
                 if recipient and not EMAIL_PATTERN.fullmatch(recipient):
-                    raise ValueError("Adj meg egy érvényes e-mail-címet a meghívóhoz.")
+                    raise ValueError("Adj meg egy érvényes e-mail-címet a meghívónak.")
                 token, invite = create_invite(user["id"])
                 query = f"invite={quote(token)}"
                 body = {**invite, "path": f"/?{query}"}
@@ -91,7 +91,7 @@ class handler(BaseHTTPRequestHandler):
             if action == "create_password_reset":
                 result = create_admin_password_reset(user["id"], payload.get("email", ""))
                 if not result:
-                    raise ValueError("Ehhez az e-mail-címhez nem tartozik fiók.")
+                    raise ValueError("Ezzel a címmel nincs fiók.")
                 query = f"auth=reset&token={quote(result[1])}"
                 body = {"email": result[0], "path": f"/?{query}"}
                 if payload.get("sendEmail"):
@@ -112,7 +112,7 @@ class handler(BaseHTTPRequestHandler):
         except (ValueError, TypeError, json.JSONDecodeError) as exc:
             self._send({"error": str(exc) or "Érvénytelen kérés."}, 400)
         except Exception:
-            self._send({"error": "Az adminisztrátori művelet most nem hajtható végre."}, 500)
+            self._send({"error": "Ez most nem sikerült. Próbáld újra pár perc múlva."}, 500)
 
     def do_DELETE(self) -> None:  # noqa: N802
         self._send({"error": "Nem támogatott művelet."}, 405)

@@ -170,7 +170,7 @@ def test_password_change_rejects_wrong_or_reused_password(monkeypatch):
     encoded = _password_hash("jelenlegi-biztonsagos")
     for current, new, message in [
         ("hibas-jelszo", "uj-biztonsagos-jelszo", "jelenlegi jelszó"),
-        ("jelenlegi-biztonsagos", "jelenlegi-biztonsagos", "eltérő"),
+        ("jelenlegi-biztonsagos", "jelenlegi-biztonsagos", "ne egyezzen"),
     ]:
         db = PasswordConnection(encoded)
         monkeypatch.setattr(auth_store, "connect", lambda: db)

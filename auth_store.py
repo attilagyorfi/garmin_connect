@@ -317,7 +317,7 @@ def register(
         # otherwise a fresh installation would have nobody able to create the first invite.
         bootstrap_admin = not invite and email in _admin_emails()
         if not invite and not bootstrap_admin:
-            raise ValueError("A meghívó hivatkozás lejárt, visszavonták vagy már felhasználták.")
+            raise ValueError("Ez a meghívó már nem érvényes: lejárt, visszavonták, vagy már felhasználták.")
         user_id = str(uuid.uuid4())
         try:
             db.execute(
@@ -337,7 +337,7 @@ def register(
         except Exception as exc:
             db.rollback()
             if db.execute("SELECT 1 FROM hybrid_users WHERE email = %s", (email,)).fetchone():
-                raise ValueError("Ehhez az e-mail-címhez már tartozik fiók.") from exc
+                raise ValueError("Ezzel a címmel már van fiók.") from exc
             raise
         user = {
             "id": user_id, "email": email, "name": name,
@@ -365,12 +365,12 @@ def login(
             _record_login_failure(db, key)
             raise ValueError("Hibás e-mail-cím vagy jelszó.")
         if row[5] != "active":
-            raise ValueError("A fiók hozzáférését az adminisztrátor felfüggesztette.")
+            raise ValueError("Ezt a fiókot az adminisztrátor felfüggesztette.")
         db.execute("DELETE FROM hybrid_login_limits WHERE limit_key = %s", (key,))
         db.commit()
         user = _public_user(row)
         if not user["emailVerified"]:
-            raise UnverifiedEmailError("A belépés előtt erősítsd meg az e-mail-címedet: kattints a regisztrációkor kapott levélben lévő linkre.")
+            raise UnverifiedEmailError("Előbb erősítsd meg az e-mail-címedet a regisztrációkor kapott levél linkjével.")
         return user, _new_session(db, user["id"], user_agent, client_ip)
     finally:
         db.close()
@@ -416,7 +416,7 @@ def verify_email(
               AND t.used_at IS NULL AND t.expires_at > NOW()
         """, (token_hash,)).fetchone()
         if not row:
-            raise ValueError("A megerősítő hivatkozás lejárt vagy már felhasználták.")
+            raise ValueError("Ez a megerősítő link lejárt, vagy már felhasználták.")
         db.execute("UPDATE hybrid_users SET email_verified_at = COALESCE(email_verified_at, NOW()) WHERE id = %s", (row[0],))
         db.execute("UPDATE hybrid_auth_tokens SET used_at = NOW() WHERE token_hash = %s", (token_hash,))
         db.commit()
@@ -655,7 +655,7 @@ def reset_password(token: str, password: str) -> None:
               AND used_at IS NULL AND expires_at > NOW()
         """, (token_hash,)).fetchone()
         if not row:
-            raise ValueError("A jelszó-visszaállító hivatkozás lejárt vagy már felhasználták.")
+            raise ValueError("Ez a link lejárt, vagy már felhasználták.")
         db.execute("UPDATE hybrid_users SET password_hash = %s WHERE id = %s", (_password_hash(password), row[0]))
         db.execute("UPDATE hybrid_auth_tokens SET used_at = NOW() WHERE token_hash = %s", (token_hash,))
         db.execute("DELETE FROM hybrid_sessions WHERE user_id = %s", (row[0],))
@@ -679,14 +679,14 @@ def change_password(
             (str(user_id),),
         ).fetchone()
         if not row:
-            raise ValueError("A jelenlegi jelszó nem megfelelő.")
+            raise ValueError("Nem jó a jelenlegi jelszó.")
         limit_key = _limit_key(row[1], f"password-change:{client_id}")
         _check_login_limit(db, limit_key)
         if not _verify_password(current_password or "", row[0]):
             _record_login_failure(db, limit_key)
-            raise ValueError("A jelenlegi jelszó nem megfelelő.")
+            raise ValueError("Nem jó a jelenlegi jelszó.")
         if _verify_password(new_password, row[0]):
-            raise ValueError("Az új jelszó legyen eltérő a jelenlegitől.")
+            raise ValueError("Az új jelszó ne egyezzen a mostanival.")
         db.execute(
             "UPDATE hybrid_users SET password_hash = %s WHERE id = %s",
             (_password_hash(new_password), str(user_id)),
@@ -714,13 +714,13 @@ def delete_account(
             (str(user_id),),
         ).fetchone()
         if not row:
-            raise ValueError("A jelenlegi jelszó nem megfelelő.")
+            raise ValueError("Nem jó a jelenlegi jelszó.")
         password_hash, email, role = row
         limit_key = _limit_key(email, f"account-delete:{client_id}")
         _check_login_limit(db, limit_key)
         if not _verify_password(current_password or "", password_hash):
             _record_login_failure(db, limit_key)
-            raise ValueError("A jelenlegi jelszó nem megfelelő.")
+            raise ValueError("Nem jó a jelenlegi jelszó.")
         if role == "admin":
             other_admins = db.execute(
                 """SELECT COUNT(*) FROM hybrid_users
@@ -839,7 +839,7 @@ def _device_name(user_agent: str) -> str:
 def list_sessions(headers: Any) -> list[dict[str, Any]]:
     token = token_from_headers(headers)
     if not token:
-        raise ValueError("A művelethez bejelentkezés szükséges.")
+        raise ValueError("Ehhez be kell jelentkezned.")
     current_hash = hashlib.sha256(token.encode()).hexdigest()
     db = connect()
     try:
@@ -883,7 +883,7 @@ def list_sessions(headers: Any) -> list[dict[str, Any]]:
 def revoke_session(headers: Any, session_id: str) -> None:
     token = token_from_headers(headers)
     if not token:
-        raise ValueError("A művelethez bejelentkezés szükséges.")
+        raise ValueError("Ehhez be kell jelentkezned.")
     current_hash = hashlib.sha256(token.encode()).hexdigest()
     db = connect()
     try:
@@ -895,7 +895,7 @@ def revoke_session(headers: Any, session_id: str) -> None:
         if not current:
             raise ValueError("A munkamenet lejárt.")
         if str(current[1]) == str(session_id):
-            raise ValueError("A jelenlegi munkamenetet a Kijelentkezés gombbal zárhatod le.")
+            raise ValueError("Ebből az eszközből a Kijelentkezés gombbal tudsz kilépni.")
         db.execute(
             "DELETE FROM hybrid_sessions WHERE user_id = %s AND session_id = %s",
             (current[0], str(session_id)),
