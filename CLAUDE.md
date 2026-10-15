@@ -30,6 +30,17 @@ Magyar nyelvű edzésdöntés-támogató alkalmazás hibrid sportolóknak (futá
 - Minden változás külön ágon készül, PR-ral; a PR-t a felhasználó mergeli. Merge után a helyi `main` frissítése és az ág törlése csak akkor, ha a PR állapota tényleg `MERGED`.
 - Commit/PR csak a felhasználó kérésére.
 
+## Szövegezés – természetes magyar
+
+A felület minden szövege olyan legyen, mintha egy jó edző írná, nem gép. Tegeződünk, rövid mondatokban, hétköznapi szavakkal.
+- Cselekvő igék, személyesen: „Reggel válaszolj pár kérdésre” – nem „A napi állapotfelmérés kitöltése szükséges”. Szenvedő és hivatalos szerkezet nincs („figyelembe vesszük”, „lehetővé teszi”, „segít abban, hogy”, „biztosítja”, „-ként funkcionál”).
+- Egy mondat egy gondolat. Kevés kettőspont és gondolatjel; zárójel csak ritkán.
+- Kerülendő töltelék és AI-fordulatok: „egy helyen”, „egy pillantással”, „közérthető”, „átfogó”, „személyre szabott élmény”, „fontos, hogy”, „érdemes megjegyezni”, „ez azt jelenti, hogy”.
+- Laikusnak szól: nincs zsargon („forrásolt”, „determinisztikus”, „magyarázható”, „adatlefedettség”, „kohorsz”). Ha egy szakszó kell, egy félmondatban magyarázd meg.
+- Angol szó helyett magyar, ahol van jó: readiness → terhelhetőség, Insights → Összefüggések, taper → visszaterhelés. A Garminból ismert rövidítések maradnak (HRV, VO2max, Zone 2, RPE, TSB), első előfordulásnál röviden megmagyarázva.
+- Gombfelirat: rövid ige vagy főnév („Mentés”, „Tovább”, „Terv megnyitása”), nem csupa nagybetűs mondat.
+- Hibaüzenet: mi történt, és mit tehet a felhasználó, egyszerűen („Nem sikerült menteni. Próbáld újra pár perc múlva.”).
+
 ## Felület – tartós design-szabályok
 
 - Elsődleges cél egy kb. 1920 px-es asztali alkalmazás. Kényelmes asztali olvashatóság: törzs- és táblázatszöveg 14–16 px, metaadat legalább 11–12 px, navigáció kb. 16 px, ikonok 22–24 px, elsődleges vezérlők 42–48 px magasak, fő KPI-értékek legalább 21 px. A dashboard használja ki a nézet magasságát; a kártyák legyenek levegősek és áttekinthetők.

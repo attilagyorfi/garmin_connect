@@ -42,7 +42,7 @@ def mail_env(monkeypatch):
 
 def test_messages_are_hungarian_and_escape_the_link():
     subject, text, markup = password_reset_message(LINK + '"><script>', 30)
-    assert "jelszó-visszaállítás" in subject and "30 percig" in text and LINK in text
+    assert "új jelszó" in subject and "30 percig" in text and LINK in text
     assert "<script>" not in markup and "&quot;&gt;&lt;script&gt;" in markup
     subject, text, _markup = invite_message("https://app.example.test/?invite=x", 7)
     assert "Meghívó" in subject and "7 napig" in text
