@@ -542,6 +542,8 @@ try {
 
   localStorage.clear();
   mockedCloudState={version:2,profile:null,accent:"teal",checkins:{},feedback:{},plans:[]};
+  globalThis.sessionStorage = window.sessionStorage;
+  window.sessionStorage.setItem("hybrid-splash-shown", "1"); // the brand splash would hold the tour back for 4 s
   const onboardingRoot = createRoot(document.getElementById("root"));
   await act(async () => onboardingRoot.render(React.createElement(App)));
   for (let step = 1; step <= 3; step += 1) {
@@ -556,6 +558,32 @@ try {
   if (!JSON.parse(localStorage.getItem("hybrid-profile") || "null")?.name) throw new Error("A személyes profil nem mentődött el.");
   if (document.querySelector(".onboarding-backdrop")) throw new Error("Az onboarding nem zárult be.");
   console.log("OK onboarding és profilmentés");
+  // Guided tour: starts by itself after the first-login setup, is remembered with the account, and restarts from Settings.
+  await act(async () => new Promise(resolve => setTimeout(resolve, 20)));
+  if (!cloudPatches.some(patch => patch.tour?.status === "pending")) throw new Error("A bemutató függő állapota nem mentődött a fiókhoz.");
+  let tour = document.querySelector(".tour-popover");
+  if (!tour) throw new Error("Az első belépés után nem indult el a bemutató.");
+  await act(async () => assertAccessible("bemutató", tour));
+  if (tour.getAttribute("role") !== "dialog" || !document.getElementById(tour.getAttribute("aria-labelledby"))?.textContent.includes("Üdv")) throw new Error("A bemutató első lépése hiányos.");
+  const tourButton = label => [...document.querySelectorAll(".tour-popover button")].find(node => node.textContent.trim() === label);
+  await act(async () => tourButton("Tovább").click());
+  if (!document.querySelector(".tour-spotlight") || !document.querySelector(".tour-popover h2")?.textContent.includes("Navigáció")) throw new Error("A bemutató nem emelte ki a navigációt.");
+  await act(async () => document.dispatchEvent(new window.KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true })));
+  await act(async () => tourButton("Vissza").click());
+  if (!document.querySelector(".tour-popover h2")?.textContent.includes("Navigáció")) throw new Error("A bemutató Vissza gombja vagy nyílbillentyűje hibás.");
+  const titles = [];
+  for (let guard = 0; guard < 20 && tourButton("Tovább"); guard += 1) { titles.push(document.querySelector(".tour-popover h2").textContent); await act(async () => tourButton("Tovább").click()); }
+  // the coach step appears only when its launcher is on the page (after the first sync)
+  if (!titles.includes("Napló") || !titles.includes("Beállítások") || titles.includes("Edzőtárs") !== Boolean(document.querySelector('[data-tour="assistant"]'))) throw new Error(`A bemutató lépései hibásak: ${titles.join(", ")}`);
+  await act(async () => tourButton("Befejezés").click());
+  if (document.querySelector(".tour-popover") || !cloudPatches.some(patch => patch.tour?.status === "done" && patch.tour.version >= 1)) throw new Error("A bemutató befejezése nem mentődött.");
+  await act(async () => [...document.querySelectorAll(".sidebar button")].find(node => node.textContent.trim() === "Beállítások").click());
+  await act(async () => [...document.querySelectorAll("button")].find(node => node.textContent.includes("Bemutató újraindítása")).click());
+  tour = document.querySelector(".tour-popover");
+  if (!tour) throw new Error("A bemutató nem indítható újra a Beállításokból.");
+  await act(async () => document.dispatchEvent(new window.KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
+  if (document.querySelector(".tour-popover")) throw new Error("Az Esc nem zárja be a bemutatót.");
+  console.log("OK bemutató: automatikus indulás, lépések, mentés, újraindítás a Beállításokból");
   await act(async () => onboardingRoot.unmount());
 } finally {
   await vite.close();

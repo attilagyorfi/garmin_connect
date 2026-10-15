@@ -75,6 +75,10 @@ Regisztráció után Garmin-fiók nélkül is kipróbálható: `python scripts/d
 
 Csatlakoztatott Garmin-fióknál a `python scripts/inspect_garmin_payloads.py <e-mail>` kiírja a sportprofil-végpontok (profil, VO2max, testösszetétel, intenzív percek, lépések, rekordok, erőedzés-sorozatok) válaszainak szerkezetét értékek nélkül, és hogy a `garmin_profile.py` feldolgozói mely mezőket tudták kitölteni.
 
+### Bemutató (onboarding-túra)
+
+Az első belépés utáni beállítóvarázsló végén automatikusan elindul egy lépésenkénti bemutató (`frontend/src/components/GuidedTour.jsx`, lépések: `src/lib/tourSteps.js`): kiemeli az oldalsáv menüpontjait, az Edzőtársat és a Beállításokat, rövid magyar magyarázattal. Saját, függőség nélküli megoldás (a Shepherd.js újabb kiadásai AGPL/kereskedelmi licencűek); a közös dialóguskezelést (`lib/modalA11y.js`) használja: fókusz, Tab-csapda, Esc = kihagyás, nyílbillentyűk. Az állapot a fiókhoz mentődik (`tour`: `pending` → `done`), így megszakítás után a következő belépéskor folytatódik, és eszközfüggetlen. A meglévő felhasználóknál nem indul el magától; a Beállítások › Fiók és biztonság › „Bemutató újraindítása” gombbal bármikor újra megnézhető. Horgonyok: `data-tour` attribútumok; ha egy horgony nincs a lapon (pl. az Edzőtárs az első szinkron előtt), az a lépés kimarad. Nagyobb változásnál a `TOUR_VERSION` emelendő.
+
 ### Személyes regenerációs modell (napi karbantartás)
 
 A production telepítés naponta egyszer (03:15 UTC, Vercel Cron) meghívja a `/api/retrain` végpontot. Ehhez a Vercel Production környezetében kötelező egy hosszú, véletlen `CRON_SECRET`; a Vercel ezt `Bearer` hitelesítésként küldi, hiányzó vagy eltérő titoknál a végpont nem indul el.
