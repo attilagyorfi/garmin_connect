@@ -115,7 +115,7 @@ export function PersistentCalendarPage({
       />
       <section
         className="calendar-week-summary card"
-        aria-label="A kiválasztott hét terv és tény összesítése"
+        aria-label="A kiválasztott hét: terv és tény összesítve"
       >
         <div>
           <span className="eyebrow">KIVÁLASZTOTT HÉT</span>
@@ -145,9 +145,9 @@ export function PersistentCalendarPage({
             {weekSummary.weekPlans.length ? `${weekSummary.plannedMinutes}p` : "nincs terv"} /{" "}
             {weekSummary.weekActivities.length
               ? `${weekSummary.weekActivities.reduce((sum, item) => sum + Number(item.durationMin || 0), 0)}p`
-              : "nincs tény"}
+              : "nincs edzés"}
           </strong>
-          <small>TERV / TÉNY IDŐ</small>
+          <small>IDŐ: TERV / TÉNY</small>
         </span>
         <span>
           <strong>
@@ -170,11 +170,11 @@ export function PersistentCalendarPage({
           </span>
           <span>
             <i className="done" />
-            TELJESÍTETT
+            ELVÉGZETT
           </span>
           <span>
             <i className="extra" />
-            GARMIN ELŐZMÉNY
+            GARMIN-ELŐZMÉNY
           </span>
         </div>
         <div className="calendar-toolbar-actions">
@@ -185,7 +185,7 @@ export function PersistentCalendarPage({
             TÖBB EDZÉS MOZGATÁSA
           </button>
           <button onClick={() => setTemplateEditor(true)}>
-            HETI SABLON SZEMÉLYRE SZABÁSA
+            HETI TERV SABLONBÓL
           </button>
         </div>
       </div>
@@ -246,7 +246,7 @@ export function PersistentCalendarPage({
                           <span>TERV</span>
                           <b>{plan.title}</b>
                           <small>
-                            {plan.duration} perc · {plan.intensity} · RPE {plan.rpe}/10
+                            {plan.duration} perc · {plan.intensity} · RPE (edzésérzet) {plan.rpe}/10
                           </small>
                         </div>
                         <div
@@ -255,8 +255,8 @@ export function PersistentCalendarPage({
                           <b>{result.status.toUpperCase()}</b>
                           {result.activity && (
                             <span>
-                              {result.method} párosítás · tény{" "}
-                              {result.activity.durationMin} perc · eltérés{" "}
+                              {result.method} párosítás · tény:{" "}
+                              {result.activity.durationMin} perc · eltérés:{" "}
                               {result.difference > 0 ? "+" : ""}
                               {result.difference} perc
                             </span>
@@ -293,7 +293,7 @@ export function PersistentCalendarPage({
               : selectedDate.getDay() === 0 ||
                   dayCodes[selectedDate.getDay()] === profile.restDay
                 ? "Tervezett pihenőnap."
-                : "Nincs edzés erre a napra."}
+                : "Erre a napra nincs edzés."}
           </div>
         </div>
         <div className="calendar-detail-actions">
