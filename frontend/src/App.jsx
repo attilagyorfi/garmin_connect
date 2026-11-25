@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import brandMarkUrl from "./assets/hybrid-athlete-mark-on-dark.svg";
 import { AssistantPanel } from "./components/AssistantPanel.jsx";
 import { BrandSplash, forceSplashPreview, splashWasShown } from "./components/Brand.jsx";
+import { DashboardNotice } from "./components/DashboardNotice.jsx";
 import { ExplainabilityLayer, MetricHeaderLayer } from "./components/Explainability.jsx";
 import { Sidebar } from "./components/Sidebar.jsx";
 import { DATA_PAGES, SyncGate } from "./components/SyncGate.jsx";
@@ -38,11 +39,15 @@ export function App(){
   useEffect(()=>{let activeRequest=true;fetch("/api/auth").then(response=>response.ok?response.json():{user:null}).then(body=>{if(activeRequest)setUser(body.user||null)}).catch(()=>{}).finally(()=>activeRequest&&setAuthReady(true));return()=>{activeRequest=false}},[]);
   useEffect(()=>{if(!user)return;let activeRequest=true;setCloudState(null);fetchCloudState().then(remote=>{if(!activeRequest)return;setCloudState(remote);if(remote.tour?.status!=="done")setTourOpen(true);if(remote.profile){saveProfile(remote.profile);localStorage.setItem("hybrid-onboarding-version","2");setOnboarded(true)}else{setProfile({...defaultProfile,name:user.name||"Sportoló"});setOnboarded(false)}if(remote.accent)applyAccent(remote.accent)}).catch(()=>{});return()=>{activeRequest=false}},[user?.id]);
   // Data-derived pages stay locked until the account has a synced (or seeded) dashboard snapshot.
-  const checkData=()=>fetch("/api/dashboard").then(response=>setDataReady(response.ok)).catch(()=>setDataReady(false));
-  useEffect(()=>{if(!user)return;setDataReady(null);checkData();fetch("/api/garmin").then(response=>response.ok?response.json():null).then(setGarminStatus).catch(()=>{})},[user?.id]);
+  // Only the known 404 means "no data yet": any other failure keeps the opened pages, or asks for a retry if nothing was
+  // opened. An answer to an older check, or to a previous account's one, is dropped.
+  const dataCheck=useRef(0);
+  const checkData=async()=>{const check=++dataCheck.current;let next="error";try{const response=await fetch("/api/dashboard");if(response.ok)next=true;else if(response.status===404&&(await response.json().catch(()=>null))?.code==="no_dashboard_data")next=false}catch{}if(check===dataCheck.current)setDataReady(current=>next==="error"&&current===true?true:next)};
+  const retryData=()=>{setDataReady(null);checkData()};
+  useEffect(()=>{if(!user)return;let activeRequest=true;setDataReady(null);checkData();fetch("/api/garmin").then(response=>response.ok?response.json():null).then(value=>{if(activeRequest)setGarminStatus(value)}).catch(()=>{});return()=>{activeRequest=false;dataCheck.current+=1}},[user?.id]);
   const signedOut=(notice="")=>{setAuthNotice(notice);setUser(null);setCloudState(null);setDataReady(null);setGarminStatus(null);setActive("Ma")},logout=async()=>{await fetch("/api/auth",{method:"DELETE"}).catch(()=>{});signedOut()};
   const navigate=(page,context={})=>{setPageContext(context);setActive(page)},openPage=page=>navigate(page);const pages={"Áttekintés":<OverviewPage profile={profile} onDataChanged={checkData}/>,"Ma":<TodayLive profile={profile} cloudState={cloudState} onCloudPatch={saveCloudPatch} onDataChanged={checkData}/>,"Naptár":<PersistentCalendarPage key={pageContext.calendarDate||"today"} profile={profile} cloudState={cloudState} onCloudPatch={saveCloudPatch} initialDate={pageContext.calendarDate} onNavigate={navigate}/>,"Trendek":<LiveTrendsPage profile={profile}/>,"Cél":<GoalPage key={pageContext.openAdaptive?"adaptive":"goal"} profile={profile} onEdit={()=>navigate("Profil")} cloudState={cloudState} onCloudPatch={saveCloudPatch} onNavigate={navigate} initialAdaptiveOpen={Boolean(pageContext.openAdaptive)}/>,"Insights":<InsightsPage profile={profile}/>,"Hol tartasz?":<BenchmarksPage/>,"Napló":<LiveJournalPage profile={profile} cloudState={cloudState} onCloudPatch={saveCloudPatch} initialActivityId={pageContext.journalActivityId} onNavigate={navigate}/>,"Profil":<ProfilePage profile={profile} onSave={saveProfileCloud}/>,"Beállítások":<SettingsPage accent={accent} onAccent={applyAccentCloud} profile={profile} onProfileSave={saveProfileCloud} user={user} onLogout={logout} garminStatus={garminStatus} onGarminStatus={setGarminStatus} onPasswordChanged={signedOut} onAccountDeleted={notice=>{setOnboarded(false);signedOut(notice)}} onStartTour={()=>setTourOpen(true)}/>};
-  const gated=dataReady!==true&&DATA_PAGES.includes(active),gate=dataReady===null?<p className="sync-gate-loading">Megnézzük az adataidat…</p>:<SyncGate garminStatus={garminStatus} onGarminStatus={setGarminStatus} onDataChanged={checkData}/>;
+  const gated=dataReady!==true&&DATA_PAGES.includes(active),gate=dataReady===null?<p className="sync-gate-loading" role="status">Megnézzük az adataidat…</p>:dataReady==="error"?<DashboardNotice status="error" onRetry={retryData}/>:<SyncGate garminStatus={garminStatus} onGarminStatus={setGarminStatus} onDataChanged={checkData}/>;
   const tourState=status=>({tour:{status,version:TOUR_VERSION,updatedAt:new Date().toISOString()}});
   const finishTour=()=>{setTourOpen(false);saveCloudPatch(tourState("done"))};
   const finishSplash=()=>{globalThis.sessionStorage?.setItem("hybrid-splash-shown","1");setShowSplash(false)};

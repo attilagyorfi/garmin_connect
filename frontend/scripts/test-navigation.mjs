@@ -278,7 +278,9 @@ try {
       const kpis=document.querySelector(".overview-kpis")?.textContent||"",quality=document.querySelector(".overview-quality")?.textContent||"";
       if (!kpis.includes("Edzések")||!document.querySelector(".overview-data-state")?.textContent.includes("Adatforrás")) throw new Error("Az Áttekintés nem a betöltött adatokat mutatja.");
       if (!quality.includes("3 / 4 elérhető")||!quality.includes("461 edzés")) throw new Error("Az Áttekintés adatminőségi és lefedettségi magyarázata hiányos.");
-      if (document.querySelector(".overview-page .metric-help-icon,[aria-label*='?']")) throw new Error("Kérdőjeles jelvény maradt az Áttekintésen.");
+      // The only allowed "?" is the visible page name of one menu item; anything else would be a help badge.
+      const questionMarks=[...document.querySelectorAll("[aria-label*='?']")].filter(node=>!(node.matches('.sidebar nav button[data-tour="Hol tartasz?"]')&&node.getAttribute("aria-label")==="Hol tartasz?"));
+      if (document.querySelector(".overview-page .metric-help-icon")||questionMarks.length) throw new Error("Kérdőjeles jelvény maradt az Áttekintésen.");
     }
     if (label === "Trendek") {
       const translation=document.querySelector('.decision-translation');
@@ -417,7 +419,7 @@ try {
     if (label === "Összefüggések") {
       await act(async () => new Promise(resolve=>setTimeout(resolve,5)));
       const recap=[...document.querySelectorAll(".weekly-recap>div:last-child>span")];
-      if (recap.map(node=>node.dataset.metric).join()!=="Terhelés,Edzésidő,Edzésidő,Terhelhetőség"||!recap[3].textContent.includes("TERHELHETŐSÉG")||!recap[3].dataset.explanation.startsWith("A terhelhetőséged 0 és 100 között")||recap[3].tabIndex!==0||recap[3].querySelector(".metric-help")) throw new Error("A mostani hét értékeinek magyarázata hibás: "+recap.map(node=>node.dataset.metric).join());
+      if (recap.map(node=>node.dataset.metric).join()!=="Terhelés,Edzésidő,Időkeret,Terhelhetőség"||!recap[3].textContent.includes("TERHELHETŐSÉG")||!recap[3].dataset.explanation.startsWith("A terhelhetőséged 0 és 100 között")||recap[3].tabIndex!==0||recap[3].querySelector(".metric-help")) throw new Error("A mostani hét értékeinek magyarázata hibás: "+recap.map(node=>node.dataset.metric).join());
       const digest=document.querySelector(".weekly-digest");
       if (!digest?.textContent.includes("08.10.–08.16.")||!digest.textContent.includes("+12%")||!digest.textContent.includes("ERRE FIGYELJ A KÖVETKEZŐ HÉTEN")) throw new Error("A heti összefoglaló hiányos.");
       console.log("OK heti összefoglaló");
