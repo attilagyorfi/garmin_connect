@@ -145,9 +145,9 @@ def evaluate_retraining(
         return {
             "status": "insufficient",
             "due": False,
-            "reasons": ["nincs elemezhető napi adat"],
+            "reasons": ["Nincs elemezhető napi adat."],
             "current_data_end": None,
-            "message": "Nincs elemezhető napi adat az újratanításhoz.",
+            "message": "Nincs elemezhető napi adat, ezért most nem tudjuk újratanítani a modelledet.",
         }
 
     current_data_end = str(frame.index.max().date())
@@ -167,10 +167,10 @@ def evaluate_retraining(
         return {
             "status": "unchanged",
             "due": False,
-            "reasons": ["ehhez az adatállapothoz már készült modelljelölt"],
+            "reasons": ["Ezekből az adatokból már készült új modellváltozat."],
             "current_data_end": current_data_end,
             "drift": drift,
-            "message": "Nem érkezett a legutóbbi modelljelölt óta új adat.",
+            "message": "A legutóbbi modellváltozat óta nem érkezett új adat.",
         }
     latest_attempt = versions[0] if versions else None
     if latest_attempt:
@@ -187,13 +187,13 @@ def evaluate_retraining(
                 "status": "not_due",
                 "due": False,
                 "reasons": [
-                    f"az utolsó modelljelölt óta még csak {new_labeled_days} új címkézett adatnap érkezett"
+                    f"Az utolsó modellváltozat óta még csak {new_labeled_days} új értékelhető nap van."
                 ],
                 "current_data_end": current_data_end,
                 "drift": drift,
                 "message": (
-                    "A rendszer naponta ellenőriz, de változatlan vagy alig bővült "
-                    "adatokon nem tanít újra feleslegesen."
+                    "Naponta megnézzük az adataidat. Ha nem változtak, vagy alig van új, "
+                    "nem tanítjuk újra feleslegesen a modelledet."
                 ),
             }
     if not recommendation["due"]:
@@ -203,7 +203,7 @@ def evaluate_retraining(
             "reasons": recommendation["reasons"],
             "current_data_end": current_data_end,
             "drift": drift,
-            "message": "Jelenleg nincs szükség új modelljelöltre.",
+            "message": "Most nincs szükség új modellváltozatra.",
         }
 
     validation = validate_recovery_model(frame, activities, feedback)
@@ -349,8 +349,8 @@ def run_scheduled_retraining(
                 error_evaluation = {
                     "status": "error",
                     "due": False,
-                    "reasons": ["a kiértékelés technikai hiba miatt megszakadt"],
-                    "message": f"Az automatikus kiértékelés sikertelen ({type(exc).__name__}).",
+                    "reasons": ["Technikai hiba miatt megszakadt az ellenőrzés."],
+                    "message": f"Nem sikerült az automatikus ellenőrzés ({type(exc).__name__}). Nézz vissza később.",
                 }
                 try:
                     _save_run(str(user_id), error_evaluation, db)

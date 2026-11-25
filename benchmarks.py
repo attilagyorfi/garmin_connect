@@ -149,7 +149,7 @@ def vo2max_card(athlete: dict[str, Any], today: date) -> dict[str, Any]:
     title, sources = "VO2max – aerob kapacitás", ["hunt2013"]
     sex, age, value = athlete.get("sex"), athlete.get("age"), athlete.get("vo2max_running")
     if not value:
-        return _missing("vo2max", title, "Nincs futásból becsült VO2max-érték; egy pulzusmérős, szabadtéri futás után a Garmin kiszámolja.", sources)
+        return _missing("vo2max", title, "Még nincs futásból becsült VO2max-értéked. Egy szabadtéri, pulzusméréses futás után a Garmin kiszámolja.", sources)
     if sex not in VO2MAX_HUNT or not age or age < 20:
         return _missing("vo2max", title, "Az összevetéshez add meg a nemed és a születési dátumod a Garminban.", sources)
     percentile, row = vo2max_percentile(value, sex, age)
@@ -170,9 +170,9 @@ def vo2max_card(athlete: dict[str, Any], today: date) -> dict[str, Any]:
     return _card(
         "vo2max", title, value=value, valueText=f"{_fmt(value)} ml/kg/perc", percentile=round(percentile), level=level, category=category,
         cohort=_cohort(row, sex), headline=f"Jobb, mint a veled egykorú {SEX_LABEL[sex]} kb. {round(percentile)}%-áé.",
-        detail=f"Referencia: {_cohort(row, sex)} átlaga {_fmt(row[2])} ml/kg/perc (szórás {_fmt(row[3])}).",
+        detail=f"Viszonyítási csoport: {_cohort(row, sex)}. Az átlaguk {_fmt(row[2])} ml/kg/perc, a szórás (az átlag körüli ingadozás) {_fmt(row[3])}.",
         trend=trend, nextGoal=next_goal, sources=sources,
-        caveat="A Garmin a VO2max-ot pulzusból és tempóból becsüli, a referencia laborban mért érték egészséges norvég felnőttektől, akik az átlagnál edzettebbek lehetnek.",
+        caveat="A Garmin a VO2max-ot pulzusból és tempóból becsüli. A viszonyítási értékeket laborban mérték egészséges norvég felnőtteken, akik az átlagnál edzettebbek lehetnek.",
     )
 
 
@@ -197,7 +197,7 @@ def aerobic_card(athlete: dict[str, Any], today: date) -> dict[str, Any]:
     current_monday = today - timedelta(days=today.weekday())
     weeks = [item for item in athlete.get("intensity_weeks") or [] if date.fromisoformat(item["week_start"]) < current_monday][-4:]
     if not weeks:
-        return _missing("aerobic", title, "Még nincs elég heti intenzív perc adat (a Garmin a mérsékelt és intenzív perceket számolja).", sources)
+        return _missing("aerobic", title, "Még nincs elég heti adat az intenzív perceidről. A Garmin a mérsékelt és az intenzív perceket számolja.", sources)
     minutes = sum(item["moderate"] + item["vigorous"] for item in weeks) / len(weeks)
     equivalent = sum(item["equivalent"] for item in weeks) / len(weeks)
     who = "teljesíted a WHO bővített ajánlását (300+ perc)" if equivalent >= 300 else "teljesíted a WHO-ajánlást (150+ perc)" if equivalent >= 150 else f"a WHO-ajánláshoz még {round(150 - equivalent)} perc hiányzik hetente"
@@ -214,10 +214,10 @@ def aerobic_card(athlete: dict[str, Any], today: date) -> dict[str, Any]:
     return _card(
         "aerobic", title, value=round(minutes), valueText=f"{round(minutes)} perc/hét", percentile=round(percentile), atLeast=at_least,
         level=level, category=category, cohort=cohort, headline=headline,
-        detail=f"Az elmúlt {len(weeks)} lezárt hét átlaga. A {cohort} {_fmt(shares[0])}%-a egyáltalán nem végez szabadidős aerob mozgást. Intenzitással súlyozva (1 intenzív perc = 2 mérsékelt) {who}.",
-        nextGoal=None if equivalent >= 300 else f"Heti {round(300 - equivalent)} további súlyozott perccel elérnéd a 300 perces bővített ajánlást.",
+        detail=f"Az elmúlt {len(weeks)} lezárt hét átlaga. A {cohort} {_fmt(shares[0])}%-a egyáltalán nem végez szabadidős aerob (állóképességi) mozgást. Intenzitással súlyozva (1 intenzív perc = 2 mérsékelt) {who}.",
+        nextGoal=None if equivalent >= 300 else f"Heti {round(300 - equivalent)} további mérsékelt perccel elérnéd a 300 perces bővített ajánlást. Egy intenzív perc kettőnek számít.",
         sources=sources, confidence="közepes",
-        caveat="A referencia kérdőíves, saját bevalláson alapuló adat a munkán kívüli aerob sportról; a Garmin minden mérsékelt és intenzív percet számol.",
+        caveat="A viszonyítási adat kérdőívből jön: az emberek maguk mondták be, mennyi aerob sportot végeznek a munkán kívül. A Garmin viszont minden mérsékelt és intenzív percet számol.",
     )
 
 
@@ -239,18 +239,18 @@ def strength_card(athlete: dict[str, Any], activities: list[dict[str, Any]], tod
     meets = per_week >= 2
     base = dict(value=round(per_week, 1), valueText=f"{_fmt(per_week)} edzés/hét", sources=sources, confidence="közepes",
                 detail=f"Az elmúlt 4 hétben {sessions} erőedzést rögzítettél. A WHO legalább heti 2 nap izomerősítést ajánl.",
-                caveat="A referencia kérdőíves adat az izomerősítő mozgás gyakoriságáról.")
+                caveat="A viszonyítási adat kérdőívből jön, és az izomerősítő mozgás gyakoriságáról szól.")
     if sex not in MUSCLE_HU_2019 or not group:
-        return _card("strength", title, headline="Teljesíted a heti 2 erősítő edzés ajánlást." if meets else "A WHO heti legalább 2 erősítő edzést ajánl.", **base)
+        return _card("strength", title, headline="Teljesíted az ajánlott heti 2 erősítő edzést." if meets else "A WHO heti legalább 2 erősítő edzést ajánl.", **base)
     share = MUSCLE_HU_2019[sex][group[2]]
     cohort = _cohort(group, sex, hungarian=True)
     if meets:
         percentile = 100 - share
         level, category = level_for(percentile)
         return _card("strength", title, percentile=round(percentile), atLeast=True, level=level, category=category, cohort=cohort,
-                     headline=f"A {cohort} csak {_fmt(share)}%-a erősít ilyen rendszeresen – te köztük vagy.", **base)
+                     headline=f"A {cohort} csak {_fmt(share)}%-a erősít ilyen rendszeresen. Te köztük vagy.", **base)
     return _card("strength", title, level=0, category="építkező", cohort=cohort,
-                 headline=f"A {cohort} {_fmt(share)}%-a végez rendszeres izomerősítést.",
+                 headline=f"A {cohort} {_fmt(share)}%-a végez rendszeresen izomerősítő mozgást.",
                  nextGoal=f"Heti {_fmt(2 - per_week)} további erőedzéssel teljesítenéd a heti 2 alkalmas ajánlást.", **base)
 
 
@@ -271,7 +271,7 @@ def rhr_card(athlete: dict[str, Any], resting_hr: list[float]) -> dict[str, Any]
     values = [value for value in resting_hr if value]
     sex, age = athlete.get("sex"), athlete.get("age")
     if len(values) < 3:
-        return _missing("rhr", title, "Az elmúlt hétről nincs elég nyugalmi pulzus adat.", sources)
+        return _missing("rhr", title, "Az elmúlt hétről nincs elég adat a nyugalmi pulzusodról.", sources)
     value = median(values)
     if sex not in RHR_NHANES or not age or age < 20:
         return _missing("rhr", title, "Az összevetéshez add meg a nemed és a születési dátumod a Garminban.", sources)
@@ -281,8 +281,8 @@ def rhr_card(athlete: dict[str, Any], resting_hr: list[float]) -> dict[str, Any]
     return _card(
         "rhr", title, value=round(value), valueText=f"{round(value)} ütés/perc", percentile=round(lower_than), level=level, category=category,
         cohort=_cohort(row, sex), headline=f"Alacsonyabb, mint a veled egykorú {SEX_LABEL[sex]} kb. {round(lower_than)}%-áé.",
-        detail=f"Az elmúlt {len(values)} nap mediánja. Referencia-medián: {row[2][5]} ütés/perc.", sources=sources, confidence="tájékoztató",
-        caveat="A referenciát rendelőben, ülve mérték; a Garmin a nap legalacsonyabb nyugalmi értékét adja, ami jellemzően alacsonyabb, ezért az összevetés kedvezőbb képet mutathat.",
+        detail=f"Az elmúlt {len(values)} nap középső értéke (mediánja). A viszonyítási csoport mediánja {row[2][5]} ütés/perc.", sources=sources, confidence="tájékoztató",
+        caveat="A viszonyítási értékeket rendelőben, ülve mérték. A Garmin a nap legalacsonyabb nyugalmi értékét adja. Ez jellemzően alacsonyabb, ezért az összevetés kedvezőbb képet mutathat.",
     )
 
 
@@ -297,8 +297,8 @@ def sleep_card(sleep_hours: list[float]) -> dict[str, Any]:
     return _card(
         "sleep", title, value=round(average, 1), valueText=f"{_fmt(average)} óra/éj", level=level, category=category,
         headline=f"Az elmúlt {len(nights)} éjszakából {enough} volt legalább 7 órás.",
-        detail="Felnőtteknek rendszeresen legalább 7 óra alvás ajánlott; ez a regeneráció és a teljesítmény egyik alapja.",
-        nextGoal=None if ratio >= 0.85 else "Cél: a hét legalább 6 éjszakáján 7+ óra alvás.", sources=sources, confidence="magas",
+        detail="A szakmai ajánlás felnőtteknek rendszeresen legalább 7 óra alvás. Ez a regenerálódás és a teljesítmény egyik alapja.",
+        nextGoal=None if ratio >= 0.85 else "Hetente legalább 6 éjszaka aludj 7+ órát.", sources=sources, confidence="magas",
     )
 
 
@@ -306,15 +306,15 @@ def steps_card(athlete: dict[str, Any]) -> dict[str, Any]:
     title, sources = "Napi lépésszám", ["paluch2022"]
     value, age = athlete.get("avg_daily_steps"), athlete.get("age")
     if not value:
-        return _missing("steps", title, "Nincs napi lépésszám adat.", sources)
+        return _missing("steps", title, "Nincs adat a napi lépésszámodról.", sources)
     low, high = (6000, 8000) if age and age >= 60 else (8000, 10000)
     level, category = (3, "kiváló") if value >= high else (2, "jó") if value >= low else (1, "átlagos") if value >= low * 0.7 else (0, "építkező")
     band = f"{_fmt(low, 0)}–{_fmt(high, 0)}"
     return _card(
         "steps", title, value=value, valueText=f"{_fmt(value, 0)} lépés/nap", level=level, category=category,
         headline=f"{'Eléred' if value >= high else 'Megközelíted' if value >= low else 'Még nem éred el'} a korodnak megfelelő {band} lépéses sávot.",
-        detail=f"Egy 15 kohorszos metaanalízisben a halálozási kockázat {'60 év felett' if age and age >= 60 else '60 év alatt'} nagyjából {band} napi lépésig csökkent tovább.",
-        nextGoal=None if value >= high else f"Napi kb. {_fmt(high - value, 0)} további lépés a sáv felső határáig.", sources=sources, confidence="magas",
+        detail=f"Egy 15 követett embercsoport (kohorsz) adatait összesítő elemzésben a halálozási kockázat {'60 év felett' if age and age >= 60 else '60 év alatt'} nagyjából {band} napi lépésig csökkent tovább.",
+        nextGoal=None if value >= high else f"Napi kb. {_fmt(high - value, 0)} további lépéssel eléred a sáv felső határát.", sources=sources, confidence="magas",
     )
 
 
@@ -329,7 +329,7 @@ def fitness_age_card(athlete: dict[str, Any]) -> dict[str, Any]:
     return _card(
         "fitness_age", title, value=round(fitness, 1), valueText=f"{_fmt(fitness)} év", level=level, category=category,
         headline=(f"{_fmt(difference)} évvel fiatalabb a naptári korodnál." if difference >= 0.5 else f"{_fmt(-difference)} évvel idősebb a naptári korodnál." if difference <= -0.5 else "Megegyezik a naptári koroddal."),
-        detail="A Garmin a VO2max, a nyugalmi pulzus, a heti intenzív percek és a BMI alapján számolja.",
+        detail="A Garmin a VO2max, a nyugalmi pulzus, a heti intenzív percek és a BMI (testtömegindex) alapján számolja.",
         nextGoal=f"A Garmin szerint elérhető fittségi kor: {_fmt(achievable)} év." if achievable and achievable < fitness - 0.4 else None,
         sources=sources, confidence="magas",
     )

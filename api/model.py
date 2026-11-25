@@ -21,7 +21,7 @@ class handler(BaseHTTPRequestHandler):
         try:
             user = current_user(self.headers)
             if not user:
-                self._send({"error": "A művelethez bejelentkezés szükséges."}, 401)
+                self._send({"error": "Ehhez be kell jelentkezned."}, 401)
                 return
             self._send(model_status(user["id"]))
         except Exception:

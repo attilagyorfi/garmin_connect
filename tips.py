@@ -40,14 +40,14 @@ def load_ramp_tip(wellness: pd.DataFrame) -> dict[str, Any] | None:
     if ratio > 1.5:
         return _tip("load_ramp", "warn", 90, "Túl gyorsan nőtt a terhelésed",
                     "Az elmúlt napokban jóval többet edzettél, mint amihez a szervezeted hozzászokott.", why,
-                    "Iktass be 1–2 könnyű vagy pihenőnapot, és a következő héten ne emeld tovább a volument.")
+                    "Iktass be 1–2 könnyű vagy pihenőnapot, és a következő héten ne emeld tovább az edzésmennyiséget.")
     if ratio > 1.3:
         return _tip("load_ramp", "warn", 70, "Emelkedik a terhelés",
-                    "A terhelésed a szokásosnál gyorsabban nő; ez még kezelhető, de figyelni kell rá.", why,
+                    "A terhelésed a szokásosnál gyorsabban nő. Ez még kezelhető, de figyelj rá.", why,
                     "Tartsd a mostani szintet egy hétig, mielőtt tovább növelnéd.")
     if ratio < 0.75 and ctl.iloc[0] >= 10:
         return _tip("load_ramp", "nudge", 40, "Visszaesett az edzésmennyiség",
-                    "Az utóbbi napokban kevesebbet edzettél a megszokottnál; ha nem tudatos pihenőhét, érdemes visszatérni a ritmushoz.", why,
+                    "Az utóbbi napokban kevesebbet edzettél a megszokottnál. Ha ez nem tudatos pihenőhét, érdemes visszatérned a ritmusodhoz.", why,
                     "Tervezz be a következő 3 napra legalább két közepes edzést.")
     return None
 
@@ -58,14 +58,14 @@ def hrv_tip(wellness: pd.DataFrame) -> dict[str, Any] | None:
     if len(recent) < 4 or len(baseline) < 10:
         return None
     change = (recent.mean() / baseline.median() - 1) * 100
-    why = f"Az elmúlt 7 nap átlagos HRV-je {_fmt(recent.mean(), 0)} ms, a megelőző 4 hét mediánja {_fmt(baseline.median(), 0)} ms ({'+' if change >= 0 else ''}{_fmt(change, 0)}%)."
+    why = f"Az elmúlt 7 nap átlagos HRV-je {_fmt(recent.mean(), 0)} ms, a megelőző 4 hét középső értéke (mediánja) {_fmt(baseline.median(), 0)} ms ({'+' if change >= 0 else ''}{_fmt(change, 0)}%)."
     if change <= -10:
         return _tip("hrv", "warn", 80, "A HRV-d a szokásosnál alacsonyabb",
-                    "A tartósan alacsonyabb HRV gyakran fáradtságot, stresszt vagy kevés alvást jelez.", why,
-                    "A következő napokban válassz könnyebb edzést, és figyelj az alvásra; ha betegnek érzed magad, pihenj.")
+                    "Ha a HRV (a szívverések közötti idő ingadozása) tartósan alacsonyabb, az gyakran fáradtságot, stresszt vagy kevés alvást jelez.", why,
+                    "A következő napokban válassz könnyebb edzést, és figyelj az alvásra. Ha betegnek érzed magad, pihenj.")
     if change >= 5:
         return _tip("hrv", "celebrate", 50, "Jól regenerálódsz",
-                    "A HRV-d a saját megszokott szinted fölött van, ami jó alkalmazkodásra utal.", why,
+                    "A HRV-d (a szívverések közötti idő ingadozása) a saját megszokott szinted fölött van. Ez jó alkalmazkodásra utal.", why,
                     "Ha a többi jel is rendben van, ez jó időszak egy minőségi edzéshez.")
     return None
 
@@ -80,8 +80,8 @@ def resting_hr_tip(wellness: pd.DataFrame) -> dict[str, Any] | None:
         return None
     return _tip("resting_hr", "warn", 85, "Megemelkedett a nyugalmi pulzusod",
                 f"Az utóbbi napokban kb. {_fmt(difference, 0)} ütés/perccel magasabb a szokásosnál.",
-                f"Az elmúlt {len(recent)} nap átlaga {_fmt(recent.mean(), 0)} ütés/perc, a megelőző 4 hét mediánja {_fmt(baseline.median(), 0)} ütés/perc.",
-                "Ez fáradtság, kevés alvás, stressz vagy kezdődő betegség jele is lehet: ma inkább könnyű mozgás vagy pihenő legyen. Ha tünetet is észlelsz, kérd szakember tanácsát.")
+                f"Az elmúlt {len(recent)} nap átlaga {_fmt(recent.mean(), 0)} ütés/perc, a megelőző 4 hét középső értéke (mediánja) {_fmt(baseline.median(), 0)} ütés/perc.",
+                "Ez fáradtság, kevés alvás, stressz vagy kezdődő betegség jele is lehet. Ma inkább könnyű mozgás vagy pihenő legyen. Ha tünetet is észlelsz, kérd szakember tanácsát.")
 
 
 def sleep_tip(wellness: pd.DataFrame) -> dict[str, Any] | None:
@@ -89,14 +89,14 @@ def sleep_tip(wellness: pd.DataFrame) -> dict[str, Any] | None:
     if len(nights) < 5:
         return None
     short = int((nights < 6).sum())
-    why = f"Az elmúlt {len(nights)} éjszaka átlaga {_fmt(nights.mean())} óra; {short} éjszaka volt 6 óránál rövidebb."
+    why = f"Az elmúlt {len(nights)} éjszaka átlaga {_fmt(nights.mean())} óra, és {short} éjszaka volt 6 óránál rövidebb."
     if nights.mean() < 6.5 or short >= 3:
         return _tip("sleep", "warn", 75, "Alváshiány gyűlik",
-                    "Az elmúlt héten keveset aludtál; ez rontja a regenerációt és a teljesítményt.", why,
+                    "Az elmúlt héten keveset aludtál. Ez rontja a regenerálódást és a teljesítményt.", why,
                     "Próbálj a következő napokban 30–60 perccel korábban lefeküdni, és a kemény edzést tedd egy kipihent nap utánra.")
     if (nights >= 7).all():
         return _tip("sleep", "celebrate", 30, "Minden éjjel kialudtad magad",
-                    "Az elmúlt héten minden éjszaka legalább 7 órát aludtál.", why, "Tartsd ezt a ritmust – ez a fejlődés egyik alapja.")
+                    "Az elmúlt héten minden éjszaka legalább 7 órát aludtál.", why, "Tartsd ezt a ritmust, ez a fejlődés egyik alapja.")
     return None
 
 
@@ -109,14 +109,14 @@ def intensity_tip(activities: pd.DataFrame, today: date) -> dict[str, Any] | Non
     if total < 90 or zone2 + high <= 0:
         return None
     high_share, zone2_share = high / total, zone2 / total
-    why = f"Az elmúlt 7 nap pulzuszónás edzésidejéből {_fmt(high_share * 100, 0)}% volt magas intenzitású, {_fmt(zone2_share * 100, 0)}% 2-es zónás."
+    why = f"Az elmúlt 7 napban a pulzuszónákkal mért edzésidődből {_fmt(high_share * 100, 0)}% volt magas intenzitású, és {_fmt(zone2_share * 100, 0)}% 2-es zónás, vagyis könnyű."
     if high_share > 0.25:
         return _tip("intensity", "warn", 60, "Sok a magas intenzitás",
-                    "Az állóképességi edzéseid nagy része kemény tartományban zajlott; ez hosszabb távon fárasztó.", why,
-                    "Az edzésidő nagyjából 80%-a legyen könnyű (2-es zóna), és csak kb. 20% intenzív.")
+                    "Az állóképességi edzéseid nagy részét kemény tartományban végezted. Ez hosszabb távon fárasztó.", why,
+                    "Az edzésidőd nagyjából 80%-a legyen könnyű (2-es zóna), és csak kb. 20% intenzív.")
     if zone2_share < 0.4:
-        return _tip("intensity", "nudge", 35, "Kevés a könnyű alapozó munka",
-                    "A 2-es zónás, beszélgetős tempójú edzés építi leghatékonyabban az aerob alapot.", why,
+        return _tip("intensity", "nudge", 35, "Kevés a könnyű alapozás",
+                    "A 2-es zónás, beszélgetős tempójú edzés építi leghatékonyabban az aerob (állóképességi) alapodat.", why,
                     "A következő héten legyen legalább 2 hosszabb, könnyű tempójú edzésed.")
     return None
 
@@ -155,7 +155,7 @@ def streak_tip(activities: pd.DataFrame, today: date) -> dict[str, Any] | None:
         return None
     return _tip("streak", "celebrate", 45 + min(20, streak), f"{streak} hete tartod a ritmust",
                 f"Egymás után {streak} héten át legalább 3 edzést teljesítettél.", "A következetesség a fejlődés legerősebb mozgatója.",
-                "Csak így tovább – a következő héten is tervezz be legalább 3 edzést.")
+                "Csak így tovább! A következő héten is tervezz be legalább 3 edzést.")
 
 
 def volume_change_tip(activities: pd.DataFrame, today: date) -> dict[str, Any] | None:
@@ -170,12 +170,12 @@ def volume_change_tip(activities: pd.DataFrame, today: date) -> dict[str, Any] |
     why = f"A múlt héten {_fmt(current, 0)} percet edzettél, az azelőttin {_fmt(previous, 0)} percet ({'+' if change >= 0 else ''}{_fmt(change, 0)}%)."
     if change >= 30:
         return _tip("volume", "warn", 65, "Nagyot ugrott a heti edzésidő",
-                    "A heti edzésidő hirtelen, 30%-nál nagyobb növelése emeli a túlterhelés kockázatát.", why,
+                    "Ha a heti edzésidőd hirtelen, 30%-nál többet nő, emelkedik a túlterhelés kockázata.", why,
                     "A következő héten tartsd vagy kicsit csökkentsd ezt a mennyiséget.")
     if change <= -40:
         return _tip("volume", "info", 30, "Könnyebb hét volt",
-                    "A múlt héten jóval kevesebbet edzettél; ha tudatos pihenőhét volt, ez jó a regenerációnak.", why,
-                    "Ha nem volt tervezett, a következő héten fokozatosan térj vissza a szokásos mennyiséghez.")
+                    "A múlt héten jóval kevesebbet edzettél. Ha ez tudatos pihenőhét volt, jót tesz a regenerálódásnak.", why,
+                    "Ha nem így tervezted, a következő héten fokozatosan térj vissza a szokásos mennyiséghez.")
     return None
 
 
@@ -198,8 +198,8 @@ def record_tip(athlete: dict[str, Any] | None, today: date) -> dict[str, Any] | 
         return None
     record = max(recent, key=lambda item: item["date"])
     return _tip("record", "celebrate", 75, f"Új egyéni csúcs: {record['label']}",
-                f"{date.fromisoformat(record['date']).strftime('%m. %d.')}-én {_format_record(record)} lett az új legjobb eredményed.",
-                "A Garmin az elmúlt 3 hétben új személyes rekordot rögzített.", "Ünnepeld meg – és a következő napokban hagyj időt a regenerációra.")
+                f"Az új legjobb eredményed: {_format_record(record)} ({date.fromisoformat(record['date']).strftime('%m. %d.')}).",
+                "A Garmin az elmúlt 3 hétben új egyéni csúcsot rögzített.", "Ünnepeld meg, és a következő napokban hagyj időt a regenerálódásra.")
 
 
 def vo2max_tip(athlete: dict[str, Any] | None, today: date) -> dict[str, Any] | None:
@@ -215,7 +215,7 @@ def vo2max_tip(athlete: dict[str, Any] | None, today: date) -> dict[str, Any] | 
     why = f"{previous['date']}: {_fmt(previous['running'])} → {latest['date']}: {_fmt(latest['running'])} ml/kg/perc."
     if change >= 1:
         return _tip("vo2max", "celebrate", 60, f"Nőtt a VO2max-od (+{_fmt(change)})",
-                    "Az aerob kapacitásod javult – az állóképességi munka meghozta az eredményét.", why,
+                    "Javult az aerob kapacitásod, vagyis több oxigént tud felvenni a szervezeted. Az állóképességi munka meghozta az eredményét.", why,
                     "Nézd meg a „Hol tartasz?” oldalon, hol állsz most a korosztályodban.")
     if change <= -1.5:
         return _tip("vo2max", "info", 50, "Csökkent a becsült VO2max-od",
@@ -231,12 +231,12 @@ def benchmark_tips(benchmarks: dict[str, Any] | None) -> list[dict[str, Any]]:
     if strength and strength.get("value") is not None and strength["value"] < 2:
         tips.append(_tip("strength", "nudge", 40, "Kevés az erősítés",
                          f"Az elmúlt 4 hétben átlagosan heti {_fmt(strength['value'])} erőedzésed volt.",
-                         "A WHO hetente legalább 2 nap izomerősítő mozgást ajánl; ez az állóképességi sportolóknak is segít a sérülésmegelőzésben.",
+                         "A WHO hetente legalább 2 nap izomerősítő mozgást ajánl. Az erősítés az állóképességi sportolóknak is segít megelőzni a sérüléseket.",
                          strength.get("nextGoal") or "Tervezz be heti 2 rövid, teljes testes erősítő edzést."))
     steps = cards.get("steps")
     if steps and (steps.get("level") or 0) <= 1:
         tips.append(_tip("steps", "nudge", 25, "Mozogj többet a hétköznapokban",
-                         f"Átlagosan {steps['valueText']} – ez a korodnak megfelelő sáv alatt van.", steps.get("headline") or "",
+                         f"Átlagosan {steps['valueText']}. Ez a korodnak megfelelő sáv alatt van.", steps.get("headline") or "",
                          steps.get("nextGoal") or "Iktass be napi egy 15–20 perces sétát."))
     return tips
 
@@ -275,10 +275,10 @@ def weekly_digest(wellness: pd.DataFrame, activities: pd.DataFrame, tips: list[d
     hrv, baseline = _series(days, "hrv").dropna(), _series(wellness[wellness.index.date < week_start], "hrv").dropna().tail(28)
     longest = week.sort_values("duration_min", ascending=False).head(1)
     change = (minutes / previous_minutes - 1) * 100 if previous_minutes >= 30 else None
-    parts = [f"{len(week)} edzés, {_fmt(minutes / 60)} óra edzésidő"]
+    parts = [f"{len(week)} edzésed volt, összesen {_fmt(minutes / 60)} óra edzésidővel"]
     if change is not None:
-        parts.append(f"{'+' if change >= 0 else ''}{_fmt(change, 0)}% az előző héthez képest")
-    summary = "A múlt héten " + ", ".join(parts) + "."
+        parts.append(f"Az edzésidőd {'+' if change >= 0 else ''}{_fmt(change, 0)}% az előző héthez képest")
+    summary = "A múlt héten " + ". ".join(parts) + "."
     if not longest.empty:
         row = longest.iloc[0]
         summary += f" A leghosszabb edzésed: {row['name']} ({_fmt(float(row['duration_min']), 0)} perc)."

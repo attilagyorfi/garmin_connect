@@ -129,7 +129,7 @@ def _new_job() -> dict[str, Any]:
         "status": "running",
         "phase": "activities",
         "progress": 1,
-        "message": "A teljes aktivitástörténet lekérése…",
+        "message": "Letöltjük az összes edzésedet…",
         "activity_offset": 0,
         "activities_fetched": 0,
         "hr_zones_done": 0,
@@ -150,7 +150,7 @@ def _fail(job: dict[str, Any], exc: Exception) -> dict[str, Any]:
     phase = job.get("phase")
     if phase and phase != "failed":
         job["resume_phase"] = phase
-    message = str(exc) if isinstance(exc, GarminSyncError) and str(exc) else "A szinkron váratlan hiba miatt megszakadt."
+    message = str(exc) if isinstance(exc, GarminSyncError) and str(exc) else "Váratlan hiba miatt megszakadt a szinkron. Próbáld újra pár perc múlva."
     job.update(status="failed", phase="failed", message=message, resumable=bool(job.get("resume_phase")),
                retry_after_seconds=0, next_retry_at=None, updated_at=_now())
     return job
@@ -160,14 +160,14 @@ def _schedule_retry(job: dict[str, Any]) -> dict[str, Any]:
     attempt = int(job.get("retry_count", 0)) + 1
     if attempt > MAX_TRANSIENT_RETRIES:
         return _fail(job, GarminSyncError(
-            "A Garmin többszöri automatikus próbálkozás után sem válaszolt. "
-            "Az eddigi előrehaladás megmaradt; később folytathatod a szinkront."
+            "Többször is próbáltuk, de a Garmin nem válaszolt. "
+            "Ami eddig letöltődött, megmarad. Később folytathatod a szinkront."
         ))
     delay = min(60, 2 ** attempt)
     job.update(
         status="running", retry_count=attempt, retry_after_seconds=delay,
         next_retry_at=(datetime.now().astimezone() + timedelta(seconds=delay)).isoformat(),
-        message=f"A Garmin átmenetileg nem elérhető. Automatikus újrapróbálás {delay} másodperc múlva…",
+        message=f"A Garmin átmenetileg nem elérhető. {delay} másodperc múlva újra próbáljuk…",
         updated_at=_now(),
     )
     return job
@@ -176,10 +176,10 @@ def _schedule_retry(job: dict[str, Any]) -> dict[str, Any]:
 def _resume_failed_job(job: dict[str, Any]) -> dict[str, Any]:
     phase = job.pop("resume_phase", None)
     if not phase:
-        raise GarminSyncError("Ez a szinkron nem folytatható. Indíts új szinkront.")
+        raise GarminSyncError("Ezt a szinkront nem lehet folytatni. Indíts újat.")
     job.pop("resumable", None)
     job.update(status="running", phase=phase, retry_count=0, retry_after_seconds=0, next_retry_at=None,
-               message="A korábbi szinkron folytatása…", updated_at=_now())
+               message="Folytatjuk a korábbi szinkront…", updated_at=_now())
     return job
 
 
@@ -240,16 +240,16 @@ def _advance_activities(job: dict[str, Any], sync: GarminSync, store: SyncStore)
     offset = int(job.get("activity_offset", 0))
     page = client.get_activities(offset, ACTIVITY_PAGE_SIZE)
     if not isinstance(page, list):
-        raise GarminSyncError("A Garmin aktivitáslistája ismeretlen formátumban érkezett.")
+        raise GarminSyncError("A Garmin ismeretlen formában küldte az edzéseidet, nem tudtuk beolvasni. Próbáld újra később.")
     store.stage("activity", {str(item["activityId"]): item for item in page if isinstance(item, dict) and item.get("activityId") is not None})
     job["activity_offset"] = offset + len(page)
     job["activities_fetched"] = job["activity_offset"]
     if page and len(page) >= ACTIVITY_PAGE_SIZE:
-        job.update(progress=min(30, 2 + (offset // ACTIVITY_PAGE_SIZE + 1) * 2), message=f"{job['activities_fetched']} aktivitás betöltve; folytatás a régebbi adatokkal…")
+        job.update(progress=min(30, 2 + (offset // ACTIVITY_PAGE_SIZE + 1) * 2), message=f"{job['activities_fetched']} edzésed megvan. Jönnek a régebbiek…")
         return
     activities = _merged_activities(store)
     candidates = [item for item in activities if _is_cardio(item) and item.get("activityId") and item.get("hr_zone_minutes") is None]
-    job.update(phase="hr_zones", hr_zone_ids=[str(item["activityId"]) for item in candidates], hr_zones_total=len(candidates), hr_zones_done=0, earliest_date=_earliest_activity_date(activities).isoformat(), progress=32, message="Pulzuszóna-részletek kiegészítése…")
+    job.update(phase="hr_zones", hr_zone_ids=[str(item["activityId"]) for item in candidates], hr_zones_total=len(candidates), hr_zones_done=0, earliest_date=_earliest_activity_date(activities).isoformat(), progress=32, message="Letöltjük az edzéseid pulzuszónáit…")
 
 
 def _advance_hr_zones(job: dict[str, Any], sync: GarminSync, store: SyncStore) -> None:
@@ -266,11 +266,11 @@ def _advance_hr_zones(job: dict[str, Any], sync: GarminSync, store: SyncStore) -
     done = min(len(ids), start + HR_ZONE_CHUNK)
     job["hr_zones_done"] = done
     if done < len(ids):
-        job.update(progress=32 + round(12 * done / max(1, len(ids))), message=f"Pulzuszónák: {done}/{len(ids)} aktivitás.")
+        job.update(progress=32 + round(12 * done / max(1, len(ids))), message=f"Pulzuszónák: {done}/{len(ids)} edzés.")
         return
     job.pop("hr_zone_ids", None)
     candidates = strength_set_candidates(_merged_activities(store))
-    job.update(phase="strength_sets", strength_set_ids=candidates, strength_sets_total=len(candidates), strength_sets_done=0, progress=44, message="Erőedzés-sorozatok betöltése…")
+    job.update(phase="strength_sets", strength_set_ids=candidates, strength_sets_total=len(candidates), strength_sets_done=0, progress=44, message="Letöltjük az erőedzéseid sorozatait…")
 
 
 def _advance_strength_sets(job: dict[str, Any], sync: GarminSync, store: SyncStore) -> None:
@@ -286,10 +286,10 @@ def _advance_strength_sets(job: dict[str, Any], sync: GarminSync, store: SyncSto
     done = min(len(ids), start + STRENGTH_SET_CHUNK)
     job["strength_sets_done"] = done
     if done < len(ids):
-        job.update(progress=44 + round(6 * done / max(1, len(ids))), message=f"Erőedzés-sorozatok: {done}/{len(ids)} edzés.")
+        job.update(progress=44 + round(6 * done / max(1, len(ids))), message=f"Erőedzések sorozatai: {done}/{len(ids)} edzés.")
         return
     job.pop("strength_set_ids", None)
-    job.update(phase="profile", progress=50, message="VO2max, testösszetétel és sportprofil lekérése…")
+    job.update(phase="profile", progress=50, message="Letöltjük a VO2max-értékedet, a testösszetételedet és a sportprofilodat…")
 
 
 def _advance_profile(job: dict[str, Any], sync: GarminSync, store: SyncStore) -> None:
@@ -298,7 +298,7 @@ def _advance_profile(job: dict[str, Any], sync: GarminSync, store: SyncStore) ->
     store.stage("profile", {"latest": fetch_profile_metrics(client, _optional_call, job.setdefault("partial_errors", []))})
     start_date = date.fromisoformat(job["earliest_date"])
     total = (date.today() - start_date).days + 1
-    job.update(phase="wellness", wellness_cursor=start_date.isoformat(), wellness_total=total, wellness_done=0, progress=52, message="Napi HRV-, alvás- és pulzusadatok visszatöltése…")
+    job.update(phase="wellness", wellness_cursor=start_date.isoformat(), wellness_total=total, wellness_done=0, progress=52, message="Letöltjük a napi HRV-, alvás- és pulzusadataidat…")
 
 
 def _advance_wellness(job: dict[str, Any], sync: GarminSync, store: SyncStore) -> None:
@@ -328,7 +328,7 @@ def _advance_wellness(job: dict[str, Any], sync: GarminSync, store: SyncStore) -
     done = min(total, int(job.get("wellness_done", 0)) + processed)
     job.update(wellness_cursor=cursor.isoformat(), wellness_done=done, progress=52 + round(43 * done / max(1, total)), message=f"Napi adatok: {done}/{total} nap.")
     if cursor > end:
-        job.update(phase="finalize", progress=96, message="Elemzések és dashboard újraszámítása…")
+        job.update(phase="finalize", progress=96, message="Újraszámoljuk az elemzéseidet és az áttekintésedet…")
 
 
 def _finalize(job: dict[str, Any], store: SyncStore) -> None:
@@ -351,7 +351,7 @@ def _finalize(job: dict[str, Any], store: SyncStore) -> None:
     save_user_json(store.user_id, RAW_CACHE_KEY, raw, store.db)
     save_user_json(store.user_id, DASHBOARD_KEY, dashboard, store.db)
     store.clear()
-    job.update(status="completed", phase="completed", progress=100, message="A teljes Garmin-előzmény szinkronizálása elkészült.", completed_at=_now(), updated_at=_now())
+    job.update(status="completed", phase="completed", progress=100, message="Elkészült a teljes Garmin-előzményed szinkronja.", completed_at=_now(), updated_at=_now())
 
 
 REAUTH_MARKERS = ("hitelesítési hiba", "mfa szükséges")
@@ -361,7 +361,7 @@ def _authenticated_sync(user_id: str, run_id: str) -> GarminSync:
     """Log in with the stored, encrypted Garmin session; no Garmin password is kept."""
     tokenstore = load_tokenstore(user_id)
     if not tokenstore:
-        raise GarminSyncError("Nincs érvényes Garmin-munkamenet. Csatlakoztasd újra a fiókot a Beállításokban.")
+        raise GarminSyncError("Nincs érvényes Garmin-belépőkulcsod. Kösd össze újra a Garmint a Beállításokban.")
     sync = GarminSync(Path(tempfile.gettempdir()) / f"hybrid-sync-{run_id}", tokenstore=tokenstore, use_environment=False)
     try:
         sync.authenticate()
@@ -378,10 +378,10 @@ def _authenticated_sync(user_id: str, run_id: str) -> GarminSync:
 def advance_sync(user_id: str, run_id: str | None = None) -> tuple[dict[str, Any], int]:
     with sync_lock(user_id) as db:
         if db is None:
-            raise GarminSyncError("Már fut egy szinkronlépés. Rövidesen automatikusan újrapróbáljuk.")
+            raise GarminSyncError("Már fut egy szinkron. Várj egy kicsit, aztán próbáld újra.")
         current = load_user_json(user_id, SYNC_JOB_KEY, db)
         if run_id and (not current or current.get("run_id") != run_id):
-            raise GarminSyncError("A szinkron munkamenete már nem érvényes. Indíts új szinkront.")
+            raise GarminSyncError("Ez a szinkron már nem érvényes. Indíts újat.")
         # Jobs written by the previous format carried the raw payload inline; restart those.
         resumable = bool(current) and "raw" not in current and (
             current.get("status") == "running" or (current.get("status") == "failed" and bool(run_id))

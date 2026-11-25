@@ -127,7 +127,7 @@ class GarminSync:
         email, password = self.email or env("GARMIN_EMAIL"), self.password or env("GARMIN_PASSWORD")
         tokenstore = self.tokenstore or env("GARMINTOKENS")
         if not tokenstore and (not email or not password):
-            raise GarminSyncError("Nincs érvényes Garmin-munkamenet. Csatlakoztasd újra a fiókot a Beállításokban.")
+            raise GarminSyncError("Nincs érvényes Garmin-belépőkulcsod. Kösd össze újra a Garmint a Beállításokban.")
         try:
             client = Garmin(email, password)
             # Serialized session tokens (cloud sync) take precedence over the on-disk token store.
@@ -135,14 +135,14 @@ class GarminSync:
         except Exception as exc:
             message = str(exc).lower()
             if "429" in message or "rate limit" in message or "ratelimit" in message or "too many requests" in message:
-                reason = "Garmin rate limit. Várj, majd próbáld újra; az utolsó cache használható."
+                reason = "A Garmin átmenetileg korlátozta a belépést. Várj pár percet, aztán próbáld újra. A korábban mentett adataidat addig is használhatod."
             elif any(marker in message for marker in ("timeout", "timed out", "connection reset", "connection aborted",
                                                       "connection error", "remote end closed", "502", "503", "504")):
-                reason = "A Garmin átmenetileg nem elérhető. Az eddigi szinkronizálási előrehaladás megmarad."
+                reason = "A Garmin átmenetileg nem elérhető. Ami eddig letöltődött, megmarad. Próbáld újra később."
             elif "mfa" in message or "challenge" in message:
-                reason = "Garmin MFA szükséges. Csatlakoztasd újra a fiókot a Beállításokban."
+                reason = "Garmin MFA szükséges (kétlépcsős belépés). Kösd össze újra a Garmint a Beállításokban."
             else:
-                reason = "Garmin hitelesítési hiba. Csatlakoztasd újra a fiókot a Beállításokban."
+                reason = "Garmin hitelesítési hiba, nem sikerült belépni. Kösd össze újra a Garmint a Beállításokban."
             raise GarminSyncError(reason) from exc
         self.client = client
         return client

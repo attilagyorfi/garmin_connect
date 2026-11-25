@@ -321,7 +321,7 @@ def test_retraining_recommendation_is_quiet_for_fresh_model():
     active = [{"active":True, "trained_at":"2026-08-10T10:00:00+02:00", "data_end":"2026-08-10"}]
     result = retraining_recommendation(active, {"alerts":0}, "2026-08-14", today="2026-08-14")
     assert result["due"] is False
-    assert result["reasons"] == ["nincs újratanítást indokló jel"]
+    assert result["reasons"] == ["Most semmi nem indokolja, hogy újratanítsuk a modelledet."]
 
 
 def test_retraining_recommendation_when_no_active_model():

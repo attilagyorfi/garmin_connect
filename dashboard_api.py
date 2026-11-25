@@ -84,9 +84,9 @@ def build_dashboard_payload(cache_dir: str | Path = "data", *, allow_demo: bool 
     decision = training_decision(result, wellness, checkins.get(today), flags, score_override=readiness_score)
     summary = weekly_summary(wellness, activities, flags)
     decision_source = "hybrid_rules_using_garmin_readiness" if readiness_source == "garmin_training_readiness" else "hybrid_rules"
-    decision_rationale = decision.get("rationale", "A regenerációs jelek alapján.")
+    decision_rationale = decision.get("rationale", "A regenerálódásod jelei alapján.")
     if readiness_source == "garmin_training_readiness":
-        decision_rationale = f"A Garmin Training Readiness pontszámát saját, óvatossági edzésválasztási szabályainkkal értelmeztük. {decision_rationale}"
+        decision_rationale = f"A Garmin Training Readiness (reggeli terhelhetőségi) pontszámára építünk, a saját óvatossági szabályainkkal. {decision_rationale}"
     metric_definitions = [
         ("HRV (éjszakai)", "hrv", "{:.0f} ms", "HRV"),
         ("Alvás", "sleep_hours", "{:.1f} ó", "Alvás"),
@@ -219,7 +219,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
         except GarminSyncError as exc:
             body, status = json.dumps({"error": str(exc)}, ensure_ascii=False).encode(), 409
         except Exception:
-            body, status = json.dumps({"error": "A Garmin-szinkron váratlan hiba miatt megszakadt."}, ensure_ascii=False).encode(), 500
+            body, status = json.dumps({"error": "Váratlan hiba miatt megszakadt a szinkron. Próbáld újra pár perc múlva."}, ensure_ascii=False).encode(), 500
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Cache-Control", "no-store")

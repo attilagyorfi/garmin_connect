@@ -185,9 +185,9 @@ def _is_uuid(value: Any) -> bool:
 
 def decide_action(user_id: str, action_id: str, decision: str) -> dict[str, Any]:
     if decision not in {"approve", "reject"}:
-        raise ValueError("Érvénytelen döntés.")
+        raise ValueError("A javaslatot elfogadni vagy elutasítani tudod.")
     if not _is_uuid(action_id):
-        raise ValueError("Érvénytelen javaslatazonosító.")
+        raise ValueError("Ez a javaslat nem található. Kérj újat az Edzőtárstól.")
     db = connect()
     try:
         _initialize(db)
@@ -195,14 +195,14 @@ def decide_action(user_id: str, action_id: str, decision: str) -> dict[str, Any]
             SELECT payload, status, expires_at, before_payload FROM hybrid_assistant_actions WHERE id = %s AND user_id = %s
         """, (action_id, user_id)).fetchone()
         if not row:
-            raise ValueError("A javaslat nem található.")
+            raise ValueError("Ez a javaslat nem található. Kérj újat az Edzőtárstól.")
         payload, status, expires_at, before = row
         if status != "pending":
             raise ValueError("Erről a javaslatról már döntöttél.")
         if expires_at <= datetime.now(timezone.utc):
             db.execute("UPDATE hybrid_assistant_actions SET status = 'expired', decided_at = NOW() WHERE id = %s", (action_id,))
             db.commit()
-            raise ValueError("A javaslat lejárt. Kérj új javaslatot az edzőtárstól.")
+            raise ValueError("Ez a javaslat lejárt. Kérj újat az Edzőtárstól.")
         if decision == "reject":
             db.execute("UPDATE hybrid_assistant_actions SET status = 'rejected', decided_at = NOW() WHERE id = %s AND status = 'pending'", (action_id,))
             db.commit()
@@ -210,7 +210,7 @@ def decide_action(user_id: str, action_id: str, decision: str) -> dict[str, Any]
         target_id = payload.get("deletePlan") or (payload.get("plan") or {}).get("id")
         current = next((item for item in load_state(user_id)["plans"] if item.get("id") == target_id), None)
         if current != before:
-            raise ValueError("A terv a javaslat óta megváltozott. Kérj új javaslatot, hogy ne írjunk felül frissebb módosítást.")
+            raise ValueError("A terved a javaslat óta megváltozott. Kérj új javaslatot, hogy ne írjuk felül a frissebb módosításodat.")
         claimed = db.execute("UPDATE hybrid_assistant_actions SET status = 'applying' WHERE id = %s AND user_id = %s AND status = 'pending' RETURNING id",
                              (action_id, user_id)).fetchone()
         db.commit()
