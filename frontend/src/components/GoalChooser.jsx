@@ -12,11 +12,11 @@ export const EVENT_CHOICES = [
   { key: "trek", label: "Többnapos túra", detail: "hátizsákkal", kind: "hike" },
 ];
 export const GENERAL_GOALS = [
-  ["Hibrid teljesítmény", "Kiegyensúlyozott állóképesség és erő"],
-  ["Futóteljesítmény", "Gyorsabb, erősebb futás verseny nélkül"],
-  ["Erőfejlesztés", "Erő és izomtömeg, kevesebb kardióval"],
-  ["Hegyi állóképesség", "Túrázás, emelkedők, terhelt menet"],
-  ["Általános egészség", "Rendszeres, fenntartható mozgás"],
+  ["Hibrid teljesítmény", "Állóképesség és erő egyszerre"],
+  ["Futóteljesítmény", "Gyorsabb futás, verseny nélkül"],
+  ["Erőfejlesztés", "Több erő, kevesebb kardió"],
+  ["Hegyi állóképesség", "Túrák, emelkedők, hátizsák"],
+  ["Általános egészség", "Rendszeres mozgás, jó közérzet"],
 ];
 const RACES = [["5k", "5 km"], ["10k", "10 km"], ["half", "Félmaraton"], ["marathon", "Maraton"]];
 const HIKE_INPUTS = [
@@ -36,7 +36,7 @@ export function GoalChooser({ value, onChange, embedded = false }) {
   const pickEvent = key => set({ eventType: key, goal: goalForEvent(key) });
   return <fieldset className="goal-chooser">
     <legend className={embedded ? "sr-only" : undefined}>Mire készülsz?</legend>
-    {!embedded && <p className="goal-chooser-intro">Konkrét eseményhez forrásolt, hétről hétre felépített felkészülési tervet készítünk a Garmin-adataidból. Ha nem készülsz semmire, válassz általános célt.</p>}
+    {!embedded && <p className="goal-chooser-intro">Ha versenyre vagy túrára készülsz, válaszd ki, és a Garmin-adataidból hétről hétre felépítjük a felkészülést. Ha nem, válassz általános célt.</p>}
     <div className="event-choice-grid" role="radiogroup" aria-label="Esemény">
       {EVENT_CHOICES.map(item => <button type="button" role="radio" aria-checked={value.eventType === item.key} key={item.key} className={value.eventType === item.key ? "selected" : ""} onClick={() => pickEvent(item.key)}>
         {item.kind === "hike" ? <Mountain size={18} aria-hidden="true"/> : <Flag size={18} aria-hidden="true"/>}<b>{item.label}</b><small>{item.detail}</small></button>)}
@@ -44,9 +44,9 @@ export function GoalChooser({ value, onChange, embedded = false }) {
     </div>
     {event ? <div className="form-grid event-details">
       <div className="field"><label>Esemény neve (nem kötelező)</label><input aria-label="Esemény neve" value={value.eventName || ""} onChange={change => set({ eventName: change.target.value })} placeholder={event.kind === "hike" ? "Például: Mátrabérc" : "Például: Budapest Maraton"}/></div>
-      <div className="field"><label>Esemény dátuma</label><input aria-label="Esemény dátuma" type="date" value={value.eventDate || ""} onChange={change => set({ eventDate: change.target.value })}/><small>Ebből számoljuk a felkészülés heteit.</small></div>
-      {event.kind === "run" ? <div className="field wide"><label>Friss verseny- vagy időfutam-eredmény (nem kötelező)</label><div className="reference-race"><select aria-label="Referenciaverseny távja" value={value.referenceRaceKey || ""} onChange={change => set({ referenceRaceKey: change.target.value })}><option value="">Táv</option>{RACES.map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select><input aria-label="Referenciaidő" value={value.referenceRaceTime || ""} onChange={change => set({ referenceRaceTime: change.target.value.trim() })} placeholder="óó:pp:mm vagy pp:mm" maxLength={8} pattern="(\d{1,2}:)?[0-5]?\d:[0-5]\d"/></div><small>Az utóbbi 6–8 hét legjobb eredménye; ebből számoljuk a tempózónákat és a becsült célidőt.</small></div>
-        : <div className="field wide"><label>A túra adatai</label><div className="hike-fields">{HIKE_INPUTS.filter(item => !item.trekOnly || event.key === "trek").map(item => <label key={item.key}><span>{item.label}</span><input type="number" inputMode="decimal" min={item.min} max={item.max} step={item.step} value={value[item.key] ?? ""} onChange={change => set({ [item.key]: change.target.value === "" ? null : Number(change.target.value) })} placeholder={item.placeholder}/></label>)}</div><small>{event.key === "trek" ? "Egy átlagos túranap távja és szintemelkedése." : "A teljes túra távja és összes szintemelkedése."} A legmagasabb pontot csak 2000 m felett érdemes megadni.</small></div>}
+      <div className="field"><label>Esemény dátuma</label><input aria-label="Esemény dátuma" type="date" value={value.eventDate || ""} onChange={change => set({ eventDate: change.target.value })}/><small>Ebből tudjuk, hány hét van hátra.</small></div>
+      {event.kind === "run" ? <div className="field wide"><label>Legutóbbi versenyidőd (nem kötelező)</label><div className="reference-race"><select aria-label="Referenciaverseny távja" value={value.referenceRaceKey || ""} onChange={change => set({ referenceRaceKey: change.target.value })}><option value="">Táv</option>{RACES.map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select><input aria-label="Referenciaidő" value={value.referenceRaceTime || ""} onChange={change => set({ referenceRaceTime: change.target.value.trim() })} placeholder="óó:pp:mm vagy pp:mm" maxLength={8} pattern="(\d{1,2}:)?[0-5]?\d:[0-5]\d"/></div><small>Az elmúlt 6–8 hét legjobbja. Ebből számoljuk a tempóidat és a várható célidőt.</small></div>
+        : <div className="field wide"><label>A túra adatai</label><div className="hike-fields">{HIKE_INPUTS.filter(item => !item.trekOnly || event.key === "trek").map(item => <label key={item.key}><span>{item.label}</span><input type="number" inputMode="decimal" min={item.min} max={item.max} step={item.step} value={value[item.key] ?? ""} onChange={change => set({ [item.key]: change.target.value === "" ? null : Number(change.target.value) })} placeholder={item.placeholder}/></label>)}</div><small>{event.key === "trek" ? "Egy átlagos túranap távja és szintemelkedése." : "A teljes túra távja és összes szintemelkedése."} A legmagasabb pontot elég 2000 m fölött megadni.</small></div>}
     </div>
     : <div className="choice-grid general-goal-grid" role="radiogroup" aria-label="Általános cél">{GENERAL_GOALS.map(([goal, detail]) => <button type="button" role="radio" aria-checked={value.goal === goal} key={goal} className={value.goal === goal ? "selected" : ""} onClick={() => set({ goal })}><b>{goal}</b><small>{detail}</small></button>)}</div>}
   </fieldset>;

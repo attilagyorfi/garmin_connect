@@ -3,20 +3,20 @@
 export const TOUR_VERSION = 1;
 
 export const TOUR_STEPS = [
-  { target: null, title: "Üdv a Hybrid Athlete-ben!", text: "Pár lépésben megmutatjuk, mit hol találsz. A Garmin-adataidból a napi edzésdöntéstől a hosszú távú fejlődésig minden egy helyen van. Bármikor kihagyhatod, és a Beállításokban később újraindíthatod." },
-  { target: "nav", title: "Navigáció", text: "Itt éred el az oldalakat. A lakattal jelölt oldalak az első Garmin-szinkron után nyílnak meg, mert a saját adataidból dolgoznak." },
-  { target: "Ma", title: "Ma", text: "A napi döntés: mennyire vagy terhelhető ma, és milyen edzés javasolt. A rövid napi állapotfelmérés (fáradtság, izomláz, stressz) is ide kerül, és figyelembe vesszük." },
-  { target: "Áttekintés", title: "Áttekintés", text: "A teljesítményképed egy pillantással: terhelés, regeneráció, edzésmennyiség és adatlefedettség, választható időszakra." },
-  { target: "Naptár", title: "Naptár", text: "Itt tervezheted az edzéseidet: egyenként, heti sablonnal vagy egy felkészülési tervből. A Garmin-edzéseket automatikusan párosítjuk a tervekkel, így látod, mi valósult meg." },
-  { target: "Trendek", title: "Trendek", text: "A hosszabb távú változások: terhelés, HRV, alvás és nyugalmi pulzus. Itt látszik, hogy jó irányba halad-e a formád." },
-  { target: "Cél", title: "Cél", text: "A felkészültséged a kitűzött eseményre. Maratontól az 5 km-ig, illetve egynapos vagy többnapos hegyi túrára forrásolt, lépésenkénti felkészülési tervet készítünk." },
-  { target: "Insights", title: "Insights", text: "Mi működik nálad? Legalább 60 nap adat után megmutatjuk, mi függ össze a jó napjaiddal, és a személyes regenerációs modell állapotát." },
-  { target: "Hol tartasz?", title: "Hol tartasz?", text: "Korosztályos összevetés forrásolt kutatások alapján: például a VO2max-od vagy a nyugalmi pulzusod hogyan viszonyul a veled egykorúakéhoz." },
-  { target: "Napló", title: "Napló", text: "Az összes edzésed visszakereshetően. Edzés után itt adhatsz visszajelzést arról, mennyire volt nehéz: ez finomítja a terhelésszámítást." },
-  { target: "Profil", title: "Profil", text: "A céljaid, az eseményed, a heti edzésidőd és a pihenőnapod. Ezekből szabjuk személyre a javaslatokat és a terveket." },
-  { target: "assistant", title: "Edzőtárs", text: "Kérdezz bármit az edzéseidről: a saját adataidból válaszol. Kérésre tervmódosítást is javasol, de a Naptár csak a jóváhagyásod után változik." },
-  { target: "settings", title: "Beállítások", text: "Garmin-kapcsolat, megjelenés, fiók és adatkezelés. Itt indíthatod újra ezt a bemutatót is." },
-  { target: null, title: "Kész is vagy!", text: "Ha még nem tetted meg, csatlakoztasd a Garmin-fiókodat, és indítsd el az első szinkront: utána minden oldal a saját adataidból dolgozik." },
+  { target: null, title: "Szia, üdv a Hybrid Athlete-ben!", text: "Körbevezetünk, pár perc az egész. Bármikor kiléphetsz, és később a Beállításokban újra elindíthatod." },
+  { target: "nav", title: "Menü", text: "Innen éred el az oldalakat. Amelyiken lakat van, az az első Garmin-szinkron után nyílik meg, mert a saját adataidból dolgozik." },
+  { target: "Ma", title: "Ma", text: "Itt látod, mennyit bírsz ma, és mit érdemes edzeni. Reggel válaszolj a pár rövid kérdésre, és pontosabb lesz a javaslat." },
+  { target: "Áttekintés", title: "Áttekintés", text: "Hogy állsz mostanában: mennyit edzettél, mennyire terhelt a szervezeted, és mennyit pihensz. Választhatsz időszakot is." },
+  { target: "Naptár", title: "Naptár", text: "Itt tervezed az edzéseidet, egyenként vagy egy egész hétre. A Garmin-edzéseidet magától párosítjuk a tervvel, így látod, mi jött össze." },
+  { target: "Trendek", title: "Trendek", text: "Hetek és hónapok alatt hogyan változik a terhelésed, a HRV-d, az alvásod és a nyugalmi pulzusod. Itt látszik, jó irányba haladsz-e." },
+  { target: "Cél", title: "Cél", text: "Mennyire állsz készen a versenyedre vagy a túrádra. Maratontól az 5 km-ig és hegyi túrára is hétről hétre felépítjük a felkészülést." },
+  { target: "Insights", title: "Összefüggések", text: "Pár hónap adat után megmutatjuk, mitől vannak a jó napjaid: például hogyan hat az alvás vagy a terhelés a formádra." },
+  { target: "Hol tartasz?", title: "Hol tartasz?", text: "Hogy állsz a veled egykorúakhoz képest, például VO2max-ban vagy nyugalmi pulzusban. Kutatási adatokkal hasonlítunk." },
+  { target: "Napló", title: "Napló", text: "Minden edzésed visszakereshetően. Edzés után írd be, mennyire volt nehéz, így pontosabban számoljuk a terhelést." },
+  { target: "Profil", title: "Profil", text: "A célod, a versenyed, és hogy hetente mennyi időd van edzeni. Ezekből szabjuk rád a javaslatokat." },
+  { target: "assistant", title: "Edzőtárs", text: "Kérdezz bármit az edzéseidről, a saját adataidból válaszol. Ha kéred, módosít a terveden is, de csak azután, hogy jóváhagytad." },
+  { target: "settings", title: "Beállítások", text: "Garmin-kapcsolat, megjelenés, fiók. Itt indíthatod újra ezt a bemutatót is." },
+  { target: null, title: "Ennyi volt!", text: "Ha még nem tetted meg, kösd össze a Garmin-fiókodat, és indítsd el az első szinkront. Utána minden oldal a saját adataidból dolgozik." },
 ];
 
 export function tourAnchor(target) {

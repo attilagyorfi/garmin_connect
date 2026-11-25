@@ -90,13 +90,13 @@ def _layout(title: str, paragraphs: list[str], link: str, button: str, footer: s
 
 
 def password_reset_message(link: str, minutes: int) -> tuple[str, str, str]:
-    subject = f"{APP_NAME}: jelszó-visszaállítás"
+    subject = f"{APP_NAME}: új jelszó"
     text, markup = _layout(
         "Új jelszó beállítása",
-        ["Jelszó-visszaállítást kértek a fiókodhoz.",
-         f"Az alábbi hivatkozás {minutes} percig érvényes, és csak egyszer használható. Az új jelszó beállítása után minden eszközről kijelentkeztetünk."],
+        ["Valaki új jelszót kért a fiókodhoz. Ha te voltál, kattints a gombra.",
+         f"A link {minutes} percig érvényes, és csak egyszer használható. Az új jelszó után minden eszközödről kijelentkeztetünk."],
         link, "Új jelszó beállítása",
-        "Ha nem te kérted, hagyd figyelmen kívül ezt a levelet; a jelszavad nem változik.",
+        "Ha nem te kérted, nyugodtan töröld ezt a levelet. A jelszavad nem változik.",
     )
     return subject, text, markup
 
@@ -105,10 +105,10 @@ def verification_message(link: str, hours: int) -> tuple[str, str, str]:
     subject = f"{APP_NAME}: erősítsd meg az e-mail-címedet"
     text, markup = _layout(
         "E-mail-cím megerősítése",
-        ["Köszönjük a regisztrációt! A belépéshez erősítsd meg, hogy ez a te e-mail-címed.",
-         f"Az alábbi hivatkozás {hours} óráig érvényes, és csak egyszer használható; utána azonnal be is léptetünk."],
+        ["Köszi, hogy regisztráltál! Már csak azt kell megerősítened, hogy ez a te címed.",
+         f"A link {hours} óráig érvényes, és csak egyszer használható. Utána rögtön be is léptetünk."],
         link, "E-mail-cím megerősítése",
-        "Ha nem te regisztráltál, hagyd figyelmen kívül ezt a levelet; a fiók megerősítés nélkül nem használható.",
+        "Ha nem te regisztráltál, töröld ezt a levelet. Megerősítés nélkül a fiók nem használható.",
     )
     return subject, text, markup
 
@@ -129,7 +129,7 @@ def status() -> dict[str, Any]:
 
 def test_message() -> tuple[str, str, str]:
     subject = f"{APP_NAME}: próbalevél"
-    lines = ["Ez egy próbalevél az adminisztrációs felületről.", "Ha megkaptad, a tranzakciós e-mailek (megerősítés, jelszó-visszaállítás, meghívó, AI-keret riasztás) kimennek."]
+    lines = ["Ez egy próbalevél az adminoldalról.", "Ha megkaptad, rendben megy a levelezés: a megerősítő, a jelszó-visszaállító, a meghívó és a keretriasztó levelek is kimennek."]
     body = "".join(f'<p style="margin:0 0 14px;line-height:1.6">{html.escape(item)}</p>' for item in lines)
     markup = (f'<div style="font-family:Arial,sans-serif;color:#1d2321;max-width:520px;margin:0 auto;padding:24px">'
               f'<h1 style="font-size:20px;margin:0 0 16px">{html.escape(subject)}</h1>{body}<p style="margin:18px 0 0;color:#5b6461;font-size:13px">– {APP_NAME}</p></div>')
@@ -143,13 +143,13 @@ def verification_required() -> bool:
 
 
 def invite_message(link: str, days: int) -> tuple[str, str, str]:
-    subject = f"Meghívó a {APP_NAME} alkalmazásba"
+    subject = f"Meghívót kaptál a {APP_NAME}-be"
     text, markup = _layout(
         "Meghívtak a Hybrid Athlete-be",
-        ["A Hybrid Athlete a Garmin-adataidból érthető, magyar nyelvű edzésdöntéseket, trendeket és felkészülési tervet készít.",
-         f"A meghívó {days} napig érvényes, és egyetlen fiók létrehozására használható."],
+        ["A Hybrid Athlete a Garmin-adataidból megmondja, mit eddz ma, hogyan fejlődsz, és hogyan készülj a versenyedre.",
+         f"A meghívó {days} napig érvényes, és egy fiókot lehet vele létrehozni."],
         link, "Fiók létrehozása",
-        "Ha nem számítottál erre a levélre, nyugodtan hagyd figyelmen kívül.",
+        "Ha nem számítottál erre a levélre, nyugodtan töröld.",
     )
     return subject, text, markup
 
@@ -157,12 +157,12 @@ def invite_message(link: str, days: int) -> tuple[str, str, str]:
 def budget_alert_message(level: int, month: str, spent: float, budget: float) -> tuple[str, str, str]:
     """Operator e-mail for the monthly AI budget (no user data, only totals)."""
     paused = level >= 100
-    subject = f"{APP_NAME}: {'az Edzőtárs szünetel – elérte a havi AI-keretet' if paused else f'a havi AI-keret {level}%-a elfogyott'}"
+    subject = f"{APP_NAME}: {'elfogyott a havi AI-keret, az Edzőtárs szünetel' if paused else f'elment a havi AI-keret {level}%-a'}"
     text_lines = [
-        f"A {month} hónap becsült AI-költsége {spent:.2f} USD, a havi keret {budget:.2f} USD.",
-        "Az Edzőtárs a hónap végéig szünetel; a felhasználók erről üzenetet látnak, az alkalmazás többi része működik."
-        if paused else "A keret elérésekor az Edzőtárs a hónap végéig szünetel.",
-        "A keret az AI_MONTHLY_BUDGET_USD környezeti változóval módosítható (Vercel), a részletek a Beállítások › Adminisztráció oldalon láthatók.",
+        f"{month} hónapban eddig kb. {spent:.2f} USD ment el AI-ra, a keret {budget:.2f} USD.",
+        "Az Edzőtárs a hónap végéig szünetel. A felhasználók látják ezt, minden más működik."
+        if paused else "Ha elfogy a keret, az Edzőtárs a hónap végéig szünetel.",
+        "A keretet a Vercelen, az AI_MONTHLY_BUDGET_USD változóval tudod átállítani. A részleteket a Beállítások › Adminisztráció oldalon látod.",
     ]
     body = "".join(f'<p style="margin:0 0 14px;line-height:1.6">{html.escape(item)}</p>' for item in text_lines)
     markup = (f'<div style="font-family:Arial,sans-serif;color:#1d2321;max-width:520px;margin:0 auto;padding:24px">'

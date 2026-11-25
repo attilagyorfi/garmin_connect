@@ -11,7 +11,7 @@ from auth_store import (
     TOKEN_MINUTES, VERIFY_MINUTES, current_user, login, logout, register, request_password_reset, resend_verification, reset_password, verify_email,
 )
 
-SENT_VERIFICATION = "Ha ehhez a címhez megerősítésre váró fiók tartozik, néhány percen belül megérkezik a megerősítő levél. Nézd meg a spam mappát is."
+SENT_VERIFICATION = "Ha ezzel a címmel van megerősítésre váró fiók, pár percen belül megjön a levél. Nézd meg a spam mappát is."
 
 
 class handler(BaseHTTPRequestHandler):
@@ -40,7 +40,7 @@ class handler(BaseHTTPRequestHandler):
             user = current_user(self.headers)
             self._send({"user": user}, 200 if user else 401)
         except Exception:
-            self._send({"error": "A munkamenet jelenleg nem ellenőrizhető."}, 503)
+            self._send({"error": "Most nem tudjuk ellenőrizni a belépésedet. Próbáld újra pár perc múlva."}, 503)
 
     def do_POST(self) -> None:  # noqa: N802
         try:
@@ -61,8 +61,8 @@ class handler(BaseHTTPRequestHandler):
                 if not user["emailVerified"]:
                     sent = self._send_verification(user["email"], token)
                     self._send({"verificationRequired": True, "message": (
-                        f"Megerősítő levelet küldtünk ide: {user['email']}. Kattints a benne lévő linkre, és már be is léptél. Nézd meg a spam mappát is."
-                        if sent else "A fiók elkészült, de a megerősítő levelet most nem sikerült elküldeni. Kérj újat lent, a belépésnél."
+                        f"Küldtünk egy levelet ide: {user['email']}. Kattints a benne lévő linkre, és már bent is vagy. Ha nem látod, nézd meg a spam mappát."
+                        if sent else "A fiókod kész, de a levelet most nem tudtuk elküldeni. Lent, a belépésnél kérhetsz újat."
                     )}, 201)
                     return
                 status = 201
@@ -96,16 +96,16 @@ class handler(BaseHTTPRequestHandler):
                         send_email(result[0], subject, text, markup)
                     except EmailError as exc:
                         sys.stderr.write(f"password reset e-mail not sent: {exc}\n")
-                self._send({"ok": True, "message": "Ha ehhez a címhez tartozik aktív fiók, néhány percen belül megérkezik a jelszó-visszaállító levél. Nézd meg a spam mappát is."})
+                self._send({"ok": True, "message": "Ha van fiókod ezzel a címmel, pár percen belül megjön a levél. Nézd meg a spam mappát is."})
                 return
             elif action == "reset_password":
                 reset_password(payload.get("token", ""), payload.get("password", ""))
-                self._send({"ok": True, "message": "A jelszó megváltozott. Most már bejelentkezhetsz."})
+                self._send({"ok": True, "message": "Kész, megvan az új jelszó. Most már beléphetsz."})
                 return
             elif action == "change_password":
                 authenticated = current_user(self.headers)
                 if not authenticated:
-                    self._send({"error": "A művelethez bejelentkezés szükséges."}, 401)
+                    self._send({"error": "Ehhez be kell jelentkezned."}, 401)
                     return
                 client_id = client_ip_from(self.headers, getattr(self, "client_address", None))
                 change_password(
@@ -113,14 +113,14 @@ class handler(BaseHTTPRequestHandler):
                     payload.get("newPassword", ""), client_id,
                 )
                 self._send(
-                    {"ok": True, "message": "A jelszavad megváltozott. Biztonsági okból minden eszközről kijelentkeztettünk."},
+                    {"ok": True, "message": "Megváltozott a jelszavad. Biztonsági okból minden eszközödről kijelentkeztettünk."},
                     200, clear_cookie_header(),
                 )
                 return
             elif action == "delete_account":
                 authenticated = current_user(self.headers)
                 if not authenticated:
-                    self._send({"error": "A művelethez bejelentkezés szükséges."}, 401)
+                    self._send({"error": "Ehhez be kell jelentkezned."}, 401)
                     return
                 client_id = client_ip_from(self.headers, getattr(self, "client_address", None))
                 delete_account(
@@ -130,7 +130,7 @@ class handler(BaseHTTPRequestHandler):
                 self._send(
                     {
                         "ok": True,
-                        "message": "A fiók és a hozzá tartozó személyes adatok véglegesen törlődtek.",
+                        "message": "Töröltük a fiókodat és minden személyes adatodat.",
                     },
                     200, clear_cookie_header(),
                 )
@@ -145,7 +145,7 @@ class handler(BaseHTTPRequestHandler):
         except (ValueError, TypeError, json.JSONDecodeError) as exc:
             self._send({"error": str(exc) or "Érvénytelen fiókadat."}, 400)
         except Exception:
-            self._send({"error": "A fiókművelet jelenleg nem hajtható végre."}, 500)
+            self._send({"error": "Ez most nem sikerült. Próbáld újra pár perc múlva."}, 500)
 
     def do_DELETE(self) -> None:  # noqa: N802
         try:

@@ -106,7 +106,7 @@ try {
   const authButton = text => [...authHost.querySelectorAll("button")].find(node => node.textContent.trim() === text);
   if (authHost.textContent.includes("adminisztrátortól")) throw new Error("A belépőoldal még az adminisztrátorhoz küldi az elfelejtett jelszót.");
   await act(async () => authButton("Elfelejtetted a jelszavad?").click());
-  if (authHost.querySelector('input[type="password"]') || !authHost.textContent.includes("Kérj visszaállító levelet")) throw new Error("Az elfelejtett jelszó nézet nem csak e-mail-címet kér.");
+  if (authHost.querySelector('input[type="password"]') || !authHost.textContent.includes("Kérj új jelszót")) throw new Error("Az elfelejtett jelszó nézet nem csak e-mail-címet kér.");
   await act(async () => { const input = authHost.querySelector('input[type="email"]'); Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value").set.call(input, "tag@example.test"); input.dispatchEvent(new window.Event("input", { bubbles: true })); });
   await act(async () => authHost.querySelector("form").dispatchEvent(new window.Event("submit", { bubbles: true, cancelable: true })));
   if (authRequests.length !== 1 || authRequests[0].email !== "tag@example.test" || authenticated.length) throw new Error("A visszaállító levél kérése nem ment el helyesen.");
@@ -148,7 +148,7 @@ try {
   const noticeRoot = createRoot(noticeHost), choices = [];
   await act(async () => noticeRoot.render(React.createElement(AuthLinkNotice, { kind: "verify", user: { email: "fo@example.test" }, onSignOut: () => choices.push("out"), onStay: () => choices.push("stay") })));
   if (!noticeHost.textContent.includes("e-mail-megerősítő link") || !noticeHost.textContent.includes("fo@example.test")) throw new Error("A belépett állapotban megnyitott link nem kapott magyarázatot.");
-  for (const label of ["Kijelentkezés és folytatás", "Maradok belépve, a linket nem használom"]) await act(async () => [...noticeHost.querySelectorAll("button")].find(node => node.textContent.trim() === label).click());
+  for (const label of ["Kijelentkezés és folytatás", "Maradok, nem kell a link"]) await act(async () => [...noticeHost.querySelectorAll("button")].find(node => node.textContent.trim() === label).click());
   if (choices.join() !== "out,stay") throw new Error("A kijelentkezés vagy a maradás gomb nem működik.");
   await act(async () => assertAccessible("fióklink-értesítő", noticeHost));
   await act(async () => noticeRoot.unmount()); noticeHost.remove();
@@ -583,13 +583,13 @@ try {
   let tour = document.querySelector(".tour-popover");
   if (!tour) throw new Error("Az első belépés után nem indult el a bemutató.");
   await act(async () => assertAccessible("bemutató", tour));
-  if (tour.getAttribute("role") !== "dialog" || !document.getElementById(tour.getAttribute("aria-labelledby"))?.textContent.includes("Üdv")) throw new Error("A bemutató első lépése hiányos.");
+  if (tour.getAttribute("role") !== "dialog" || !document.getElementById(tour.getAttribute("aria-labelledby"))?.textContent.includes("üdv")) throw new Error("A bemutató első lépése hiányos.");
   const tourButton = label => [...document.querySelectorAll(".tour-popover button")].find(node => node.textContent.trim() === label);
   await act(async () => tourButton("Tovább").click());
-  if (!document.querySelector(".tour-spotlight") || !document.querySelector(".tour-popover h2")?.textContent.includes("Navigáció")) throw new Error("A bemutató nem emelte ki a navigációt.");
+  if (!document.querySelector(".tour-spotlight") || !document.querySelector(".tour-popover h2")?.textContent.includes("Menü")) throw new Error("A bemutató nem emelte ki a navigációt.");
   await act(async () => document.dispatchEvent(new window.KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true })));
   await act(async () => tourButton("Vissza").click());
-  if (!document.querySelector(".tour-popover h2")?.textContent.includes("Navigáció")) throw new Error("A bemutató Vissza gombja vagy nyílbillentyűje hibás.");
+  if (!document.querySelector(".tour-popover h2")?.textContent.includes("Menü")) throw new Error("A bemutató Vissza gombja vagy nyílbillentyűje hibás.");
   const titles = [];
   for (let guard = 0; guard < 20 && tourButton("Tovább"); guard += 1) { titles.push(document.querySelector(".tour-popover h2").textContent); await act(async () => tourButton("Tovább").click()); }
   // the coach step appears only when its launcher is on the page (after the first sync)
