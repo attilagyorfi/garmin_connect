@@ -19,7 +19,7 @@ export function personalizeDashboard(data,profile,checkin){
   const insights=[
     `${actualMinutes} perc már megvan a heti ${targetMinutes} perces keretedből.`,
     actualStrength<safeProfile.strengthRatio?`Az erőedzés aránya ${actualStrength}%, a célod ${safeProfile.strengthRatio}%. A következő terhelhető napon érdemes erőedzést választanod.`:`Az erő–kardió arányod megfelel a ${safeProfile.strengthRatio}/${100-safeProfile.strengthRatio}%-os célodnak.`,
-    safeProfile.eventName&&safeProfile.eventDate?`${safeProfile.eventName}: ${Math.max(0,Math.ceil((new Date(safeProfile.eventDate)-new Date())/86400000))} nap van hátra.`:`A következő javaslatok fő iránya:${mode.focus}.`
+    safeProfile.eventName&&safeProfile.eventDate?`${safeProfile.eventName}: ${Math.max(0,Math.ceil((new Date(safeProfile.eventDate)-new Date())/86400000))} nap van hátra.`:`A következő javaslatok fő iránya: ${mode.focus}.`
   ];
   return {decision,adjustedReadiness,band:adjustedReadiness>=70?"terhelhető":adjustedReadiness>=45?"óvatosan":"regeneráció",week:{actualMinutes,targetMinutes,progress,actualStrength,targetStrength:safeProfile.strengthRatio,daysDone:new Set(recent.map(x=>x.date)).size,daysTarget:available,totalLoad:week.total_load||0},insights};
 }

@@ -11,7 +11,7 @@ export const metricGlossary={
   "CTL · ATL · TSB":"CTL: hosszú távú edzettség. ATL: rövid távú fáradtság. TSB: a kettő különbségéből becsült forma. Együtt azt mutatják, fejlődsz-e, és közben mennyi fáradtság gyűlt fel benned.",
   "Terhelés":"Az edzés hossza és intenzitása egyetlen pontszámban. Nagyobb szám után több pihenés kell. Elsősorban a saját korábbi értékeidhez hasonlítsd.",
   "Edzésidő":"Az időszakban edzéssel töltött percek összege. A célodhoz mérve látszik, mennyire reális és tartható a heti terv.",
-  "Erő arány":"Megmutatja, a heti edzésidő mekkora része erőedzés. Ha eltér a céltól, könnyebb eldönteni, mit eddz legközelebb.",
+  "Erő arány":"Megmutatja, a heti edzésidő mekkora része erőedzés. A céltól való eltérésből látszik, milyen edzés jöjjön legközelebb.",
   "RPE":"Mennyire érezted nehéznek az edzést, 1–10-ig. Az 1 nagyon könnyű, a 10 maximális. Ha tartósan magas, több pihenés vagy kisebb terhelés kellhet.",
   "Pulzus":"Az átlagos percenkénti szívverés. A megszokottnál magasabb pulzus azonos tempónál fáradtságra, melegre, folyadékhiányra vagy stresszre utalhat.",
   "Pulzuszóna":"Az intenzitás pulzus alapján meghatározott tartománya. Z1–Z2 könnyű, aerob munka; Z3 közepes; Z4–Z5 nagy intenzitás, ezért több regenerációt igényel.",
