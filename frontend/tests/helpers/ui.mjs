@@ -11,6 +11,7 @@ globalThis.localStorage = dom.window.localStorage;
 globalThis.sessionStorage = dom.window.sessionStorage;
 globalThis.HTMLElement = dom.window.HTMLElement;
 globalThis.SVGElement = dom.window.SVGElement;
+globalThis.Event = dom.window.Event; // useGarminSync dispatches with the global constructor
 globalThis.MutationObserver = dom.window.MutationObserver;
 globalThis.ResizeObserver = class { observe() {} unobserve() {} disconnect() {} };
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;

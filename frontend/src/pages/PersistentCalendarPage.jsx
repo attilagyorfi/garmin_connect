@@ -1,11 +1,12 @@
 import { useState } from "react";
 import { Activity, ChevronLeft, ChevronRight, ClipboardList, Pencil, Plus } from "lucide-react";
+import { DashboardNotice } from "../components/DashboardNotice.jsx";
 import { PageHeader } from "../components/PageHeader.jsx";
 import { BatchMoveEditor } from "../components/calendar/BatchMoveEditor.jsx";
 import { PlanEditor } from "../components/calendar/PlanEditor.jsx";
 import { WeeklyTemplateEditor } from "../components/calendar/WeeklyTemplateEditor.jsx";
 import { PlanningFlow } from "../components/planning/PlanOutcome.jsx";
-import { useDashboardData } from "../lib/api.js";
+import { useDashboardState } from "../lib/api.js";
 import { isoDate, isPlannedRestDay } from "../lib/dates.js";
 import { budapestToday } from "../lib/overviewData.js";
 import { evaluatePlanSet, summarizePlanWeek } from "../lib/planOutcomes.js";
@@ -19,7 +20,9 @@ export function PersistentCalendarPage({
   initialDate,
   onNavigate,
 }) {
-  const data = useDashboardData(),
+  const { status, data, refreshError, reload } = useDashboardState(),
+    // While loading or after an error the activities are unknown, which is not the same as no activity.
+    activitiesKnown = status === "ready" || status === "empty",
     activities = data?.sessions || [],
     today = budapestToday(),
     anchorDate = initialDate || today,
@@ -113,6 +116,7 @@ export function PersistentCalendarPage({
         feedback={cloudState?.feedback || {}}
         onNavigate={onNavigate}
       />
+      <DashboardNotice status={status} refreshError={refreshError} onRetry={reload} />
       <section
         className="calendar-week-summary card"
         aria-label="A kiválasztott hét: terv és tény összesítve"
@@ -136,28 +140,30 @@ export function PersistentCalendarPage({
           <small>TERVEZETT EDZÉS</small>
         </span>
         <span>
-          <strong>{weekSummary.completed}</strong>
+          <strong>{activitiesKnown ? weekSummary.completed : "—"}</strong>
           <small>TERVHEZ PÁROSÍTVA</small>
         </span>
         <span>
           <strong>
             {/* No plan is "nincs terv", not 0; actual time counts every Garmin activity of the week, matched or not. */}
             {weekSummary.weekPlans.length ? `${weekSummary.plannedMinutes}p` : "nincs terv"} /{" "}
-            {weekSummary.weekActivities.length
-              ? `${weekSummary.weekActivities.reduce((sum, item) => sum + Number(item.durationMin || 0), 0)}p`
-              : "nincs edzés"}
+            {!activitiesKnown
+              ? "—"
+              : weekSummary.weekActivities.length
+                ? `${weekSummary.weekActivities.reduce((sum, item) => sum + Number(item.durationMin || 0), 0)}p`
+                : "nincs edzés"}
           </strong>
           <small>IDŐ: TERV / TÉNY</small>
         </span>
         <span>
           <strong>
-            {weekSummary.adherence == null ? "—" : `${weekSummary.adherence}%`}
+            {!activitiesKnown || weekSummary.adherence == null ? "—" : `${weekSummary.adherence}%`}
           </strong>
           <small>TERVKÖVETÉS</small>
         </span>
         <span>
           <strong>
-            {weekSummary.feedbackCount} / {weekSummary.weekActivities.length}
+            {activitiesKnown ? `${weekSummary.feedbackCount} / ${weekSummary.weekActivities.length}` : "—"}
           </strong>
           <small>VISSZAJELZÉS</small>
         </span>
@@ -235,7 +241,7 @@ export function PersistentCalendarPage({
             {selectedItems.length
               ? <>
                   {selectedPlans.map((plan) => {
-                    const result = selectedPlanResults.get(plan.id);
+                    const result = activitiesKnown ? selectedPlanResults.get(plan.id) : { status: "tervezett" };
                     return (
                       <article className="selected-plan" key={plan.id}>
                         <div>
@@ -286,9 +292,13 @@ export function PersistentCalendarPage({
                     </article>
                   ))}
                 </>
-              : isPlannedRestDay(profile, selectedDate)
-                ? "Tervezett pihenőnap."
-                : "Erre a napra nincs edzés."}
+              : !activitiesKnown
+                ? status === "loading"
+                  ? "Az edzéseidet még töltjük."
+                  : "Az edzéseidet most nem látjuk."
+                : isPlannedRestDay(profile, selectedDate)
+                  ? "Tervezett pihenőnap."
+                  : "Erre a napra nincs edzés."}
           </div>
         </div>
         <div className="calendar-detail-actions">
@@ -304,6 +314,7 @@ export function PersistentCalendarPage({
         <PlanEditor
           value={editor}
           activities={activities}
+          activitiesState={status}
           onSave={save}
           onDelete={remove}
           onClose={() => setEditor(null)}

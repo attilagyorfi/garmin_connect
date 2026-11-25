@@ -64,7 +64,7 @@ test("a failed decision: the message stays and the proposal state comes from the
   await click(button(page.host, "Jóváhagyom"));
   assert.deepEqual(alerts(page.host), ["A terv közben megváltozott."]);
   assert.match(page.host.querySelector(".assistant-proposal").textContent, /Lejárt/);
-  assert.equal(button(page.host, "Jóváhagyom"), undefined);
+  assert.ok(!button(page.host, "Jóváhagyom"));
   assert.equal(plansChanged, 0);
   await page.unmount();
 });
