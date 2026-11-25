@@ -34,8 +34,8 @@ export function PlanOutcomeHistory({
           <span className="eyebrow">FEJLŐDÉSTÖRTÉNET</span>
           <h2 id="plan-outcome-title">Terv és tény alakulása</h2>
           <p>
-            A tervezett munkát, a tényleges Garmin-edzéseket és a saját
-            terhelésérzetedet hetenként, azonos logika szerint vetjük össze.
+            Hetente, mindig ugyanúgy vetjük össze a tervedet, a
+            Garmin-edzéseidet és azt, mennyire érezted nehéznek őket.
           </p>
         </div>
         <div className="plan-history-range" aria-label="Vizsgált időszak">
@@ -52,11 +52,11 @@ export function PlanOutcomeHistory({
         </div>
       </header>
       {loading ? (
-        <p className="plan-history-empty">A fejlődéstörténet betöltése…</p>
+        <p className="plan-history-empty">Töltjük a heteidet…</p>
       ) : !history.dataWeeks.length ? (
         <p className="plan-history-empty">
-          Még nincs terv vagy edzés ebben az időszakban. A többhetes
-          összevetés az első rögzített hét után jelenik meg.
+          Ebben az időszakban még nincs terv vagy edzés. Az első rögzített
+          hét után itt látod az összevetést.
         </p>
       ) : (
         <>
@@ -69,25 +69,25 @@ export function PlanOutcomeHistory({
               </strong>
               <MetricHelp
                 term="Tervezett edzésidő"
-                text="A kiválasztott időszakban előre rögzített edzéspercek összege. Ez a vállalás, nem az elvégzett munka."
+                text="A kiválasztott időszakra előre rögzített edzéspercek összege. Ez a vállalásod, nem az elvégzett edzés."
               >
                 <b>TERVEZETT IDŐ</b>
               </MetricHelp>
               <small>
                 {history.plannedWeekCount
-                  ? `${history.plannedWeekCount} tervezett hét vállalása.`
-                  : "Ebben az időszakban nincs rögzített tervadat."}
+                  ? `${history.plannedWeekCount} tervezett hétre vállaltad.`
+                  : "Ebben az időszakban nincs rögzített terv."}
               </small>
             </article>
             <article>
               <strong>{formatMinutes(history.actualTotal)}</strong>
               <MetricHelp
                 term="Tényleges edzésidő"
-                text="A Garminból érkezett összes aktivitás ideje az adott hetekben, a nem tervezett edzéseket is beleértve."
+                text="A Garminból érkezett összes edzésed ideje ezekben a hetekben, a nem tervezettekkel együtt."
               >
                 <b>TÉNYLEGES IDŐ</b>
               </MetricHelp>
-              <small>Minden szinkronizált aktivitással együtt.</small>
+              <small>Minden Garminból érkezett edzéssel.</small>
             </article>
             <article>
               <strong>
@@ -97,7 +97,7 @@ export function PlanOutcomeHistory({
               </strong>
               <MetricHelp
                 term="Átlagos tervkövetés"
-                text="A lezárt, tervezett hetekben teljesített edzések aránya. A futó hetet és a terv nélküli heteket nem számítjuk bele."
+                text="A lezárt, tervezett hetekben teljesített edzések aránya. A mostani hetet és a terv nélküli heteket nem számítjuk bele."
               >
                 <b>ÁTLAGOS TERVKÖVETÉS</b>
               </MetricHelp>
@@ -115,11 +115,11 @@ export function PlanOutcomeHistory({
               </strong>
               <MetricHelp
                 term="RPE-lefedettség"
-                text="Megmutatja, az aktivitások mekkora részéhez rögzítettél szubjektív nehézséget. A hiányzó RPE nem nulla terhelést jelent."
+                text="Az edzéseid ekkora részéhez adtál RPE-t, vagyis rögzítetted, mennyire érezted nehéznek. A hiányzó RPE nem nulla terhelés."
               >
-                <b>RPE-LEFEDETTSÉG</b>
+                <b>ÉRTÉKELT EDZÉSEK</b>
               </MetricHelp>
-              <small>Minél teljesebb, annál biztosabb az értelmezés.</small>
+              <small>Minél több, annál biztosabb az értékelés.</small>
             </article>
           </div>
           <div
@@ -187,9 +187,9 @@ export function PlanOutcomeHistory({
             </ResponsiveContainer>
             <p>
               <b>X tengely:</b> hét kezdete · <b>Y tengely:</b> edzésidő
-              (perc). A szürke oszlop a terv, az akcentusszínű a Garminból
-              érkezett tényadat. A hiányzó oszlop nem nulla értéket, hanem
-              hiányzó terv- vagy tényadatot jelent.
+              (perc). A szürke oszlop a terv, a színes a Garminból érkezett
+              edzés. Ahol nincs oszlop, ott a terv vagy az edzésadat hiányzik,
+              nem nulla.
             </p>
           </div>
           <article className="plan-history-insight">
@@ -208,7 +208,7 @@ export function PlanOutcomeHistory({
                   <th>TERVKÖVETÉS</th>
                   <th>ÁTLAGOS RPE</th>
                   <th>TERVMÓDOSÍTÁS</th>
-                  <th>ÉRTELMEZÉS</th>
+                  <th>ÉRTÉKELÉS</th>
                 </tr>
               </thead>
               <tbody>
@@ -222,7 +222,7 @@ export function PlanOutcomeHistory({
                       /{" "}
                       {week.weekActivities.length
                         ? formatMinutes(week.actualMinutes)
-                        : "Nincs tényadat"}
+                        : "Nincs edzésadat"}
                     </td>
                     <td>
                       {week.adherence === null ? "Nincs terv" : `${week.adherence}%`}
@@ -234,8 +234,8 @@ export function PlanOutcomeHistory({
                     </td>
                     <td>
                       {week.adjustment === null
-                        ? "Nincs rögzített adaptáció"
-                        : `${week.adjustment > 0 ? "+" : ""}${week.adjustment.toLocaleString("hu-HU", { maximumFractionDigits: 1 })}% volumen`}
+                        ? "Nincs rögzített módosítás"
+                        : `${week.adjustment > 0 ? "+" : ""}${week.adjustment.toLocaleString("hu-HU", { maximumFractionDigits: 1 })}% edzésidő`}
                     </td>
                     <td>
                       <span className={`plan-history-status ${week.statusTone}`}>
@@ -248,9 +248,9 @@ export function PlanOutcomeHistory({
             </table>
           </div>
           <p className="plan-history-note">
-            Az összegzés a saját előzményeidben látható együttjárást mutatja,
-            nem bizonyít ok-okozati kapcsolatot és nem helyettesít szakmai vagy
-            orvosi döntést. A hiányzó adatokat nem tekintjük nullának.
+            Az összegzés azt mutatja, mi járt együtt a saját előzményeidben,
+            de nem bizonyít ok-okozati kapcsolatot, és nem helyettesít szakmai
+            vagy orvosi döntést. A hiányzó adatokat nem tekintjük nullának.
           </p>
         </>
       )}
@@ -273,7 +273,7 @@ export function WeeklyClosureCard({
     return (
       <section className="weekly-closure card" aria-live="polite">
         <span className="eyebrow">HETI LEZÁRÁS</span>
-        <p className="weekly-closure-empty">A heti adatok betöltése folyamatban…</p>
+        <p className="weekly-closure-empty">Töltjük a heti adataidat…</p>
       </section>
     );
   }
@@ -283,8 +283,8 @@ export function WeeklyClosureCard({
         <span className="eyebrow">HETI LEZÁRÁS</span>
         <h2>Még nincs értékelhető hét</h2>
         <p className="weekly-closure-empty">
-          Az első edzés vagy heti terv után itt jelenik meg a teljesítés,
-          a visszajelzés lefedettsége és a következő heti döntés.
+          Az első edzés vagy heti terv után itt látod, mi teljesült, mennyi
+          visszajelzést adtál, és mit tegyél a következő héten.
         </p>
         <button className="weekly-closure-action" onClick={() => onNavigate("Naptár")}>
           ELSŐ HÉT MEGTERVEZÉSE <ChevronRight size={16} />
@@ -297,12 +297,12 @@ export function WeeklyClosureCard({
       <header className="weekly-closure-head">
         <div>
           <span className="eyebrow">
-            HETI LEZÁRÁS · {closure.isCurrent ? "FUTÓ HÉT" : "LEZÁRT HÉT"}
+            HETI LEZÁRÁS · {closure.isCurrent ? "MOSTANI HÉT" : "LEZÁRT HÉT"}
           </span>
           <h2 id="weekly-closure-title">{closure.periodLabel}</h2>
           <p>
-            A legutóbbi adatokból összefoglaljuk, mi történt és mi legyen a
-            következő, biztonságosan indokolható lépés.
+            A legutóbbi adataidból összefoglaljuk, mi történt, és mi legyen a
+            következő, óvatos lépés.
           </p>
         </div>
         <button
@@ -312,11 +312,11 @@ export function WeeklyClosureCard({
           KÖVETKEZŐ HÉT TERVEZÉSE <ChevronRight size={16} />
         </button>
       </header>
-      <div className="weekly-closure-metrics" aria-label="A hét fő mutatói">
+      <div className="weekly-closure-metrics" aria-label="A hét fő számai">
         <span>
           <strong>{closure.weekActivities.length}</strong>
           <b>EDZÉS</b>
-          <small>Ennyi külön Garmin-aktivitás került a hétbe.</small>
+          <small>Ennyi külön Garmin-edzés került erre a hétre.</small>
         </span>
         <span>
           <strong>{formatMinutes(closure.actualMinutes)}</strong>
@@ -324,7 +324,7 @@ export function WeeklyClosureCard({
           <small>
             {closure.plannedMinutes
               ? `${formatMinutes(closure.plannedMinutes)} volt betervezve.`
-              : "Nem volt előre rögzített heti időterv."}
+              : "Erre a hétre nem volt előre rögzített időterv."}
           </small>
         </span>
         <span>
@@ -335,7 +335,7 @@ export function WeeklyClosureCard({
           <small>
             {closure.weekPlans.length
               ? `${closure.completed} / ${closure.weekPlans.length} tervhez találtunk edzést.`
-              : "Terv nélkül ez az arány nem számítható."}
+              : "Terv nélkül ezt nem tudjuk kiszámolni."}
           </small>
         </span>
         <span>
@@ -345,7 +345,7 @@ export function WeeklyClosureCard({
           <b>VISSZAJELZÉS</b>
           <small>
             {closure.averageRpe === null
-              ? "Nincs rögzített RPE; ez nem nulla terhelést jelent."
+              ? "Nincs rögzített RPE (edzésérzet). Ez nem nulla terhelés."
               : `Átlagos rögzített RPE: ${closure.averageRpe.toLocaleString("hu-HU", { maximumFractionDigits: 1 })} / 10.`}
           </small>
         </span>
@@ -374,8 +374,8 @@ export function WeeklyClosureCard({
         </article>
       </div>
       <p className="weekly-closure-note">
-        Ez döntéstámogatás, nem orvosi minősítés. A hiányzó tervet vagy
-        visszajelzést a rendszer nem kezeli nulla értékként.
+        Ez segítség a döntésedhez, nem orvosi minősítés. A hiányzó tervet
+        vagy visszajelzést nem vesszük nullának.
       </p>
     </section>
   );
@@ -411,11 +411,11 @@ export function PlanningFlow({ active, profile, plans = [], feedback = {}, onNav
   return (
     <nav
       className="planning-flow card"
-      aria-label="Cél, edzésterv és visszajelzés folyamata"
+      aria-label="Cél, edzésterv és visszajelzés lépései"
     >
       <div className="planning-flow-intro">
-        <span className="eyebrow">TERVEZÉSI FOLYAMAT</span>
-        <p>A célból heti terv, a teljesítésből pedig következő döntés lesz.</p>
+        <span className="eyebrow">A TERVEZÉS LÉPÉSEI</span>
+        <p>A célodból heti terv lesz, az edzéseidből pedig a következő döntés.</p>
       </div>
       <div className="planning-flow-steps">
         {steps.map(({ id, Icon, label, detail, context }) => (

@@ -162,35 +162,35 @@ export function buildWeeklyClosure(plans, activities, feedback, today) {
 
   let completedText;
   if (!week.weekPlans.length) {
-    completedText = `${week.weekActivities.length} edzés került a Naplóba, összesen ${formatMinutes(actualMinutes)} időtartammal. Előzetes terv nélkül a tervkövetés nem számítható.`;
+    completedText = `${week.weekActivities.length} edzés került a Naplóba, összesen ${formatMinutes(actualMinutes)}. Előzetes terv nélkül a tervkövetést nem tudjuk kiszámolni.`;
   } else {
-    completedText = `${week.completed} / ${week.weekPlans.length} tervezett edzéshez találtunk teljesítést. ${missed ? `${missed} edzés elmaradt.` : "Nincs lezárt, elmaradt edzés."}${extraActivities.length ? ` Emellett ${extraActivities.length} nem tervezett edzés is bekerült.` : ""}`;
+    completedText = `${week.completed} / ${week.weekPlans.length} tervezett edzéshez találtunk elvégzett edzést. ${missed ? `${missed} edzés elmaradt.` : "Elmaradt edzés nincs."}${extraActivities.length ? ` Emellett ${extraActivities.length} nem tervezett edzésed is volt.` : ""}`;
   }
 
   let signalText;
   if (!week.weekActivities.length) {
-    signalText = "A héten még nincs Garmin-aktivitás, ezért a terv tényleges terhelése nem értékelhető.";
+    signalText = "Ezen a héten még nincs Garmin-edzés, ezért a terv tényleges terhelését nem tudjuk értékelni.";
   } else if (feedbackCoverage === 0) {
-    signalText = "Az edzésadatok megvannak, de saját visszajelzés még nincs. Az RPE hiánya nem nulla terhelést jelent, hanem alacsonyabb bizonyosságot.";
+    signalText = "Az edzésadatok megvannak, de saját visszajelzésed még nincs. A hiányzó RPE (edzésérzet) nem nulla terhelés, hanem kevésbé biztos értékelés.";
   } else if (feedbackCoverage < 60) {
-    signalText = `Az edzések ${feedbackCoverage}%-ához van saját visszajelzés. Ez már ad támpontot, de a heti terhelés szubjektív hatása még csak részben látható.`;
+    signalText = `Az edzések ${feedbackCoverage}%-ához van saját visszajelzésed. Ez már támpont, de még csak részben látszik, mennyire volt nehéz a heted.`;
   } else if (averageRpe >= 8) {
-    signalText = `Az átlagos rögzített RPE ${averageRpe.toLocaleString("hu-HU", { maximumFractionDigits: 1 })} / 10, vagyis a hét többnyire nehéznek érződött. A következő emelés előtt érdemes stabilizálni.`;
+    signalText = `A rögzített RPE-d (edzésérzet) átlaga ${averageRpe.toLocaleString("hu-HU", { maximumFractionDigits: 1 })} / 10, vagyis többnyire nehéznek érezted a hetet. A következő emelés előtt érdemes ezen a szinten maradnod.`;
   } else {
-    signalText = `A visszajelzések ${feedbackCoverage}%-os lefedettsége alapján az átlagos RPE ${averageRpe.toLocaleString("hu-HU", { maximumFractionDigits: 1 })} / 10. Ez használható alap a következő heti finomhangoláshoz.`;
+    signalText = `Az edzések ${feedbackCoverage}%-ához adtál visszajelzést, az átlagos RPE-d (edzésérzet) ${averageRpe.toLocaleString("hu-HU", { maximumFractionDigits: 1 })} / 10. Ez használható alap a következő hét finomításához.`;
   }
 
   let nextDecision;
   if (!week.weekPlans.length) {
-    nextDecision = "Rögzítsd előre legalább a következő hét fő edzéseit a Naptárban. Így a rendszer már nemcsak az elvégzett munkát, hanem a tervtől való eltérést is értékelni tudja.";
+    nextDecision = "Tervezd meg előre legalább a következő hét fő edzéseit a Naptárban. Így nemcsak azt látjuk, mit végeztél el, hanem azt is, mennyire tértél el a tervtől.";
   } else if (feedbackCoverage === null || feedbackCoverage < 50) {
-    nextDecision = "A következő héten minden fő edzés után adj RPE-visszajelzést. Enélkül nem indokolt csak a Garmin-adatok alapján emelni vagy csökkenteni a terhelést.";
+    nextDecision = "A következő héten minden fő edzés után add meg az RPE-t, vagyis hogy mennyire érezted nehéznek. Enélkül, csak a Garmin-adatok alapján nem indokolt emelni vagy csökkenteni a terhelést.";
   } else if (week.adherence < 70) {
-    nextDecision = "Ne sűrítsd be automatikusan az elmaradt edzéseket. Előbb egyszerűsítsd a következő hetet kevesebb, biztosan teljesíthető fő alkalomra.";
+    nextDecision = "Ne sűrítsd be automatikusan az elmaradt edzéseket. Előbb egyszerűsítsd a következő hetet: legyen benne kevesebb, biztosan teljesíthető fő edzés.";
   } else if ((durationRatio && durationRatio > 1.2) || averageRpe >= 8) {
-    nextDecision = "Tartsd vagy enyhén csökkentsd a következő hét volumenét; új terhelést csak akkor adj hozzá, ha a regenerációs jelek is támogatják.";
+    nextDecision = "Tartsd vagy kicsit csökkentsd a következő hét edzésmennyiségét. Új terhelést csak akkor adj hozzá, ha a regenerációd jelei is engedik.";
   } else {
-    nextDecision = "A heti szerkezet tartható. A következő héten csak egy elemen változtass, és az időtartamot legfeljebb kis lépésben emeld.";
+    nextDecision = "A heti felépítés tartható. A következő héten csak egy dolgon változtass, és az edzésidőt legfeljebb kis lépésben emeld.";
   }
 
   return {
@@ -385,16 +385,16 @@ export function buildPlanOutcomeHistory(
   let insight;
   if (comparableWeeks.length < 2) {
     insight =
-      "Legalább két lezárt, előre megtervezett hét szükséges ahhoz, hogy a terv tarthatóságáról mintázatot mutassunk. A futó hetet nem minősítjük végleges eredményként.";
+      "Legalább két lezárt, előre megtervezett hét kell ahhoz, hogy lássuk, mennyire tartható a terved. A mostani hetet még nem vesszük végleges eredménynek.";
   } else if (!bestWeek) {
     insight =
-      "Még nincs olyan lezárt hét, ahol egyszerre lenne megfelelő tervkövetés, edzésidő és elegendő RPE-visszajelzés. Előbb javítsd a naplózási lefedettséget, majd csak egy tervváltozót módosíts.";
+      "Még nincs olyan lezárt hét, ahol egyszerre megfelelő a tervkövetés és az edzésidő, és elég az RPE-visszajelzés (edzésérzet). Előbb értékelj több edzést, aztán csak egy dolgon változtass a tervben.";
   } else {
     const adjustmentText =
       bestWeek.adjustment === null
-        ? "rögzített volumenmódosítás nélkül"
+        ? "rögzített tervmódosítás nélkül"
         : `${bestWeek.adjustment > 0 ? "+" : ""}${bestWeek.adjustment.toLocaleString("hu-HU", { maximumFractionDigits: 1 })}%-os tervmódosítás mellett`;
-    insight = `${bestWeek.periodLabel} mutatta a leginkább tartható végrehajtást: ${bestWeek.adherence}% tervkövetés, ${bestWeek.averageRpe.toLocaleString("hu-HU", { maximumFractionDigits: 1 })} / 10 átlagos RPE, ${adjustmentText}. Ez együttjárás a saját előzményeidben, nem bizonyított ok-okozati kapcsolat.`;
+    insight = `${bestWeek.periodLabel} volt a leginkább tartható heted: ${bestWeek.adherence}% tervkövetés, ${bestWeek.averageRpe.toLocaleString("hu-HU", { maximumFractionDigits: 1 })} / 10 átlagos RPE, ${adjustmentText}. Ez együttjárás a saját előzményeidben, nem bizonyított ok-okozati kapcsolat.`;
   }
 
   return {

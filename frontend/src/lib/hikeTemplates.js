@@ -6,11 +6,11 @@
 import { isoDate } from "./dates.js";
 
 export const HIKE_SOURCES = [
-  { key: "knapik2012", label: "Knapik JJ, Harman EA, Steelman RA, Graham BS. A systematic review of the effects of physical training on load carriage performance. J Strength Cond Res. 2012;26(2):585–597.", url: "https://doi.org/10.1519/JSC.0b013e3182429853", claim: "Nagy javulás, ha az erőedzést állóképességi edzéssel kombinálják, heti legalább 3 alkalommal, legalább 4 héten át; fokozatosan növelt hátizsákos edzéssel a hatás még nagyobb." },
-  { key: "bontemps2020", label: "Bontemps B, Vercruyssen F, Gruet M, Louis J. Downhill running: what are the effects and how can we adapt? A narrative review. Sports Med. 2020;50(12):2083–2110.", url: "https://doi.org/10.1007/s40279-020-01355-z", claim: "A lejtmenet izomkárosodása ellen az előzetes lejtős terhelés a legjobban alátámasztott védekezés; a védőhatás hetekig tart (6 hétnél még igen, 9 hétnél már nem volt kimutatható)." },
-  { key: "din33466", label: "DIN 33466 – Wanderwege (gyalogidő-számítás), Österreichischer Alpenverein ismertetője.", url: "https://www.alpenverein.at/portal/news/aktuelle_news_kurz/2018/2018_06_14_wie-berechnet-man-die-gehzeit-auf-wanderwegen.php", claim: "Óránként kb. 300 m emelkedés, 500 m lejtés vagy 4 km vízszintes táv; a kisebbik időt felezve adjuk a nagyobbikhoz. Irányérték, pihenők nélkül." },
-  { key: "luks2019", label: "Luks AM, Auerbach PS, Freer L, et al. Wilderness Medical Society clinical practice guidelines for the prevention and treatment of acute altitude illness: 2019 update. Wilderness Environ Med. 2019;30(4S):S3–S18.", url: "https://doi.org/10.1016/j.wem.2019.04.006", claim: "2500 m felett nő a magassági betegség kockázata; 3000 m felett az alvási magasság naponta legfeljebb kb. 500 m-rel nőjön, 3–4 naponta pihenőnappal." },
-  { key: "bosquet2007", label: "Bosquet L, Montpetit J, Arvisais D, Mujika I. Effects of tapering on performance: a meta-analysis. Med Sci Sports Exerc. 2007;39(8):1358–1365.", url: "https://doi.org/10.1249/mss.0b013e31806010e0", claim: "Állóképességi sportokban a volumen 41–60%-os csökkentése az intenzitás megtartásával segíti a csúcsformát; túrázásra átvett, nem külön vizsgált elv." },
+  { key: "knapik2012", label: "Knapik JJ, Harman EA, Steelman RA, Graham BS. A systematic review of the effects of physical training on load carriage performance. J Strength Cond Res. 2012;26(2):585–597.", url: "https://doi.org/10.1519/JSC.0b013e3182429853", claim: "Nagy a javulás, ha az erőedzést állóképességi edzéssel kombinálják, heti legalább 3 alkalommal, legalább 4 héten át. Fokozatosan növelt hátizsákos edzéssel még nagyobb a hatás." },
+  { key: "bontemps2020", label: "Bontemps B, Vercruyssen F, Gruet M, Louis J. Downhill running: what are the effects and how can we adapt? A narrative review. Sports Med. 2020;50(12):2083–2110.", url: "https://doi.org/10.1007/s40279-020-01355-z", claim: "A lejtmenet okozta izomkárosodás ellen az előzetes lejtős terhelés a legjobban alátámasztott védekezés. A védőhatás hetekig tart (6 hétnél még kimutatható volt, 9 hétnél már nem)." },
+  { key: "din33466", label: "DIN 33466 – Wanderwege (gyalogidő-számítás), Österreichischer Alpenverein ismertetője.", url: "https://www.alpenverein.at/portal/news/aktuelle_news_kurz/2018/2018_06_14_wie-berechnet-man-die-gehzeit-auf-wanderwegen.php", claim: "Óránként kb. 300 m emelkedés, 500 m lejtés vagy 4 km vízszintes táv. A kisebbik idő felét adjuk a nagyobbikhoz. Irányérték, pihenők nélkül." },
+  { key: "luks2019", label: "Luks AM, Auerbach PS, Freer L, et al. Wilderness Medical Society clinical practice guidelines for the prevention and treatment of acute altitude illness: 2019 update. Wilderness Environ Med. 2019;30(4S):S3–S18.", url: "https://doi.org/10.1016/j.wem.2019.04.006", claim: "2500 m felett nő a magassági betegség kockázata. 3000 m felett az alvási magasság naponta legfeljebb kb. 500 m-rel nőjön, 3–4 naponta pihenőnappal." },
+  { key: "bosquet2007", label: "Bosquet L, Montpetit J, Arvisais D, Mujika I. Effects of tapering on performance: a meta-analysis. Med Sci Sports Exerc. 2007;39(8):1358–1365.", url: "https://doi.org/10.1249/mss.0b013e31806010e0", claim: "Állóképességi sportokban az edzésmennyiség 41–60%-os csökkentése, változatlan intenzitás mellett, segíti a csúcsformát. Túrázásra átvett, nem külön vizsgált elv." },
 ];
 
 const EXPERIENCE_KEYS = ["kezdő", "középhaladó", "haladó"];
@@ -108,21 +108,21 @@ export function buildHikePlan({ profile, data, today }) {
   let weekCount = event.weeks.rec, start = new Date(firstMonday);
   if (eventDate) {
     const available = weeksBetween(isoDate(firstMonday), eventDate) + 1;
-    if (available < event.weeks.min) warnings.push(`Az eseményig ${available} hét van, ${event.phrase} szokásos minimális felkészülési ideje ${event.weeks.min} hét. A terv rövidített; a túra napján tervezz több pihenőt és tartalékidőt.`);
+    if (available < event.weeks.min) warnings.push(`Az eseményig ${available} hét van, de ${event.phrase} szokásos minimális felkészülési ideje ${event.weeks.min} hét. A terv rövidített, ezért a túra napján tervezz több pihenőt és tartalékidőt.`);
     weekCount = Math.max(2, Math.min(event.weeks.max, available));
     start = new Date(`${eventDate}T12:00:00`);
     start.setDate(start.getDate() - ((start.getDay() + 6) % 7) - (weekCount - 1) * 7);
-    if (available > event.weeks.max) warnings.push(`Az eseményig ${available} hét van; a ${weekCount} hetes célzott terv ${start.toLocaleDateString("hu-HU", { month: "long", day: "numeric" })}-én indul, addig tartsd a mostani túrázási és edzési szokásaidat.`);
+    if (available > event.weeks.max) warnings.push(`Az eseményig ${available} hét van. A ${weekCount} hetes célzott terv kezdete ${start.toLocaleDateString("hu-HU", { month: "long", day: "numeric" })}, addig tartsd a mostani túrázási és edzési szokásaidat.`);
   } else {
-    warnings.push(`Nincs megadva eseménydátum, ezért a javasolt ${weekCount} hetes tervet a következő hétfőtől számoljuk.`);
+    warnings.push(`Nincs eseménydátum, ezért a javasolt ${weekCount} hetes tervet a következő hétfőtől számoljuk.`);
   }
 
   const current = currentHiking(data?.sessions, todayIso);
   const paceFactor = current.paceFactor ?? 1;
   const dayMinutes = walkingMinutes(target.km, target.gainM) * paceFactor;
   const climbRate = target.gainM / dayMinutes, kmRate = target.km / dayMinutes; // the event's own mix of distance and climbing
-  if (current.longestMin == null) warnings.push("Az elmúlt 8 hétből nincs Garmin-túraadat, ezért a kiinduló túrahossz a tapasztalati szinted alapján becsült.");
-  if (current.paceFactor == null) warnings.push("A menetidő a DIN 33466 szerinti átlagos tempóval becsült; néhány szintemelkedéssel rögzített Garmin-túra után a saját tempódhoz igazítjuk.");
+  if (current.longestMin == null) warnings.push("Az elmúlt 8 hétből nincs Garmin-túraadat, ezért a kezdő túrahosszt a tapasztalati szinted alapján becsüljük.");
+  if (current.paceFactor == null) warnings.push("A menetidőt a DIN 33466 szerinti átlagos tempóval becsüljük. Néhány szintemelkedéssel rögzített Garmin-túra után a saját tempódhoz igazítjuk.");
 
   const peakMinutes = dayMinutes * event.peakShare;
   const startMinutes = Math.min(peakMinutes, current.longestMin != null ? Math.max(60, current.longestMin) : START_MINUTES[level]);
@@ -144,7 +144,7 @@ export function buildHikePlan({ profile, data, today }) {
   const sorted = [...days].sort((a, b) => ORDER.indexOf(a) - ORDER.indexOf(b));
   const longDay = sorted.includes("Szo") ? "Szo" : sorted.includes("V") ? "V" : sorted[sorted.length - 1];
   const backDay = target.type === "trek" && longDay === "Szo" && sorted.includes("V") ? "V" : null;
-  if (target.type === "trek" && !backDay) warnings.push("Többnapos túrához a hétvégi, egymást követő túranapok (szombat–vasárnap) a leghasznosabbak; add meg mindkettőt edzésnapként, ha teheted.");
+  if (target.type === "trek" && !backDay) warnings.push("Többnapos túrához a hétvégi, egymást követő túranapok (szombat–vasárnap) a leghasznosabbak. Ha teheted, mindkettőt add meg edzésnapnak.");
 
   let pack = startPack;
   const weeks = longs.map((long, index) => {
@@ -165,12 +165,12 @@ export function buildHikePlan({ profile, data, today }) {
 
   const longestPlanned = Math.max(...weeks.map(week => week.longMinutes));
   const ready = longestPlanned >= dayMinutes * event.peakShare * 0.85;
-  if (!ready) warnings.unshift(`A mostani túrázásodból a heti legfeljebb 10%-os emeléssel a leghosszabb edzéstúra ${formatHours(longestPlanned)}-ig jut, ami kevés a ${formatHours(dayMinutes)}-s túranaphoz (kb. ${formatHours(dayMinutes * event.peakShare)} lenne a cél). Válassz rövidebb útvonalat, vagy egy későbbi időpontot.`);
-  if (dayMinutes > 12 * 60) warnings.push(`A becsült menetidő ${formatHours(dayMinutes)} egy napra: ilyen hosszú túrához tervezz sötétben megtett szakasszal, frissítőpontokkal, és jelölj ki menekülőutat.`);
+  if (!ready) warnings.unshift(`A mostani túráidból, hetente legfeljebb 10%-os emeléssel a leghosszabb edzéstúra ${formatHours(longestPlanned)} lesz. Ez kevés egy ${formatHours(dayMinutes)} hosszú túranaphoz (kb. ${formatHours(dayMinutes * event.peakShare)} lenne a cél). Válassz rövidebb útvonalat vagy későbbi időpontot.`);
+  if (dayMinutes > 12 * 60) warnings.push(`A becsült menetidő ${formatHours(dayMinutes)} egy napra. Ilyen hosszú túrához tervezz sötétben megtett szakasszal, frissítőpontokkal, és jelölj ki menekülőutat.`);
   if (target.maxAltitudeM != null && target.maxAltitudeM >= 2500) {
     warnings.push(target.type === "trek" && target.maxAltitudeM >= 3000
-      ? "A túra 3000 m fölé visz: ott az alvási magasság naponta legfeljebb kb. 500 m-rel nőjön, és 3–4 naponta legyen pihenőnap (Luks és mtsai, 2019). Magashegyi úthoz kérj sportorvosi tanácsot."
-      : "A túra 2500 m fölé visz, ahol nő a magassági betegség kockázata (Luks és mtsai, 2019). Ha teheted, aludj előtte egy éjszakát közepes magasságban, és fejfájásnál, hányingernél ne menj tovább felfelé.");
+      ? "A túra 3000 m fölé visz. Ott az alvási magasság naponta legfeljebb kb. 500 m-rel nőjön, és 3–4 naponta legyen pihenőnap (Luks és mtsai, 2019). Magashegyi úthoz kérj sportorvosi tanácsot."
+      : "A túra 2500 m fölé visz, ahol nő a magassági betegség kockázata (Luks és mtsai, 2019). Ha teheted, aludj előtte egy éjszakát közepes magasságban. Ha fejfájásod vagy hányingered van, ne menj tovább felfelé.");
   }
   return {
     event: { key: target.type, label: event.label, date: eventDate, level, ...target },
