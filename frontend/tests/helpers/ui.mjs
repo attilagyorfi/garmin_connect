@@ -1,4 +1,7 @@
 // jsdom + Vite SSR harness for component tests: no browser, no real server, every request goes to the given fetch mock.
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { JSDOM } from "jsdom";
 import { createServer } from "vite";
@@ -21,11 +24,13 @@ console.warn = () => {}; // Recharts warns about the missing layout in jsdom
 const { default: React, act } = await import("react");
 const { createRoot } = await import("react-dom/client");
 const { default: axe } = await import("axe-core");
-const vite = await createServer({ root: fileURLToPath(new URL("../..", import.meta.url)), logLevel: "error", server: { middlewareMode: true, hmr: false, ws: false }, appType: "custom", optimizeDeps: { noDiscovery: true } });
+// Test files run in parallel processes: a shared Vite cache folder makes them fail on each other's rename.
+const cacheDir = mkdtempSync(join(tmpdir(), "hybrid-vite-"));
+const vite = await createServer({ cacheDir, root: fileURLToPath(new URL("../..", import.meta.url)), logLevel: "error", server: { middlewareMode: true, hmr: false, ws: false }, appType: "custom", optimizeDeps: { noDiscovery: true } });
 
 export { React, act };
 export const load = path => vite.ssrLoadModule(path);
-export const close = async () => { await vite.close(); dom.window.close(); };
+export const close = async () => { await vite.close(); rmSync(cacheDir, { recursive: true, force: true }); dom.window.close(); };
 
 export const ok = body => ({ ok: true, status: 200, headers: { get: () => null }, json: async () => body, text: async () => JSON.stringify(body) });
 export const fail = (status, body = {}) => ({ ok: false, status, headers: { get: () => null }, json: async () => body, text: async () => JSON.stringify(body) });
