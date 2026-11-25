@@ -74,7 +74,7 @@ def test_recent_inactive_candidate_prevents_daily_retraining():
     ]
     result = evaluate_retraining(raw, {"feedback": {}}, versions, today=date.today())
     assert result["status"] == "not_due"
-    assert "nem tanít újra feleslegesen" in result["message"]
+    assert "nem tanítjuk újra feleslegesen" in result["message"]
 
 
 def test_cron_endpoint_requires_configured_matching_secret(monkeypatch):

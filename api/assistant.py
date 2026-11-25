@@ -52,7 +52,7 @@ class handler(BaseHTTPRequestHandler):
         except Exception:
             if not started:
                 raise
-            emit({"type": "error", "error": "Az edzőtárs most nem érhető el. Próbáld újra egy kicsit később."})
+            emit({"type": "error", "error": "Az Edzőtárs most nem elérhető. Próbáld újra pár perc múlva."})
             return
         emit({"type": "done", **result})
 
@@ -60,17 +60,17 @@ class handler(BaseHTTPRequestHandler):
         try:
             user = current_user(self.headers)
             if not user:
-                self._send({"error": "A művelethez bejelentkezés szükséges."}, 401)
+                self._send({"error": "Ehhez be kell jelentkezned."}, 401)
                 return
             self._send(public_state(load_assistant_state(user["id"]), user["id"]))
         except Exception:
-            self._send({"error": "Az edzőtárs állapota jelenleg nem tölthető be."}, 503)
+            self._send({"error": "Nem sikerült betölteni az Edzőtársat. Próbáld újra pár perc múlva."}, 503)
 
     def do_POST(self) -> None:  # noqa: N802
         try:
             user = current_user(self.headers)
             if not user:
-                self._send({"error": "A művelethez bejelentkezés szükséges."}, 401)
+                self._send({"error": "Ehhez be kell jelentkezned."}, 401)
                 return
             size = int(self.headers.get("Content-Length", "0"))
             if size <= 0 or size > 16_384:
@@ -87,4 +87,4 @@ class handler(BaseHTTPRequestHandler):
         except (AssistantError, json.JSONDecodeError) as exc:
             self._send({"error": str(exc) or "Érvénytelen kérés."}, 400)
         except Exception:
-            self._send({"error": "Az edzőtárs most nem érhető el. Próbáld újra egy kicsit később."}, 502)
+            self._send({"error": "Az Edzőtárs most nem elérhető. Próbáld újra pár perc múlva."}, 502)

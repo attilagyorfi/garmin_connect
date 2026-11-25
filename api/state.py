@@ -31,7 +31,7 @@ class handler(BaseHTTPRequestHandler):
         try:
             user = current_user(self.headers)
             if not user:
-                self._send({"error": "A művelethez bejelentkezés szükséges."}, 401)
+                self._send({"error": "Ehhez be kell jelentkezned."}, 401)
                 return
             query = parse_qs(urlparse(getattr(self, "path", "")).query)
             if query.get("export") == ["1"]:
@@ -43,13 +43,13 @@ class handler(BaseHTTPRequestHandler):
                 "state_load_failed type=%s sqlstate=%s",
                 type(exc).__name__, getattr(exc, "sqlstate", None),
             )
-            self._send({"error": "A személyes beállítások jelenleg nem tölthetők be."}, 503)
+            self._send({"error": "Nem sikerült betölteni az adataidat. Próbáld újra pár perc múlva."}, 503)
 
     def do_PATCH(self) -> None:  # noqa: N802
         try:
             user = current_user(self.headers)
             if not user:
-                self._send({"error": "A művelethez bejelentkezés szükséges."}, 401)
+                self._send({"error": "Ehhez be kell jelentkezned."}, 401)
                 return
             size = int(self.headers.get("Content-Length", "0"))
             if size <= 0 or size > 262_144:

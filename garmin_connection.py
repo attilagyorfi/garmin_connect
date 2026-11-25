@@ -202,7 +202,7 @@ def load_mfa_state(user_id: str) -> tuple[str, dict[str, Any]]:
         db.close()
     if not row:
         clear_mfa_state(user_id)
-        raise ValueError("Az MFA-munkamenet lejárt vagy túl sok próbálkozás történt. Indítsd újra a csatlakoztatást.")
+        raise ValueError("Lejárt a kód megadására szánt idő, vagy túl sokszor próbálkoztál. Kösd össze újra a Garmint.")
     try:
         payload = json.loads(_cipher().decrypt(bytes(row[0])))
         return payload["email"], payload["state"]

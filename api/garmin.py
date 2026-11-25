@@ -80,7 +80,7 @@ class handler(BaseHTTPRequestHandler):
     def _user(self) -> dict | None:
         user = current_user(self.headers)
         if not user:
-            self._send({"error": "A művelethez bejelentkezés szükséges."}, 401)
+            self._send({"error": "Ehhez be kell jelentkezned."}, 401)
         return user
 
     def do_GET(self) -> None:  # noqa: N802
@@ -89,7 +89,7 @@ class handler(BaseHTTPRequestHandler):
             if user:
                 self._send(connection_status(user["id"]))
         except Exception:
-            self._send({"error": "A Garmin-kapcsolat állapota jelenleg nem tölthető be."}, 503)
+            self._send({"error": "Nem sikerült betölteni a Garmin-kapcsolat állapotát. Próbáld újra pár perc múlva."}, 503)
 
     def do_POST(self) -> None:  # noqa: N802
         try:
@@ -104,7 +104,7 @@ class handler(BaseHTTPRequestHandler):
             if action == "verify_mfa":
                 code = str(payload.get("code", "")).strip()
                 if not code:
-                    raise ValueError("Add meg a Garmin által küldött ellenőrző kódot.")
+                    raise ValueError("Írd be a Garmintól kapott egyszer használatos kódot.")
                 email, mfa_state = load_mfa_state(user["id"])
                 client = _restore_mfa_client(mfa_state)
                 client.resume_login({}, code)
@@ -131,17 +131,17 @@ class handler(BaseHTTPRequestHandler):
             client.password = None
             self._send(save_token_connection(user["id"], email, client.client.dumps()), 201)
         except (ValueError, TypeError, json.JSONDecodeError) as exc:
-            self._send({"error": str(exc) or "Érvénytelen Garmin-fiókadat."}, 400)
+            self._send({"error": str(exc) or "Nem sikerült feldolgozni a megadott Garmin-adatokat. Nézd át őket, és próbáld újra."}, 400)
         except Exception as exc:
             message = str(exc).lower()
             if "429" in message or "rate" in message:
-                error = "A Garmin átmenetileg korlátozta a belépési kísérleteket. Várj néhány percet."
+                error = "A Garmin átmenetileg korlátozta a belépést. Várj pár percet, aztán próbáld újra."
             elif "auth" in message or "401" in message or "password" in message:
-                error = "A Garmin-hitelesítés sikertelen. Ellenőrizd az e-mail-címet és a jelszót."
+                error = "Nem sikerült belépni a Garminba. Nézd át az e-mail-címedet és a jelszavadat."
             elif "mfa" in message:
-                error = "Az MFA-ellenőrzés sikertelen vagy lejárt. Indítsd újra a csatlakoztatást."
+                error = "Nem sikerült a kétlépcsős belépés (MFA), vagy közben lejárt. Kösd össze újra a Garmint."
             else:
-                error = "A Garmin-kapcsolat létrehozása sikertelen. Próbáld újra később."
+                error = "Nem sikerült összekötni a Garmin-fiókodat. Próbáld újra később."
             self._send({"error": error}, 502)
 
     def do_DELETE(self) -> None:  # noqa: N802
@@ -152,4 +152,4 @@ class handler(BaseHTTPRequestHandler):
                 delete_connection(user["id"])
                 self._send({"status": "disconnected"})
         except Exception:
-            self._send({"error": "A Garmin-kapcsolat leválasztása sikertelen."}, 500)
+            self._send({"error": "Nem sikerült leválasztani a Garmint. Próbáld újra pár perc múlva."}, 500)

@@ -329,6 +329,6 @@ def test_missing_session_never_falls_back_to_server_credentials(monkeypatch, sto
     built = []
     monkeypatch.setattr(cloud_sync_job, "GarminSync", lambda *args, **kwargs: built.append(kwargs))
     monkeypatch.setattr(cloud_sync_job, "load_tokenstore", lambda user_id: stored)
-    with pytest.raises(GarminSyncError, match="Garmin-munkamenet"):
+    with pytest.raises(GarminSyncError, match="Nincs érvényes Garmin-belépőkulcsod"):
         _authenticated_sync("user-1", "run-1")
     assert built == []

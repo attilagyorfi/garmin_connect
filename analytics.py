@@ -407,6 +407,26 @@ def red_flags(frame: pd.DataFrame, checkin: dict[str, Any] | None = None, sync_a
     return flags
 
 
+# How the readiness components read inside the rationale sentence; the component names themselves are keys.
+RATIONALE_LABELS = {
+    "HRV": "a HRV-d (a szívverések közötti idő ingadozása)",
+    "Alvás": "az alvásod",
+    "RHR": "a nyugalmi pulzusod",
+    "Terhelés / TSB": "a becsült formád (TSB, a hosszú és a rövid távú terhelésed különbsége)",
+    "Előző terhelés": "az előző napok terhelése",
+    "Manuális wellness": "a közérzeted a válaszaid alapján",
+}
+
+
+def _rationale_text(positives: list[str], negatives: list[str]) -> str:
+    """Closed sentences from "name: interpretation" items, same content and order; callers append further sentences."""
+    parts = []
+    for lead, items in (("Ma ez támogat", positives), ("Ma ez korlátoz", negatives)):
+        if items:
+            parts.append(f"{lead}: {' és '.join(RATIONALE_LABELS.get(item.split(':')[0], item) for item in items)}.")
+    return " ".join(parts) or "A meglévő adataidat óvatosan értékeltük."
+
+
 def training_decision(result: ReadinessResult, frame: pd.DataFrame, checkin: dict[str, Any] | None = None, flags: list[dict[str, str]] | None = None, score_override: float | None = None) -> dict[str, Any]:
     score = result.score if score_override is None else score_override
     score = score or 0
@@ -433,7 +453,7 @@ def training_decision(result: ReadinessResult, frame: pd.DataFrame, checkin: dic
     else:
         choice = ("Könnyű technikai erőedzés", "30–50 perc", "könnyű–közepes", "Z1–Z2", "3–5", "bukásig végzett sorozatok", "könnyű Zone 2")
         rules.append("conservative_training")
-    return {"type": choice[0], "duration": choice[1], "max_intensity": choice[2], "heart_rate_zone": choice[3], "rpe": choice[4], "avoid": choice[5], "alternative": choice[6], "confidence": result.confidence, "rules": rules, "rationale": "; ".join((result.positives[:2] + result.negatives[:2])) or "A rendelkezésre álló adatok konzervatív értékelése."}
+    return {"type": choice[0], "duration": choice[1], "max_intensity": choice[2], "heart_rate_zone": choice[3], "rpe": choice[4], "avoid": choice[5], "alternative": choice[6], "confidence": result.confidence, "rules": rules, "rationale": _rationale_text(result.positives[:2], result.negatives[:2])}
 
 
 def weekly_summary(frame: pd.DataFrame, activities: pd.DataFrame, flags: list[dict[str, str]]) -> dict[str, Any]:
@@ -460,14 +480,14 @@ def weekly_summary(frame: pd.DataFrame, activities: pd.DataFrame, flags: list[di
     strength_sessions = int((recent_activities.get("modality", pd.Series(dtype=str)) == "Strength / Functional").sum())
     recommendations = []
     if change is not None and change > 20:
-        recommendations.append("Stabilizáld a terhelést; ne növeld tovább a következő héten.")
+        recommendations.append("Tartsd a mostani terhelést, és ne növeld tovább a következő héten.")
     if strength_sessions < 2:
-        recommendations.append("Ha a célod engedi, tervezz két erő- vagy funkcionális edzést.")
+        recommendations.append("Ha belefér a célodba, tervezz két erőedzést vagy funkcionális edzést.")
     if flags:
-        recommendations.append("A hét elején kezeld a kiemelt red flageket.")
+        recommendations.append("A hét elején foglalkozz a kiemelt figyelmeztető jelekkel.")
     zone2 = current["zone2_min"].sum(min_count=1) if "zone2_min" in current else np.nan
     high_intensity = current["high_intensity_min"].sum(min_count=1) if "high_intensity_min" in current else np.nan
-    return {"total_load": round(reported_total), "load_source": load_source, "official_load_coverage_pct": official_coverage, "hybrid_load": round(total), "change_pct": None if change is None else round(change), "strength_sessions": strength_sessions, "recovery_days": int((current["hybrid_load"] < 10).sum()), "zone2_min": None if pd.isna(zone2) else round(float(zone2)), "high_intensity_min": None if pd.isna(high_intensity) else round(float(high_intensity)), "flags": len(flags), "recommendations": recommendations[:4] or ["Tartsd a jelenlegi, kiegyensúlyozott struktúrát."]}
+    return {"total_load": round(reported_total), "load_source": load_source, "official_load_coverage_pct": official_coverage, "hybrid_load": round(total), "change_pct": None if change is None else round(change), "strength_sessions": strength_sessions, "recovery_days": int((current["hybrid_load"] < 10).sum()), "zone2_min": None if pd.isna(zone2) else round(float(zone2)), "high_intensity_min": None if pd.isna(high_intensity) else round(float(high_intensity)), "flags": len(flags), "recommendations": recommendations[:4] or ["Tartsd a mostani, kiegyensúlyozott ritmust."]}
 
 
 def weekly_report_markdown(summary: dict[str, Any], week_end: Any, decision: dict[str, Any], flags: list[dict[str, str]]) -> str:
@@ -877,7 +897,7 @@ def validate_recovery_model(frame: pd.DataFrame, activities: pd.DataFrame, feedb
     if data.empty:
         return {"status": "insufficient", "eligible": False, "samples": 0, "folds": [], "message": "Nincs elemezhető adat."}
     if len(labeled) < RECOVERY_MODEL_REQUIRED_SAMPLES:
-        return {"status": "insufficient", "eligible": False, "samples": len(labeled), "folds": [], "message": f"Legalább {RECOVERY_MODEL_REQUIRED_SAMPLES} célértékes nap kell; jelenleg {len(labeled)} áll rendelkezésre."}
+        return {"status": "insufficient", "eligible": False, "samples": len(labeled), "folds": [], "message": f"Legalább {RECOVERY_MODEL_REQUIRED_SAMPLES} értékelhető nap kell, vagyis olyan, amelynél a másnapi regenerálódásodat is ismerjük. Most {len(labeled)} ilyen napod van."}
 
     def fit_predict(train: pd.DataFrame, test: pd.DataFrame) -> tuple[np.ndarray, float, dict[str, Any]]:
         medians = train[feature_columns].median().fillna(0)
@@ -929,21 +949,21 @@ def validate_recovery_model(frame: pd.DataFrame, activities: pd.DataFrame, feedb
 def model_promotion_decision(validation: dict[str, Any], versions: list[dict[str, Any]]) -> dict[str, Any]:
     """Promote only eligible candidates with better chronological validation MAE."""
     if validation.get("status") != "validated" or not validation.get("eligible"):
-        return {"promote": False, "reason": "A jelölt nem teljesítette az idősoros validációs kaput."}
+        return {"promote": False, "reason": "Az új modellváltozat nem ment át az időrendi teszteken, ezért nem lép életbe."}
     active = next((version for version in versions if version.get("active")), None)
     if active is None:
-        return {"promote": True, "reason": "Nincs korábbi aktív modell; a validált jelölt aktiválható."}
+        return {"promote": True, "reason": "Még nincs aktív modelled, az új változat pedig átment a teszteken, ezért életbe léphet."}
     candidate_mae, active_mae = float(validation["model_mae"]), float(active.get("model_mae", float("inf")))
     if candidate_mae < active_mae:
-        return {"promote": True, "reason": f"A jelölt MAE-je jobb: {candidate_mae:.3f} < {active_mae:.3f}."}
-    return {"promote": False, "reason": f"Az aktív modell MAE-je nem rosszabb: {active_mae:.3f} ≤ {candidate_mae:.3f}."}
+        return {"promote": True, "reason": f"Az új modellváltozat átlagos hibája (MAE) kisebb: {candidate_mae:.3f} < {active_mae:.3f}."}
+    return {"promote": False, "reason": f"Az aktív modelled átlagos hibája (MAE) nem nagyobb: {active_mae:.3f} ≤ {candidate_mae:.3f}."}
 
 
 def retraining_recommendation(versions: list[dict[str, Any]], drift: dict[str, Any], current_data_end: Any, today: Any | None = None) -> dict[str, Any]:
     """Explain whether a new candidate should be trained; never activates it."""
     active = next((version for version in versions if version.get("active")), None)
     if active is None:
-        return {"due": True, "reasons": ["nincs aktív modell"], "new_data_days": None, "model_age_days": None}
+        return {"due": True, "reasons": ["Még nincs aktív modelled."], "new_data_days": None, "model_age_days": None}
     now = pd.Timestamp(today or pd.Timestamp.today()).tz_localize(None).normalize()
     trained_at = pd.Timestamp(active["trained_at"]).tz_localize(None).normalize()
     active_end = pd.Timestamp(active["data_end"]).normalize()
@@ -952,12 +972,12 @@ def retraining_recommendation(versions: list[dict[str, Any]], drift: dict[str, A
     new_data_days = max(0, (current_end - active_end).days)
     reasons = []
     if new_data_days >= 30:
-        reasons.append(f"{new_data_days} új adatnap érkezett")
+        reasons.append(f"{new_data_days} új napról jött adat.")
     if age_days >= 30:
-        reasons.append(f"az aktív modell {age_days} napos")
+        reasons.append(f"Az aktív modelled {age_days} napos.")
     if int(drift.get("alerts", 0)) > 0:
-        reasons.append(f"{drift['alerts']} magas feature-drift jelzés aktív")
-    return {"due": bool(reasons), "reasons": reasons or ["nincs újratanítást indokló jel"], "new_data_days": new_data_days, "model_age_days": age_days}
+        reasons.append(f"{drift['alerts']} figyelt adatod jelentősen eltér a korábbiaktól.")
+    return {"due": bool(reasons), "reasons": reasons or ["Most semmi nem indokolja, hogy újratanítsuk a modelledet."], "new_data_days": new_data_days, "model_age_days": age_days}
 
 
 def feature_drift_audit(frame: pd.DataFrame, activities: pd.DataFrame, feedback: dict[str, dict[str, Any]] | None = None, window: int = 60) -> dict[str, Any]:

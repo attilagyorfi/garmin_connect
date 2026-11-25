@@ -12,13 +12,13 @@ class handler(BaseHTTPRequestHandler):
         try:
             user = current_user(self.headers)
             if not user:
-                body, status = {"error": "A művelethez bejelentkezés szükséges."}, 401
+                body, status = {"error": "Ehhez be kell jelentkezned."}, 401
             else:
                 body, status = dashboard_snapshot(user["id"]), 200
         except NoDashboardData:
-            body, status = {"error": "Még nincs szinkronizált Garmin-adat.", "code": "no_dashboard_data"}, 404
+            body, status = {"error": "Még nincs szinkronizált Garmin-adatod. Indíts szinkront.", "code": "no_dashboard_data"}, 404
         except Exception:
-            body, status = {"error": "A Garmin-adatok jelenleg nem tölthetők be."}, 503
+            body, status = {"error": "Nem sikerült betölteni a Garmin-adataidat. Próbáld újra pár perc múlva."}, 503
         encoded = json.dumps(body, ensure_ascii=False).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")

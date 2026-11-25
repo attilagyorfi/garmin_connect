@@ -22,7 +22,7 @@ class handler(BaseHTTPRequestHandler):
         try:
             user = current_user(self.headers)
             if not user:
-                self._send({"error": "A művelethez bejelentkezés szükséges."}, 401)
+                self._send({"error": "Ehhez be kell jelentkezned."}, 401)
                 return
             self._send(sync_status(user["id"]))
         except Exception:
@@ -32,7 +32,7 @@ class handler(BaseHTTPRequestHandler):
         try:
             user = current_user(self.headers)
             if not user:
-                self._send({"error": "A művelethez bejelentkezés szükséges."}, 401)
+                self._send({"error": "Ehhez be kell jelentkezned."}, 401)
                 return
             size = int(self.headers.get("Content-Length", "0"))
             payload = json.loads(self.rfile.read(size)) if size else {}
@@ -40,5 +40,5 @@ class handler(BaseHTTPRequestHandler):
         except GarminSyncError as exc:
             body, status = {"error": str(exc)}, 409
         except Exception:
-            body, status = {"error": "A Garmin-szinkron váratlan hiba miatt megszakadt."}, 500
+            body, status = {"error": "Váratlan hiba miatt megszakadt a szinkron. Próbáld újra pár perc múlva."}, 500
         self._send(body, status)

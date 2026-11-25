@@ -16,7 +16,7 @@ def test_missing_garmin_session_is_clear(monkeypatch, tmp_path):
     monkeypatch.delenv("GARMIN_EMAIL", raising=False)
     monkeypatch.delenv("GARMIN_PASSWORD", raising=False)
     monkeypatch.delenv("GARMINTOKENS", raising=False)
-    with pytest.raises(GarminSyncError, match="Nincs érvényes Garmin-munkamenet.*Beállításokban"):
+    with pytest.raises(GarminSyncError, match="Nincs érvényes Garmin-belépőkulcsod.*Beállításokban"):
         GarminSync(tmp_path).authenticate()
 
 
@@ -130,7 +130,7 @@ def test_cloud_mode_ignores_operator_environment_credentials(monkeypatch, tmp_pa
     monkeypatch.setenv("GARMIN_PASSWORD", "not-for-users")
     monkeypatch.setenv("GARMINTOKENS", "operator-session")
     monkeypatch.setattr("garmin_sync.Garmin", RecordingGarmin)
-    with pytest.raises(GarminSyncError, match="Garmin-munkamenet"):
+    with pytest.raises(GarminSyncError, match="Nincs érvényes Garmin-belépőkulcsod"):
         GarminSync(tmp_path, use_environment=False).authenticate()
     assert logins == []
     GarminSync(tmp_path).authenticate()  # local single-user developer tools keep using their own environment

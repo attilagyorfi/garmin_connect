@@ -22,7 +22,7 @@ class handler(BaseHTTPRequestHandler):
         except ValueError as exc:
             self._send({"error": str(exc)}, 401)
         except Exception:
-            self._send({"error": "A munkamenetek jelenleg nem tölthetők be."}, 503)
+            self._send({"error": "Nem sikerült betölteni az eszközeidet. Próbáld újra pár perc múlva."}, 503)
 
     def do_DELETE(self) -> None:  # noqa: N802
         try:
@@ -32,10 +32,10 @@ class handler(BaseHTTPRequestHandler):
             payload = json.loads(self.rfile.read(size))
             session_id = str(payload.get("sessionId", "")).strip()
             if not session_id:
-                raise ValueError("Hiányzik a munkamenet azonosítója.")
+                raise ValueError("Válaszd ki az eszközt a listából.")
             revoke_session(self.headers, session_id)
             self._send({"ok": True})
         except (ValueError, TypeError, json.JSONDecodeError) as exc:
             self._send({"error": str(exc)}, 400)
         except Exception:
-            self._send({"error": "A munkamenet visszavonása sikertelen."}, 500)
+            self._send({"error": "Nem sikerült kijelentkeztetni az eszközt. Próbáld újra pár perc múlva."}, 500)
