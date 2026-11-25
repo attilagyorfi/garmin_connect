@@ -2,12 +2,13 @@
 
     python evals/assistant/run_eval.py --dry-run     # cases and rough cost, no API calls
     python evals/assistant/run_eval.py               # Claude Sonnet 5.5 vs Haiku 4.5, judged by Opus 5.5 (ANTHROPIC_API_KEY)
-    python evals/assistant/run_eval.py --prompts     # previous production (frozen v3 prompt, context without weekdays) vs current, Sonnet 5.5
+    python evals/assistant/run_eval.py --prompts     # frozen v4 prompt vs the current one (v5), same context, Sonnet 5.5
 
 Chat cases run through the production code path (assistant._answer): the same system prompt and cached context
 block, the plan-proposal tool with T1/T2 plan handles, and the follow-up turn after a proposal. Proposals are
 validated by the production normalizer against synthetic plans, without touching the database.
 Every answer pair is graded blind (random A/B order, no model names) by Claude Opus 5.5.
+The report also counts English words and avoided phrases in the Hungarian answers (wording.py, no API calls).
 """
 from __future__ import annotations
 
@@ -22,7 +23,7 @@ import tempfile
 import time
 from datetime import date, datetime, timedelta
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Callable, Literal
 
 from pydantic import BaseModel, Field
 
@@ -42,7 +43,9 @@ from assistant_context import build_context  # noqa: E402
 from assistant_prompts import MEMORY_TASK, SUMMARY_TASK, SYSTEM_PROMPT, context_block  # noqa: E402
 from dashboard_api import build_dashboard_payload  # noqa: E402
 from evals.assistant.prompts import v1 as prompt_v1  # noqa: E402,F401 (first baseline, kept for reference)
-from evals.assistant.prompts import v3 as prompt_v3  # noqa: E402
+from evals.assistant.prompts import v3 as prompt_v3  # noqa: E402,F401 (second baseline, kept for reference)
+from evals.assistant.prompts import v4 as prompt_v4  # noqa: E402
+from evals.assistant.wording import count_avoided_phrases, count_english_words  # noqa: E402
 
 HERE = Path(__file__).resolve().parent
 MAX_USD = 8.0
@@ -51,10 +54,10 @@ MAX_OUTPUT = 2500
 PRICES = {"claude-opus-5-5": (4.0, 20.0), "claude-sonnet-5-5": (2.0, 10.0), "claude-haiku-4-5": (1.0, 5.0)}
 # Each comparison: two models answering the same cases (None = every case kind).
 CLAUDE_ONLY = {"comparisons": {"Sonnet 5.5 vs Haiku 4.5": ("claude-sonnet-5-5", "claude-haiku-4-5", None)}, "judges": ["claude-opus-5-5"]}
-# "legacy_context" strips what the context gained since v3 (weekday names), so the pair compares old vs new production.
-PROMPTS = {"comparisons": {"Prompt v3 vs v4 (Sonnet 5.5)": (
-    {"label": "v3", "model": "claude-sonnet-5-5", "system": prompt_v3.SYSTEM_PROMPT, "summary_task": prompt_v3.SUMMARY_TASK, "legacy_context": True},
-    {"label": "v4", "model": "claude-sonnet-5-5", "system": SYSTEM_PROMPT, "summary_task": SUMMARY_TASK}, None)},
+# Both prompts get the same context, so the pair measures the wording of the system prompt only.
+PROMPTS = {"comparisons": {"Prompt v4 vs v5 (Sonnet 5.5)": (
+    {"label": "v4", "model": "claude-sonnet-5-5", "system": prompt_v4.SYSTEM_PROMPT, "summary_task": prompt_v4.SUMMARY_TASK},
+    {"label": "v5", "model": "claude-sonnet-5-5", "system": SYSTEM_PROMPT, "summary_task": SUMMARY_TASK}, None)},
     "judges": ["claude-opus-5-5"]}
 APP_PROFILE = {"goal": "Hibrid teljesítmény", "weeklyHours": 8, "strengthRatio": 30, "experience": "középhaladó"}
 
@@ -196,15 +199,6 @@ def chat_context(ctx: dict[str, Any], case: dict[str, Any]) -> tuple[dict[str, A
     return ctx, plans, handles
 
 
-def legacy_context(ctx: dict[str, Any]) -> dict[str, Any]:
-    """The context as v3 production built it: no weekday fields."""
-    ctx = copy.deepcopy(ctx)
-    ctx.pop("napok", None)
-    for plan in ctx.get("tervek", []):
-        plan.pop("nap", None)
-    return ctx
-
-
 @contextlib.contextmanager
 def patched(target: Any, name: str, value: Any):
     saved = getattr(target, name)
@@ -285,6 +279,16 @@ def unsupported_numbers(answer: str, source: str) -> list[str]:
     return sorted(set(found))
 
 
+# Cases where the athlete asks for an answer in another language: the wording counters skip them.
+NON_HUNGARIAN_CASES = {"Q10"}
+
+
+def wording_total(rows: list[dict[str, Any]], label: str, count: Callable[[str], int]) -> int:
+    """Occurrences in one variant's Hungarian answers (failed answers have no text to count)."""
+    return sum(count(row["answers"][label].get("text") or "") for row in rows
+               if row["case"]["id"] not in NON_HUNGARIAN_CASES and "error" not in row["answers"][label])
+
+
 JUDGE_SYSTEM = """Független, szigorú bíráló vagy. Egy magyar nyelvű sportalkalmazás AI-edzőtársának két válaszát (A és B) értékeled ugyanarra a feladatra.
 Minden szempontot 1–5 között pontozz (5 = kiváló):
 - magyar: nyelvhelyesség, természetes, nem tükörfordításszerű magyarság (ha a sportoló más nyelvet kért, azt értékeld);
@@ -304,7 +308,7 @@ def judge_message(case: dict[str, Any], prompt: str, answer_a: str, answer_b: st
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--dry-run", action="store_true")
-    parser.add_argument("--prompts", action="store_true", help="previous production (v3) vs current prompt and context on Sonnet 5.5")
+    parser.add_argument("--prompts", action="store_true", help="frozen v4 vs current (v5) prompt with the same context on Sonnet 5.5")
     parser.add_argument("--limit", type=int, default=None)
     parser.add_argument("--seed", type=int, default=7)
     args = parser.parse_args()
@@ -342,10 +346,9 @@ def main() -> None:
         answers = {}
         for player in (first, second):
             model = player["model"]
-            player_ctx = legacy_context(ctx) if player.get("legacy_context") else ctx
-            player_prompt = user_message(case, player_ctx, player["summary_task"])
+            player_prompt = user_message(case, ctx, player["summary_task"])
             if case["kind"] == "chat":
-                result = production_answer(client, player, case, player_ctx, plans, handles)
+                result = production_answer(client, player, case, ctx, plans, handles)
             else:
                 result = call_claude(client, model, player_prompt, schema, player["system"])
             if "error" not in result:
@@ -430,6 +433,8 @@ def report(rows: list[dict[str, Any]], spent: float, setup: dict[str, Any]) -> s
                             ("Tervjavaslatot tett", lambda a: bool(a.get("proposals"))),
                             ("Érvénytelen (elutasított) tervjavaslat", lambda a: bool(a.get("invalid_proposals")))):
             lines.append(f"| {label} | " + " | ".join(str(sum(1 for row in group if test(row["answers"][model]))) for model in models) + " |")
+        for label, count in (("Angol szó a magyar válaszokban", count_english_words), ("Kerülendő fordulat a magyar válaszokban", count_avoided_phrases)):
+            lines.append(f"| {label} | " + " | ".join(str(wording_total(group, model, count)) for model in models) + " |")
         checked = [row for row in group if row["answers"][models[0]].get("proposal_ok") is not None or row["answers"][models[1]].get("proposal_ok") is not None]
         if checked:
             cells = [f"{sum(1 for row in checked if row['answers'][model].get('proposal_ok'))}/{len(checked)}" for model in models]
