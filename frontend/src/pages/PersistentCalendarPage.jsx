@@ -6,7 +6,7 @@ import { PlanEditor } from "../components/calendar/PlanEditor.jsx";
 import { WeeklyTemplateEditor } from "../components/calendar/WeeklyTemplateEditor.jsx";
 import { PlanningFlow } from "../components/planning/PlanOutcome.jsx";
 import { useDashboardData } from "../lib/api.js";
-import { dayCodes, isoDate } from "../lib/dates.js";
+import { isoDate, isPlannedRestDay } from "../lib/dates.js";
 import { budapestToday } from "../lib/overviewData.js";
 import { evaluatePlanSet, summarizePlanWeek } from "../lib/planOutcomes.js";
 import { buildPersonalWeek, emptyPlan } from "../lib/planning.js";
@@ -172,10 +172,6 @@ export function PersistentCalendarPage({
             <i className="done" />
             ELVÉGZETT
           </span>
-          <span>
-            <i className="extra" />
-            GARMIN-ELŐZMÉNY
-          </span>
         </div>
         <div className="calendar-toolbar-actions">
           <button
@@ -290,8 +286,7 @@ export function PersistentCalendarPage({
                     </article>
                   ))}
                 </>
-              : selectedDate.getDay() === 0 ||
-                  dayCodes[selectedDate.getDay()] === profile.restDay
+              : isPlannedRestDay(profile, selectedDate)
                 ? "Tervezett pihenőnap."
                 : "Erre a napra nincs edzés."}
           </div>
