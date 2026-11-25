@@ -5,12 +5,12 @@
 import { isoDate } from "./dates.js";
 
 export const SOURCES = [
-  { key: "bosquet2007", label: "Bosquet L, Montpetit J, Arvisais D, Mujika I. Effects of tapering on performance: a meta-analysis. Med Sci Sports Exerc. 2007;39(8):1358–1365.", url: "https://doi.org/10.1249/mss.0b013e31806010e0", claim: "A legjobb eredmény: kb. 2 hetes taper, a volumen fokozatos 41–60%-os csökkentése, az intenzitás és az edzésgyakoriság megtartásával." },
-  { key: "wang2023", label: "Wang Z, Wang YT, Gao W, Zhong Y. Effects of tapering on performance in endurance athletes: a systematic review and meta-analysis. PLoS One. 2023;18(5):e0282838.", url: "https://doi.org/10.1371/journal.pone.0282838", claim: "Állóképességi sportolóknál a 41–60%-os volumencsökkentés megtartott intenzitással akár 21 napos taperrel is javította az időfutam-teljesítményt." },
-  { key: "seiler2010", label: "Seiler S. What is best practice for training intensity and duration distribution in endurance athletes? Int J Sports Physiol Perform. 2010;5(3):276–291.", url: "https://doi.org/10.1123/ijspp.5.3.276", claim: "Élsportolóknál az edzések kb. 80%-a alacsony intenzitású – ez megfigyelés, nem kötelező arány; mi iránytűként használjuk." },
-  { key: "buist2008", label: "Buist I, Bredeweg SW, van Mechelen W, et al. No effect of a graded training program on the number of running-related injuries in novice runners. Am J Sports Med. 2008;36(1):33–39.", url: "https://doi.org/10.1177/0363546507307505", claim: "A „10%-os szabály” szerinti fokozatos program nem csökkentette a sérülések számát kezdő futóknál – nincs bizonyítottan „biztonságos” emelési arány." },
-  { key: "nielsen2014", label: "Nielsen RO, Parner ET, Nohr EA, et al. Excessive progression in weekly running distance and risk of running-related injuries. J Orthop Sports Phys Ther. 2014;44(10):739–747.", url: "https://doi.org/10.2519/jospt.2014.5164", claim: "Két hét alatt 30%-nál nagyobb távemelésnél nőhet a távolságfüggő sérülések kockázata (nem szignifikáns, de óvatosságra int)." },
-  { key: "riegel1981", label: "Riegel PS. Athletic records and human endurance. American Scientist. 1981;69(3):285–290.", url: "https://www.jstor.org/stable/27850427", claim: "Versenyidő-becslés hatványtörvénnyel (T₂ = T₁·(D₂/D₁)^k); az elterjedt k = 1,06 kerekített érték, a becslés kb. 3,5 perc és 4 óra között megbízható." },
+  { key: "bosquet2007", label: "Bosquet L, Montpetit J, Arvisais D, Mujika I. Effects of tapering on performance: a meta-analysis. Med Sci Sports Exerc. 2007;39(8):1358–1365.", url: "https://doi.org/10.1249/mss.0b013e31806010e0", claim: "A legjobb eredmény: kb. 2 hetes visszaterhelés (taper), közben az edzésmennyiség fokozatosan 41–60%-kal csökken, az intenzitás és az edzések gyakorisága marad." },
+  { key: "wang2023", label: "Wang Z, Wang YT, Gao W, Zhong Y. Effects of tapering on performance in endurance athletes: a systematic review and meta-analysis. PLoS One. 2023;18(5):e0282838.", url: "https://doi.org/10.1371/journal.pone.0282838", claim: "Állóképességi sportolóknál a 41–60%-kal kisebb edzésmennyiség, változatlan intenzitás mellett, akár 21 napos visszaterheléssel is javította az időfutam-teljesítményt." },
+  { key: "seiler2010", label: "Seiler S. What is best practice for training intensity and duration distribution in endurance athletes? Int J Sports Physiol Perform. 2010;5(3):276–291.", url: "https://doi.org/10.1123/ijspp.5.3.276", claim: "Élsportolóknál az edzések kb. 80%-a alacsony intenzitású. Ez megfigyelés, nem kötelező arány, mi iránytűként használjuk." },
+  { key: "buist2008", label: "Buist I, Bredeweg SW, van Mechelen W, et al. No effect of a graded training program on the number of running-related injuries in novice runners. Am J Sports Med. 2008;36(1):33–39.", url: "https://doi.org/10.1177/0363546507307505", claim: "A „10%-os szabály” szerinti fokozatos program kezdő futóknál nem csökkentette a sérülések számát. Nincs bizonyítottan „biztonságos” emelési arány." },
+  { key: "nielsen2014", label: "Nielsen RO, Parner ET, Nohr EA, et al. Excessive progression in weekly running distance and risk of running-related injuries. J Orthop Sports Phys Ther. 2014;44(10):739–747.", url: "https://doi.org/10.2519/jospt.2014.5164", claim: "Ha két hét alatt 30%-nál többel nő a táv, nőhet a távtól függő sérülések kockázata (statisztikailag nem szignifikáns, de óvatosságra int)." },
+  { key: "riegel1981", label: "Riegel PS. Athletic records and human endurance. American Scientist. 1981;69(3):285–290.", url: "https://www.jstor.org/stable/27850427", claim: "Versenyidő-becslés hatványtörvénnyel (T₂ = T₁·(D₂/D₁)^k). Az elterjedt k = 1,06 kerekített érték, a becslés kb. 3,5 perc és 4 óra között megbízható." },
 ];
 
 const EXPERIENCE_KEYS = ["kezdő", "középhaladó", "haladó"];
@@ -76,10 +76,10 @@ export function paceZones(referenceKey, referenceSeconds) {
   return {
     predictions,
     zones: [
-      { key: "easy", label: "Könnyű / hosszú futás", from: pace("marathon") * 1.12, to: pace("marathon") * 1.28, note: "Beszélgetős tempó; a heti futás nagy része ide tartozik." },
-      { key: "marathon", label: "Maratoni tempó", from: pace("marathon"), to: pace("marathon"), note: "A becsült maratoni versenytempó." },
+      { key: "easy", label: "Könnyű vagy hosszú futás", from: pace("marathon") * 1.12, to: pace("marathon") * 1.28, note: "Beszélgetős tempó. A heti futásod nagy része ilyen." },
+      { key: "marathon", label: "Maratoni tempó", from: pace("marathon"), to: pace("marathon"), note: "A becsült maratoni versenytempód." },
       { key: "threshold", label: "Küszöbtempó", from: threshold * 0.99, to: threshold * 1.03, note: "Kb. egy órán át tartható, „kényelmesen kemény” tempó." },
-      { key: "interval", label: "Intervall (10 km–5 km tempó)", from: pace("5k"), to: pace("10k"), note: "3–5 perces ismétlések, egyenlő pihenővel." },
+      { key: "interval", label: "Intervall (10–5 km-es tempó)", from: pace("5k"), to: pace("10k"), note: "3–5 perces ismétlések, ugyanennyi pihenővel." },
     ],
   };
 }
@@ -127,20 +127,20 @@ export function buildEventPlan({ profile, data, eventType, referenceKey, referen
   let weekCount = event.weeks.rec, start = new Date(firstMonday);
   if (eventDate) {
     const available = weeksBetween(isoDate(firstMonday), eventDate) + 1;
-    if (available < event.weeks.min) warnings.push(`Az eseményig ${available} hét van, ${PHRASE[eventType]} szokásos minimális felkészülési ideje ${event.weeks.min} hét. A terv rövidített, ezért óvatosabb célidőt érdemes választani.`);
+    if (available < event.weeks.min) warnings.push(`Az eseményig ${available} hét van, de ${PHRASE[eventType]} szokásos minimális felkészülési ideje ${event.weeks.min} hét. A terv rövidített, ezért válassz óvatosabb célidőt.`);
     weekCount = Math.max(2, Math.min(event.weeks.max, available));
     start = new Date(`${eventDate}T12:00:00`);
     start.setDate(start.getDate() - ((start.getDay() + 6) % 7) - (weekCount - 1) * 7);
-    if (available > event.weeks.max) warnings.push(`Az eseményig ${available} hét van; a ${weekCount} hetes célzott terv ${start.toLocaleDateString("hu-HU", { month: "long", day: "numeric" })}-én indul, addig tartsd a mostani, könnyű alapozó futásokat.`);
+    if (available > event.weeks.max) warnings.push(`Az eseményig ${available} hét van. A ${weekCount} hetes célzott terv kezdete ${start.toLocaleDateString("hu-HU", { month: "long", day: "numeric" })}, addig tartsd a mostani, könnyű alapozó futásaidat.`);
   } else {
-    warnings.push(`Nincs megadva eseménydátum, ezért a javasolt ${weekCount} hetes tervet a következő hétfőtől számoljuk.`);
+    warnings.push(`Nincs eseménydátum, ezért a javasolt ${weekCount} hetes tervet a következő hétfőtől számoljuk.`);
   }
 
   const current = currentRunning(data?.sessions, todayIso);
   const peak = event.peakKm[level];
-  if (current.weeklyKm == null) warnings.push("Az elmúlt 4 hétből nincs Garmin-futásadat, ezért a kezdő heti volumen a tapasztalati szinted alapján becsült.");
+  if (current.weeklyKm == null) warnings.push("Az elmúlt 4 hétből nincs Garmin-futásadat, ezért a kezdő heti távot a tapasztalati szinted alapján becsüljük.");
   const startKm = round1(current.weeklyKm != null ? Math.max(current.weeklyKm, 8) : peak * 0.45);
-  if (current.weeklyKm != null && current.weeklyKm < peak * 0.35) warnings.push(`A mostani heti futásod (${current.weeklyKm} km) jóval ${PHRASE[eventType]} szokásos csúcsvolumene (${peak} km) alatt van. A terv nem emel hetente 10%-nál többet, ezért a csúcs alacsonyabb maradhat – ez szándékos.`);
+  if (current.weeklyKm != null && current.weeklyKm < peak * 0.35) warnings.push(`A mostani heti futásod (${current.weeklyKm} km) jóval kevesebb, mint ${PHRASE[eventType]} szokásos legnagyobb heti távja (${peak} km). A terv nem emel hetente 10%-nál többet, ezért a csúcs alacsonyabb maradhat. Ez szándékos.`);
 
   const taperWeeks = Math.min(event.taper.length, Math.max(1, weekCount - 1));
   const buildWeeks = weekCount - taperWeeks;
@@ -158,7 +158,7 @@ export function buildEventPlan({ profile, data, eventType, referenceKey, referen
   const longStart = current.longestKm != null ? Math.max(current.longestKm, startKm * 0.3) : startKm * 0.3;
   const paces = paceZones(referenceKey, referenceSeconds);
   const easyPace = paces ? (paces.zones[0].from + paces.zones[0].to) / 2 : current.easyPace || 390;
-  if (!paces) warnings.push("Adj meg egy friss verseny- vagy időfutam-eredményt, és személyre szabott tempózónákat számolunk. Addig az időtartamok a Garmin-futásaid átlagtempójából becsültek.");
+  if (!paces) warnings.push("Adj meg egy friss verseny- vagy időfutam-eredményt, és saját tempózónákat számolunk belőle. Addig az edzések hosszát a Garmin-futásaid átlagtempójából becsüljük.");
 
   const days = (profile?.trainingDays || ["H", "K", "Sze", "Cs", "P", "Szo"]).filter(day => day !== profile?.restDay);
   const strengthCount = Math.min(2, Math.round(days.length * Number(profile?.strengthRatio || 0) / 100));
@@ -190,7 +190,7 @@ export function buildEventPlan({ profile, data, eventType, referenceKey, referen
   const distanceReady = longestPlanned >= event.longCap * 0.75;
   if (!distanceReady) {
     const shorter = { marathon: "félmaratont", half: "10 km-es versenyt", "10k": "5 km-es versenyt", "5k": null }[eventType];
-    warnings.unshift(`A mostani futóvolumenedből a heti legfeljebb 10%-os emeléssel a leghosszabb futás csak ${longestPlanned} km-ig jut el, ami kevés ${PHRASE[eventType]} biztonságos teljesítéséhez (kb. ${Math.round(event.longCap * 0.75)} km lenne a minimum). ${shorter ? `Javasoljuk, hogy erre az időpontra ${shorter} válassz, vagy` : "Javasoljuk, hogy"} egy későbbi versenyt célozz meg.`);
+    warnings.unshift(`A mostani futótávodról, hetente legfeljebb 10%-os emeléssel a leghosszabb futás csak ${longestPlanned} km lesz. Ez kevés ${PHRASE[eventType]} biztonságos teljesítéséhez (kb. ${Math.round(event.longCap * 0.75)} km lenne a minimum). ${shorter ? `Azt javasoljuk, hogy erre az időpontra ${shorter} válassz, vagy` : "Azt javasoljuk, hogy"} egy későbbi versenyt célozz meg.`);
   }
   const predicted = paces?.predictions?.[eventType] ?? null;
   return {

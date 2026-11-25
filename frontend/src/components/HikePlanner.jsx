@@ -14,7 +14,7 @@ export function HikePlanner({ profile, data, plans, onSave, onEditProfile }) {
   const target = hikeTarget(profile);
   const plan = useMemo(() => buildHikePlan({ profile, data }), [profile, data]);
   const event = HIKE_EVENTS[target.type];
-  if (!plan) return <section className="card event-planner event-planner-empty"><div><span className="eyebrow">TÚRAFELKÉSZÜLÉS · {event.label.toUpperCase()}</span><h2>Milyen hosszú és mennyi szint lesz?</h2><p>Add meg a Profilban a túra napi távját és szintemelkedését (többnapos túránál a napok számát és a hátizsák súlyát is), és a Garmin-túráidból fokozatos, forrásolt felkészülési tervet készítünk.</p></div><button className="primary" onClick={onEditProfile}>TÚRA ADATAINAK MEGADÁSA</button></section>;
+  if (!plan) return <section className="card event-planner event-planner-empty"><div><span className="eyebrow">TÚRAFELKÉSZÜLÉS · {event.label.toUpperCase()}</span><h2>Milyen hosszú és mennyi szint lesz?</h2><p>Add meg a Profilban a túra napi távját és szintemelkedését, többnapos túránál a napok számát és a hátizsák súlyát is. A Garmin-túráidból fokozatos felkészülési tervet készítünk, és megmutatjuk a forrásait is.</p></div><button className="primary" onClick={onEditProfile}>TÚRA ADATAINAK MEGADÁSA</button></section>;
 
   const { summary, weeks, warnings } = plan;
   const sessions = weeks.flatMap(week => week.sessions);
@@ -26,12 +26,12 @@ export function HikePlanner({ profile, data, plans, onSave, onEditProfile }) {
 
   return <section className="card event-planner">
     <div><span className="eyebrow">TÚRAFELKÉSZÜLÉS · {event.label.toUpperCase()}</span><h2>{title}</h2>
-      <p>{route}. A hosszú edzéstúra hetente legfeljebb 10%-kal hosszabbodik, a szint és a hátizsák súlya ezzel együtt nő, minden negyedik hét könnyebb; mellette heti két erőedzés és könnyű állóképességi munka.</p>
+      <p>{route}. A hosszú edzéstúra hetente legfeljebb 10%-kal hosszabbodik, ezzel együtt nő a szint és a hátizsák súlya. Minden negyedik hét könnyebb. Mellette heti két erőedzés és könnyű állóképességi edzés vár.</p>
       <div className="event-planner-stats">
-        <span><b>{formatHours(summary.dayMinutes)}</b><MetricHelp term="Becsült menetidő" text={`A DIN 33466 szerinti gyalogidő (óránként 300 m fel, 500 m le vagy 4 km vízszintes)${summary.paceFactor ? `, a saját Garmin-túráid tempójához igazítva (×${summary.paceFactor.toLocaleString("hu-HU", { maximumFractionDigits: 2 })})` : ""}. Pihenők nélkül értendő.`}><small>{target.days > 1 ? "EGY TÚRANAP" : "TÚRANAP"}</small></MetricHelp></span>
-        <span><b>{formatHours(summary.longestMinutes)}</b><MetricHelp term="Leghosszabb edzéstúra" text={`Edzői gyakorlat szerint a felkészülés csúcsán a hosszú túra a túranap kb. ${Math.round(event.peakShare * 100)}%-áig ér${target.days > 1 ? ", hétvégén két egymást követő nappal" : ""}; a teljes távot a túra napjára tartogatjuk.`}><small>LEGHOSSZABB TÚRA</small></MetricHelp></span>
-        <span><b>{summary.peakGainM.toLocaleString("hu-HU")} m</b><MetricHelp term="Csúcs szintemelkedés" text="A leghosszabb edzéstúra becsült szintemelkedése: a túra saját táv–szint arányát követi, hogy a lábad arra készüljön, ami vár rá."><small>CSÚCS SZINT</small></MetricHelp></span>
-        <span><b>{summary.taperWeeks} hét</b><MetricHelp term="Visszaterhelés" text="A túra előtt a terhelés 40–60%-kal csökken, a rövid emelkedős munka marad. Az állóképességi sportokban igazolt elv (Bosquet és mtsai, 2007), túrázásra átvéve."><small>VISSZATERHELÉS</small></MetricHelp></span>
+        <span><b>{formatHours(summary.dayMinutes)}</b><MetricHelp term="Becsült menetidő" text={`Gyalogidő a DIN 33466 szerint (óránként 300 m fel, 500 m le vagy 4 km vízszintesen)${summary.paceFactor ? `, a saját Garmin-túráid tempójához igazítva (×${summary.paceFactor.toLocaleString("hu-HU", { maximumFractionDigits: 2 })})` : ""}. Pihenők nélkül.`}><small>{target.days > 1 ? "EGY TÚRANAP" : "TÚRANAP"}</small></MetricHelp></span>
+        <span><b>{formatHours(summary.longestMinutes)}</b><MetricHelp term="Leghosszabb edzéstúra" text={`Edzői gyakorlat szerint a felkészülés csúcsán a hosszú túra a túranap kb. ${Math.round(event.peakShare * 100)}%-áig ér${target.days > 1 ? ", hétvégén két egymást követő nappal" : ""}. A teljes távot a túra napjára hagyjuk.`}><small>LEGHOSSZABB TÚRA</small></MetricHelp></span>
+        <span><b>{summary.peakGainM.toLocaleString("hu-HU")} m</b><MetricHelp term="Csúcs szintemelkedés" text="A leghosszabb edzéstúra becsült szintemelkedése. A táv és a szint aránya olyan, mint a túrádon, hogy a lábad arra készüljön, ami vár rá."><small>LEGTÖBB SZINT</small></MetricHelp></span>
+        <span><b>{summary.taperWeeks} hét</b><MetricHelp term="Visszaterhelés" text="A túra előtt a terhelés 40–60%-kal csökken (taper), a rövid emelkedős edzés marad. Állóképességi sportokban igazolt elv (Bosquet és mtsai, 2007), túrázásra átvéve."><small>VISSZATERHELÉS</small></MetricHelp></span>
       </div>
     </div>
     {!summary.ready && <p className="event-planner-alert" role="note"><AlertTriangle size={16} aria-hidden="true" /><span>{warnings[0]}</span></p>}
@@ -46,11 +46,11 @@ export function HikePlanner({ profile, data, plans, onSave, onEditProfile }) {
         <div className="periodization-week-detail">{[...week.sessions].sort((a, b) => a.date.localeCompare(b.date)).map(item => <div key={item.id}><time>{weekday(item.date)}</time><span>{item.title}<small className="event-plan-note">{item.note}</small></span><small>{item.duration}p · RPE {item.rpe}</small></div>)}</div>
       </details>)}</div>
       <details className="event-plan-sources"><summary><BookOpen size={15} aria-hidden="true" /> Mire épül a terv?</summary>
-        <p>A kombinált erő- és állóképességi edzés, a fokozatos hátizsákos terhelés, a lejtmenetre felkészítés és a magassági óvatosság tudományos forrásokra épül; a menetidő a DIN 33466 szerinti szokásos becslés. A heti 10%-os emelés, a négyhetes tehermentesítés és a leghosszabb edzéstúra aránya bevett edzői gyakorlat, nem szigorú bizonyíték.</p>
+        <p>Az erő- és állóképességi edzés együtt, a fokozatos hátizsákos terhelés, a lejtmenetre készülés és a magassági óvatosság tudományos forrásokra épül. A menetidő a DIN 33466 szerinti szokásos becslés. A heti 10%-os emelés, a négyhetente könnyebb hét és a leghosszabb edzéstúra aránya bevett edzői gyakorlat, nem szigorú bizonyíték.</p>
         <ul>{HIKE_SOURCES.map(source => <li key={source.key}><b>{source.claim}</b><a href={source.url} target="_blank" rel="noreferrer">{source.label}</a></li>)}</ul>
-        <p className="event-plan-disclaimer">Sportteljesítményi támogatás, nem orvosi tanács. Indulás előtt nézd meg az időjárást és az útvonal állapotát; fájdalom, betegség vagy szokatlan fáradtság esetén pihenj, és szükség esetén fordulj sportorvoshoz.</p>
+        <p className="event-plan-disclaimer">A terv az edzésedhez ad támpontot, nem orvosi tanács. Indulás előtt nézd meg az időjárást és az útvonal állapotát. Fájdalom, betegség vagy szokatlan fáradtság esetén pihenj, és ha kell, fordulj sportorvoshoz.</p>
       </details>
-      {conflicts.length > 0 && <label className="periodization-conflict"><input type="checkbox" checked={replace} onChange={changeEvent => setReplace(changeEvent.target.checked)} /><span>A terv időszakában lévő {conflicts.length} meglévő edzést lecserélem</span></label>}
+      {conflicts.length > 0 && <label className="periodization-conflict"><input type="checkbox" checked={replace} onChange={changeEvent => setReplace(changeEvent.target.checked)} /><span>A terv teljes időszakában, a túranapokon is lecserélem az összes meglévő tervezett edzést ({conflicts.length} db)</span></label>}
       <div className="template-editor-actions"><button onClick={() => setOpen(false)}>Mégse</button><button className="primary" disabled={conflicts.length > 0 && !replace} onClick={save}>Felkészülési terv mentése a Naptárba</button></div>
     </div></div>}
   </section>;

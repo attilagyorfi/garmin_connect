@@ -387,7 +387,7 @@ try {
       const adaptiveModal=document.querySelector('.adaptive-modal');
       if (!adaptiveModal?.textContent.includes("Mi változik a következő héten?")) throw new Error("Az adaptív heti előnézet nem nyílt meg.");
       if (!adaptiveModal.querySelector('.adaptive-reasons')||!adaptiveModal.querySelector('.adaptive-comparison')) throw new Error("Az adaptív hét indoklása vagy tervösszevetése hiányzik.");
-      if (!adaptiveModal.textContent.includes("Szerkeszthető heti terv")||!adaptiveModal.textContent.includes("A napi több edzés is megengedett")) throw new Error("A következő heti javaslat nem szerkeszthető vagy nem jelzi a napi több edzés lehetőségét.");
+      if (!adaptiveModal.textContent.includes("Szerkeszthető heti terv")||!adaptiveModal.textContent.includes("Egy napra több edzést is tehetsz")) throw new Error("A következő heti javaslat nem szerkeszthető vagy nem jelzi a napi több edzés lehetőségét.");
       const adaptiveDates=[...adaptiveModal.querySelectorAll('input[type="date"]')];
       if (!adaptiveDates.length||adaptiveDates.some(input=>input.value<input.min||input.value>input.max)) throw new Error("Az eseménydátum miatt a heti tervjavaslat a következő héten kívülre került.");
       const firstAdaptiveName=adaptiveModal.querySelector('input[aria-label="1. javasolt edzés neve"]');
@@ -515,7 +515,7 @@ try {
   await act(async () => saveProfileButton().click());
   await navTo("Cél");
   const eventCard = document.querySelector(".event-planner:not(.event-planner-empty)");
-  if (!eventCard?.textContent.includes("MARATON") || !eventCard.textContent.includes("TAPER")) throw new Error("A maratoni felkészülési kártya nem jelent meg.");
+  if (!eventCard?.textContent.includes("MARATON") || !eventCard.textContent.includes("VISSZATERHELÉS")) throw new Error("A maratoni felkészülési kártya nem jelent meg.");
   await act(async () => [...eventCard.querySelectorAll("button")].find(node => node.textContent.trim() === "TERV ELŐNÉZETE").click());
   const eventModal = document.querySelector(".event-plan-modal");
   if (!eventModal?.querySelector(".event-plan-paces")?.textContent.includes("Küszöbtempó")) throw new Error("A tempózónák hiányoznak a felkészülési tervből.");
