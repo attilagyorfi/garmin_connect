@@ -174,7 +174,7 @@ try {
   if (document.querySelector(".decision-card")) throw new Error("A napi javaslat az állapotfelmérés előtt megjelent.");
   const scaleRows=[...document.querySelectorAll(".checkin-gate .scale-row")];
   if (scaleRows.length!==4||!scaleRows[0].textContent.includes("1 · nincs")||!scaleRows[1].textContent.includes("5 · kimerült vagyok")||!scaleRows[2].textContent.includes("1 · nincs kedvem")||!scaleRows[3].textContent.includes("5 · nagyon feszült vagyok")) throw new Error("Az állapotfelmérés 1–5 skáláinak közérthető végpontjai hiányoznak.");
-  const gateSave=[...document.querySelectorAll(".checkin-gate button")].find(node=>node.textContent.includes("javaslat kiszámítása"));
+  const gateSave=[...document.querySelectorAll(".checkin-gate button")].find(node=>node.textContent.includes("Mentés és javaslat"));
   if (!gateSave?.disabled) throw new Error("Hiányos állapotfelméréssel is kérhető volt javaslat.");
   for (const row of scaleRows) {
     const first=row.querySelector("button");
@@ -188,7 +188,7 @@ try {
   if (!document.querySelector(".decision-card")) throw new Error("A kitöltött állapotfelmérés után nem jelent meg a napi javaslat.");
   console.log("OK kötelező, közérthető és hozzáférhető napi állapotfelmérés");
   const explainedKpi=document.querySelector('.week-stats>div.explained-value');
-  if (!explainedKpi?.dataset.explanation?.includes("regenerációs igényt")) throw new Error("A laikus mérőszám-magyarázat nem épült fel.");
+  if (!explainedKpi?.dataset.explanation?.includes("több pihenés kell")) throw new Error("A laikus mérőszám-magyarázat nem épült fel.");
   if (explainedKpi.getAttribute("tabindex")!=="0") throw new Error("A mérőszám-magyarázat nem érhető el billentyűzettel.");
   console.log("OK desktop logó és laikus mérőszám-magyarázat");
   await act(async () => new Promise(resolve=>setTimeout(resolve,25)));
@@ -197,7 +197,7 @@ try {
   if (readinessMetric.classList.contains("explained-value")) throw new Error("A lenyitható readiness soron felesleges hover tooltip maradt.");
   await act(async () => readinessMetric.click());
   if (!document.querySelector('.metric-detail')?.textContent.includes("MIT JELENT MOST?")) throw new Error("A readiness részletes értelmezése nem nyitható meg.");
-  if (!document.querySelector('.metric-detail')?.textContent.includes("ADATMINŐSÉG")) throw new Error("A readiness adatminőségi magyarázata hiányzik.");
+  if (!document.querySelector('.metric-detail')?.textContent.includes("MENNYIRE BIZTOS?")) throw new Error("A readiness adatminőségi magyarázata hiányzik.");
   const coverage=document.querySelector(".data-coverage")?.textContent||"";
   for (const expected of ["Garmin Training Readiness · 78 / 100","kiegyensúlyozott · alapsáv 50–66 ms","3 / 4 elérhető","Hiányzik: Alvás","92% Garmin-adat","461 edzés"]) if (!coverage.includes(expected)) throw new Error(`Az adatlefedettségből hiányzik: ${expected}`);
   if (!document.querySelector(".decision-card")?.textContent.includes("GARMIN TRAINING READINESS")) throw new Error("A döntéskártya nem jelzi a Garmin Training Readiness forrást.");
@@ -242,24 +242,24 @@ try {
   if (!assistantCalls.some(call=>call.action==="deleteMemory"&&call.id==="m1")) throw new Error("A memóriapont nem törölhető.");
   await act(async()=>document.querySelector('.assistant-head-actions button[aria-label="Bezárás"]').click());
   console.log("OK edzőtárs chat: hozzájárulás, kérdés, keret, jóváhagyásos tervjavaslat, memória");
-  const sync = [...document.querySelectorAll("button")].find(node => node.textContent.trim() === "SZINKRON");
+  const sync = [...document.querySelectorAll("button")].find(node => node.textContent.trim() === "Szinkron");
   await act(async () => sync.click());
-  if (!document.querySelector(".header-actions")?.textContent.includes("Az online Garmin-szinkron még nincs bekötve")) throw new Error("A nem JSON szinkronhiba nem kapott érthető üzenetet.");
+  if (!document.querySelector(".header-actions")?.textContent.includes("Ezen az előnézeten még nem működik a Garmin-szinkron")) throw new Error("A nem JSON szinkronhiba nem kapott érthető üzenetet.");
   console.log("OK online szinkronhiba kezelése");
   syncResponseMode="failed";
-  await act(async () => [...document.querySelectorAll("button")].find(node => node.textContent.trim() === "SZINKRON").click());
-  const resume=[...document.querySelectorAll("button")].find(node=>node.textContent.trim()==="SZINKRON FOLYTATÁSA");
+  await act(async () => [...document.querySelectorAll("button")].find(node => node.textContent.trim() === "Szinkron").click());
+  const resume=[...document.querySelectorAll("button")].find(node=>node.textContent.trim()==="Szinkron folytatása");
   if (!resume) throw new Error("A megszakadt szinkron nem folytatható ugyanabból a futásból.");
   await act(async () => resume.click());
   if (!syncRequests.some(body=>body.includes("resume-test"))) throw new Error("A folytatás nem a megszakadt futás azonosítójával indult.");
   syncResponseMode="non-json";
   console.log("OK megszakadt szinkron folytatása");
-  const illness = [...document.querySelectorAll("button")].find(node => node.textContent.trim() === "Betegségérzetem van");
+  const illness = [...document.querySelectorAll("button")].find(node => node.textContent.trim() === "Betegnek érzem magam");
   if (!illness) throw new Error("Hiányzik a betegségérzet check-in vezérlője.");
   if (illness.getAttribute("aria-pressed")!=="false") throw new Error("A betegségjelzés állapota nem hozzáférhető.");
   await act(async () => illness.click());
   if (illness.getAttribute("aria-pressed")!=="true") throw new Error("A betegségjelzés aktív állapota nem hozzáférhető.");
-  const saveCheckin = [...document.querySelectorAll("button")].find(node => node.textContent.trim() === "Mentés és a javaslat kiszámítása");
+  const saveCheckin = [...document.querySelectorAll("button")].find(node => node.textContent.trim() === "Mentés és javaslat");
   await act(async () => saveCheckin.click());
   if (!document.querySelector(".decision-copy")?.textContent.includes("Teljes pihenő")) throw new Error("A betegségérzet nem írta felül biztonságosan az ajánlást.");
   if (![...Array(localStorage.length).keys()].map(index=>localStorage.key(index)).some(key=>key?.startsWith("hybrid-checkin-"))) throw new Error("A napi check-in nem mentődött el.");
@@ -270,7 +270,7 @@ try {
     if (!button) throw new Error(`Hiányzó navigációs gomb: ${label}`);
     await act(async () => button.click());
     const content = document.querySelector(".content")?.textContent || "";
-    if (!content.includes(label === "Áttekintés" ? "TELJESÍTMÉNYKÉP" : label === "Insights" ? "Mi működik nálam" : label === "Cél" ? "Felkészültség" : label === "Napló" ? "Edzések" : label === "Naptár" ? "Terv és tény" : label === "Trendek" ? "Terhelés és forma" : label === "Hol tartasz?" ? "Kivel hasonlítunk?" : label)) {
+    if (!content.includes(label === "Áttekintés" ? "HOGY ÁLLSZ MOST" : label === "Insights" ? "Mi működik nálam" : label === "Cél" ? "Felkészültség" : label === "Napló" ? "Edzések" : label === "Naptár" ? "Terv és tény" : label === "Trendek" ? "Terhelés és forma" : label === "Hol tartasz?" ? "Kivel hasonlítunk?" : label)) {
       throw new Error(`A(z) ${label} oldal nem renderelődött.`);
     }
     if (label === "Áttekintés") {

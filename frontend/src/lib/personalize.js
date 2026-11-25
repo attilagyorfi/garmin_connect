@@ -12,14 +12,14 @@ export function personalizeDashboard(data,profile,checkin){
   const protectedDay=adjustedReadiness<60||checkin?.illness||checkin?.pain||/regener|pihenő/i.test(base.decision?.title||"");
   const title=checkin?.illness?"Teljes pihenő":checkin?.pain?"Fájdalommentes mobilitás":protectedDay?(base.decision?.title||"Aktív regeneráció"):(adjustedReadiness>=80?mode.quality:mode.title);
   const duration=protectedDay?(base.decision?.duration||"20–45 perc"):`${Math.min(dailyBudget,Math.max(30,remaining||dailyBudget))} perc`;
-  const goalReason=`A ${safeProfile.goal.toLowerCase()} célodhoz és a heti ${safeProfile.weeklyHours} órás keretedhez igazítva.`;
-  const limitationNote=safeProfile.limitations?.trim()?" A megadott korlátozásaidat az edzés kiválasztásakor tartsd szem előtt.":"";
-  const checkinReason=checkin?.illness?"A jelzett betegségérzet miatt ma a pihenés az elsődleges.":checkin?.pain?"A jelzett fájdalom miatt csak fájdalommentes átmozgatás javasolt.":fatiguePenalty>0?` A mai check-in ${fatiguePenalty} ponttal óvatosabbá tette az ajánlást.`:"";
-  const decision={...(base.decision||{}),title,duration:checkin?.illness?"0–20 perc":duration,intensity:checkin?.illness?"pihenés":checkin?.pain?"fájdalommentes":base.decision?.intensity,rationale:`${base.decision?.rationale||"A regenerációs jelek alapján."}${checkinReason} ${goalReason}${limitationNote}`};
+  const goalReason=`A ${safeProfile.goal.toLowerCase()} célodhoz és a heti ${safeProfile.weeklyHours} órás keretedhez igazítottuk.`;
+  const limitationNote=safeProfile.limitations?.trim()?" Amikor edzést választasz, figyelj a megadott korlátozásaidra.":"";
+  const checkinReason=checkin?.illness?" Betegségérzetet jeleztél, ezért ma a pihenés az első.":checkin?.pain?" Fájdalmat jeleztél, ezért csak fájdalommentes átmozgatást javaslunk.":fatiguePenalty>0?` A mai válaszaid miatt ${fatiguePenalty} ponttal óvatosabb a javaslat.`:"";
+  const decision={...(base.decision||{}),title,duration:checkin?.illness?"0–20 perc":duration,intensity:checkin?.illness?"pihenés":checkin?.pain?"fájdalommentes":base.decision?.intensity,rationale:`${base.decision?.rationale||"A regenerálódásod jelei alapján."}${checkinReason} ${goalReason}${limitationNote}`};
   const insights=[
-    `${actualMinutes} perc készült el a heti ${targetMinutes} perces személyes keretedből.`,
-    actualStrength<safeProfile.strengthRatio?`Az erőedzés aránya ${actualStrength}%; a célod ${safeProfile.strengthRatio}%, ezért a következő terhelhető napon érdemes erőblokkot választani.`:`Az erő–kardió arányod illeszkedik a ${safeProfile.strengthRatio}/${100-safeProfile.strengthRatio}%-os célhoz.`,
-    safeProfile.eventName&&safeProfile.eventDate?`${safeProfile.eventName}: ${Math.max(0,Math.ceil((new Date(safeProfile.eventDate)-new Date())/86400000))} nap van hátra.`:`A következő ajánlások fő fókusza: ${mode.focus}.`
+    `${actualMinutes} perc már megvan a heti ${targetMinutes} perces keretedből.`,
+    actualStrength<safeProfile.strengthRatio?`Az erőedzés aránya ${actualStrength}%, a célod ${safeProfile.strengthRatio}%. A következő terhelhető napon érdemes erőedzést választanod.`:`Az erő–kardió arányod megfelel a ${safeProfile.strengthRatio}/${100-safeProfile.strengthRatio}%-os célodnak.`,
+    safeProfile.eventName&&safeProfile.eventDate?`${safeProfile.eventName}: ${Math.max(0,Math.ceil((new Date(safeProfile.eventDate)-new Date())/86400000))} nap van hátra.`:`A következő javaslatok fő iránya: ${mode.focus}.`
   ];
   return {decision,adjustedReadiness,band:adjustedReadiness>=70?"terhelhető":adjustedReadiness>=45?"óvatosan":"regeneráció",week:{actualMinutes,targetMinutes,progress,actualStrength,targetStrength:safeProfile.strengthRatio,daysDone:new Set(recent.map(x=>x.date)).size,daysTarget:available,totalLoad:week.total_load||0},insights};
 }

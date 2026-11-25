@@ -70,40 +70,40 @@ export function buildTrainingInterpretation(comparison, profile, preferredAction
   if (!current.count) {
     return {
       items: [
-        ["Mi változott?", "Erre az időszakra nincs rögzített edzés, ezért változás nem számítható."],
-        ["Mi állhat mögötte?", "Lehet valódi pihenőidőszak vagy hiányos szinkron. A hiányzó adatot nem tekintjük nullának."],
-        ["Mit tehetsz?", "Ellenőrizd az utolsó szinkron időpontját az Áttekintésen, majd csak friss adatokból tervezz."],
+        ["Mi változott?", "Erre az időszakra nincs rögzített edzés, így változást sem tudunk számolni."],
+        ["Mi állhat mögötte?", "Lehet, hogy pihentél, de az is, hogy hiányos a szinkron. A hiányzó adat nem nulla."],
+        ["Mit tehetsz?", "Nézd meg az Áttekintésen, mikori az utolsó adat, és csak friss adatokból tervezz."],
       ],
-      note: "Korlátozott értékelés: nincs elegendő aktivitásadat a kiválasztott időszakban.",
+      note: "Korlátozott értékelés: ebben az időszakban nincs elég edzésadat.",
     };
   }
   if (!enoughHistory) {
     return {
       items: [
-        ["Mi változott?", `${current.count} edzés és ${formatMinutes(current.minutes)} látható, de az előző ${days} napból nincs összehasonlítható edzés.`],
-        ["Mi állhat mögötte?", "A történeti előzmény vagy a szinkron lefedettsége még nem elég egy megbízható irány megállapításához."],
-        ["Mit tehetsz?", preferredAction || `Tartsd a ${profile.goal.toLowerCase()} célodhoz igazított tervet, és ne egyetlen időszakból következtess.`],
+        ["Mi változott?", `${current.count} edzést látunk, ${formatMinutes(current.minutes)}, de az előző ${days} napból nincs összehasonlítható edzés.`],
+        ["Mi állhat mögötte?", "Kevés még az előzmény vagy a szinkronizált adat ahhoz, hogy megbízható irányt lássunk."],
+        ["Mit tehetsz?", preferredAction || `Tartsd a ${profile.goal.toLowerCase()} célodhoz igazított tervet, és ne egyetlen időszakból ítélj.`],
       ],
-      note: `Korlátozott összehasonlítás · terhelési forrás Garmin-lefedettsége: ${sourceCoverage ?? "nem ismert"}%`,
+      note: `Korlátozott összehasonlítás · edzések Garmin-terheléssel: ${sourceCoverage ?? "nem ismert"}%`,
     };
   }
   const changeText = `${current.count} edzés (${sessionChange > 0 ? "+" : ""}${sessionChange} alkalom), ${formatMinutes(current.minutes)} (${signedPercent(minutesChange)}), összterhelés: ${current.load?.toLocaleString("hu-HU") ?? "nem ismert"} pont (${signedPercent(loadChange)}).`,
     intensityShift = Number.isFinite(loadChange) && Number.isFinite(minutesChange) ? loadChange - minutesChange : null,
     causeText = intensityShift != null && intensityShift > 12
-      ? "A terhelés gyorsabban nőtt, mint az edzésidő. Ez intenzívebb vagy nagyobb egyedi terhelésű edzésekre utalhat; ok-okozatot önmagában nem bizonyít."
+      ? "A terhelés gyorsabban nőtt, mint az edzésidő. Lehet, hogy intenzívebb vagy egyenként megterhelőbb edzéseid voltak, de ez önmagában nem bizonyít okot."
       : intensityShift != null && intensityShift < -12
-        ? "Az edzésidőhöz képest kisebb lett a terhelés. Ez több könnyű vagy regeneráló munkával is összefügghet."
+        ? "Az edzésidőhöz képest kisebb lett a terhelés. Ez azzal is összefügghet, hogy több könnyű vagy regeneráló edzésed volt."
         : sessionChange !== 0
-          ? `A változás fő látható jele az edzésgyakoriság: ${Math.abs(sessionChange)} alkalommal ${sessionChange > 0 ? "több" : "kevesebb"} edzés szerepel.`
-          : "Az edzésgyakoriság és a terhelés aránya nagyjából stabil; nincs egyetlen kiugró magyarázó jel.",
+          ? `A változás főleg az edzések számán látszik: ${Math.abs(sessionChange)} alkalommal ${sessionChange > 0 ? "több" : "kevesebb"} edzést látunk.`
+          : "Az edzések száma és a terhelés aránya nagyjából állandó. Nincs egyetlen kiugró jel, ami megmagyarázná.",
     actionText = preferredAction || (loadChange != null && loadChange > 20
-      ? "A következő héten ne növeld egyszerre az időt és az intenzitást; előbb figyeld meg, hogyan reagál a regenerációd."
+      ? "A következő héten ne növeld egyszerre az időt és az intenzitást. Előbb figyeld meg, hogyan regenerálódsz."
       : loadChange != null && loadChange < -20
-        ? "Ha a visszaesés tervezett pihenő vagy tehermentesítés volt, tartsd a tervet. Ha nem, ellenőrizd a kihagyott alkalmak okát."
-        : `Tartsd a jelenlegi ritmust, és a következő módosítást a ${profile.goal.toLowerCase()} célodhoz, valamint a napi állapotodhoz igazítsd.`);
+        ? "Ha ezt pihenőnek vagy könnyebb időszaknak szántad, tartsd a tervet. Ha nem, nézd meg, miért maradtak ki edzések."
+        : `Tartsd a mostani ritmust, és a következő változtatást a ${profile.goal.toLowerCase()} célodhoz és a napi állapotodhoz igazítsd.`);
   return {
     items: [["Mi változott?", changeText], ["Mi állhat mögötte?", causeText], ["Mit tehetsz?", actionText]],
-    note: `Összehasonlítás azonos hosszúságú időszakok között · terhelési forrás Garmin-lefedettsége: ${sourceCoverage ?? "nem ismert"}% · a magyarázat kapcsolatot jelez, nem bizonyított okot.`,
+    note: `Két ugyanolyan hosszú időszakot hasonlítunk össze · edzések Garmin-terheléssel: ${sourceCoverage ?? "nem ismert"}% · a magyarázat kapcsolatot jelez, nem bizonyított okot.`,
   };
 }
 
