@@ -100,7 +100,7 @@ Az Edzőtárs chat (`api/assistant.py`, `assistant.py`) a Claude Sonnet 5.5 mode
 
 Az edzőtárs kérésre edzéstervet is javasolhat (`assistant_actions.py`, szigorú sémájú `propose_plan_change` eszköz). A javaslat csak függőben lévő, 24 óráig érvényes művelet: a Naptár kizárólag a felhasználó jóváhagyása után változik, és ha a terv a javaslat óta módosult, a jóváhagyás nem írja felül. A modell a meglévő tervekre rövid jelekkel (T1, T2…) hivatkozik, tárolt azonosítót nem kap.
 
-A modell- és promptteszt szintetikus demóadaton fut: `python evals/assistant/run_eval.py --dry-run` (költségbecslés), `--prompts` (rögzített v1 vs. aktuális prompt), alapból Sonnet 5.5 vs. Haiku 4.5. Az eredmények a Gitből kizárt `evals/assistant/results/` mappába kerülnek.
+A modell- és promptteszt szintetikus demóadaton fut: `python evals/assistant/run_eval.py --dry-run` (költségbecslés), `--prompts` (rögzített v4 vs. aktuális v5 prompt, azonos kontextussal), alapból Sonnet 5.5 vs. Haiku 4.5. A riport hálózat nélkül megszámolja az angol szavakat és a kerülendő fordulatokat is a magyar válaszokban. Az eredmények a Gitből kizárt `evals/assistant/results/` mappába kerülnek.
 
 ## Függőségek biztonsága
 
