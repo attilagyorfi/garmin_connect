@@ -158,7 +158,7 @@ try {
   await act(async () => new Promise(resolve=>setTimeout(resolve,5)));
   if (!document.querySelector(".content")?.textContent.includes("Első Garmin-szinkron")) throw new Error("Szinkronizált adat nélkül nem a szinkronkapu jelent meg.");
   const lockedNav=[...document.querySelectorAll(".sidebar nav button.locked")];
-  if (lockedNav.map(node=>node.textContent.trim()).join(",")!=="Áttekintés,Naptár,Trendek,Cél,Insights,Hol tartasz?,Napló"||!lockedNav.every(node=>node.disabled)) throw new Error("Hibás zárolt menüpontok: "+lockedNav.map(node=>node.textContent.trim()).join(","));
+  if (lockedNav.map(node=>node.textContent.trim()).join(",")!=="Áttekintés,Naptár,Trendek,Cél,Összefüggések,Hol tartasz?,Napló"||!lockedNav.every(node=>node.disabled)) throw new Error("Hibás zárolt menüpontok: "+lockedNav.map(node=>node.textContent.trim()).join(","));
   if (document.querySelector(".sync-gate-action .primary")?.disabled) throw new Error("Csatlakoztatott Garmin-fióknál a szinkron gomb nem indítható.");
   if (!document.querySelector(".sidebar .profile")?.textContent.includes("Garmin csatlakoztatva")) throw new Error("Az oldalsáv nem a valós Garmin-állapotot mutatja.");
   await act(async () => gateRoot.unmount());
@@ -265,12 +265,12 @@ try {
   if (![...Array(localStorage.length).keys()].map(index=>localStorage.key(index)).some(key=>key?.startsWith("hybrid-checkin-"))) throw new Error("A napi check-in nem mentődött el.");
   if (!cloudPatches.some(patch=>patch.checkin?.date===TODAY)) throw new Error("A napi check-in nem indított Neon-mentést.");
   console.log("OK napi check-in és biztonsági felülírás");
-  for (const label of ["Áttekintés", "Naptár", "Trendek", "Cél", "Insights", "Hol tartasz?", "Napló", "Profil", "Beállítások"]) {
+  for (const label of ["Áttekintés", "Naptár", "Trendek", "Cél", "Összefüggések", "Hol tartasz?", "Napló", "Profil", "Beállítások"]) {
     const button = [...document.querySelectorAll("button")].find(node => node.textContent.trim() === label);
     if (!button) throw new Error(`Hiányzó navigációs gomb: ${label}`);
     await act(async () => button.click());
     const content = document.querySelector(".content")?.textContent || "";
-    if (!content.includes(label === "Áttekintés" ? "HOGY ÁLLSZ MOST" : label === "Insights" ? "Mi működik nálam" : label === "Cél" ? "Felkészültség" : label === "Napló" ? "Edzések" : label === "Naptár" ? "Terv és tény" : label === "Trendek" ? "Terhelés és forma" : label === "Hol tartasz?" ? "Kivel hasonlítunk?" : label)) {
+    if (!content.includes(label === "Áttekintés" ? "HOGY ÁLLSZ MOST" : label === "Összefüggések" ? "Mi működik nálam" : label === "Cél" ? "Felkészültség" : label === "Napló" ? "Edzések" : label === "Naptár" ? "Terv és tény" : label === "Trendek" ? "Terhelés és forma" : label === "Hol tartasz?" ? "Kivel hasonlítunk?" : label)) {
       throw new Error(`A(z) ${label} oldal nem renderelődött.`);
     }
     if (label === "Áttekintés") {
@@ -287,13 +287,15 @@ try {
       await act(async()=>sixtyDays.click());
       if(!document.querySelector('.decision-translation')?.textContent.includes('előző 60 napból')) throw new Error("A 60 napos időszak összehasonlítása nem frissült.");
     }
-    if (label === "Insights") {
+    if (label === "Összefüggések") {
+      if (button.dataset.tour!=="Insights"||!button.classList.contains("active")) throw new Error("Az Összefüggések menüpont belső kulcsa vagy aktív állapota megváltozott.");
+      if (!content.includes("ÖSSZEFÜGGÉSEK")||document.querySelector("#root").textContent.includes("Insights")) throw new Error("Az Összefüggések oldal látható neve hibás.");
       const weeklyTranslation=document.querySelector('.decision-translation');
-      if(!weeklyTranslation?.textContent.includes('A heti adatok jelentése röviden')||!weeklyTranslation.textContent.includes('Mi változott?')||!weeklyTranslation.textContent.includes('előző 7 napból')) throw new Error("Az Insights heti, közérthető értelmezése hiányzik.");
+      if(!weeklyTranslation?.textContent.includes('Mit mondanak a heti adataid?')||!weeklyTranslation.textContent.includes('Mi változott?')||!weeklyTranslation.textContent.includes('előző 7 napból')) throw new Error("Az Összefüggések heti, közérthető értelmezése hiányzik.");
       await act(async () => new Promise(resolve=>setTimeout(resolve,5)));
       const modelStatus=document.querySelector('.model-status');
-      if (!modelStatus?.textContent.includes("Aktív személyes regenerációs modell")) throw new Error("Az automatikus személyes modell állapota nem jelent meg.");
-      if (!modelStatus.textContent.includes("átlagos abszolút hiba 0,42")||!modelStatus.textContent.includes("nem terhelhetőségi pontszám")) throw new Error("A modell pontosságának laikus magyarázata hiányzik.");
+      if (!modelStatus?.textContent.includes("Működik a személyes regenerációs modelled")) throw new Error("Az automatikus személyes modell állapota nem jelent meg.");
+      if (!modelStatus.textContent.includes("átlagosan ennyit téved: 0,42")||!modelStatus.textContent.includes("nem terhelhetőségi pontszám")) throw new Error("A modell pontosságának laikus magyarázata hiányzik.");
       if (!modelStatus.textContent.includes("340 / 132 nap")||!modelStatus.textContent.includes("31,1% kisebb hiba")||!modelStatus.textContent.includes("3 / 3 jobb")) throw new Error("A modell adatalkalmassági vagy validációs összefoglalója hiányzik.");
       if (!modelStatus.textContent.includes("Éjszakai HRV")||!modelStatus.textContent.includes("Következő automatikus ellenőrzés")) throw new Error("A modell adatlefedettsége vagy ütemezése hiányzik.");
       console.log("OK ütemezett személyes modellállapot, adatalkalmasság és közérthető pontosság");
@@ -310,16 +312,16 @@ try {
       if (!createdPatch) throw new Error("Az új edzésterv nem indított Neon-mentést.");
       const edit = [...document.querySelectorAll("button")].find(node => node.textContent.includes("SZERKESZTÉS"));
       await act(async () => edit.click());
-      if (!document.querySelector(".plan-editor")?.textContent.includes("Garmin-aktivitás kézi párosítása")) throw new Error("A kézi Garmin-párosítás vezérlője hiányzik.");
+      if (!document.querySelector(".plan-editor")?.textContent.includes("Garmin-edzés kézi párosítása")) throw new Error("A kézi Garmin-párosítás vezérlője hiányzik.");
       await act(async () => [...document.querySelectorAll(".plan-editor button")].find(node => node.textContent.trim() === "Edzésterv mentése").click());
       if (cloudPatches.filter(patch=>patch.plan?.id===createdPatch.plan.id).length<2) throw new Error("Az edzésterv módosítása nem mentődött.");
       await act(async () => [...document.querySelectorAll("button")].find(node => node.textContent.includes("SZERKESZTÉS")).click());
       await act(async () => [...document.querySelectorAll(".plan-editor button")].find(node => node.textContent.includes("Törlés")).click());
       if (!cloudPatches.some(patch=>patch.deletePlan)) throw new Error("Az edzésterv törlése nem mentődött.");
-      const template = [...document.querySelectorAll("button")].find(node => node.textContent.trim() === "HETI SABLON SZEMÉLYRE SZABÁSA");
+      const template = [...document.querySelectorAll("button")].find(node => node.textContent.trim() === "HETI TERV SABLONBÓL");
       await act(async () => template.click());
       const templateEditor=document.querySelector(".template-editor");
-      if (!templateEditor?.textContent.includes("Oszd ki az edzéseket a saját hetedre")) throw new Error("A heti sablon napkiosztási szerkesztője nem nyílt meg.");
+      if (!templateEditor?.textContent.includes("Oszd be az edzéseket a hetedre")) throw new Error("A heti sablon napkiosztási szerkesztője nem nyílt meg.");
       const firstTemplateName=templateEditor.querySelector('input[aria-label="1. edzés neve"]');
       const originalName=firstTemplateName.value;
       await act(async()=>{firstTemplateName.value=`${originalName} – egyéni`;firstTemplateName.dispatchEvent(new window.Event("input",{bubbles:true}))});
@@ -330,7 +332,7 @@ try {
       if (!batchMove||batchMove.disabled) throw new Error("A csoportos edzésmozgatás nem érhető el több tervnél.");
       await act(async()=>batchMove.click());
       const batchEditor=document.querySelector(".batch-move-editor");
-      if (!batchEditor?.textContent.includes("köztük lévő ritmus változatlan marad")) throw new Error("A csoportos mozgatás magyarázata hiányzik.");
+      if (!batchEditor?.textContent.includes("köztük lévő időköz változatlan marad")) throw new Error("A csoportos mozgatás magyarázata hiányzik.");
       const batchSave=[...batchEditor.querySelectorAll("button")].find(node=>node.textContent.trim()==="Kijelölt edzések mozgatása");
       const patchesBeforeMove=cloudPatches.length;
       await act(async()=>batchSave.click());
@@ -412,9 +414,12 @@ try {
       if (!document.querySelector(".content")?.textContent.includes("Profil")) throw new Error("A Cél oldalról nem nyitható meg a Profil.");
       console.log("OK célfelkészültség és profilszerkesztés");
     }
-    if (label === "Insights") {
+    if (label === "Összefüggések") {
+      await act(async () => new Promise(resolve=>setTimeout(resolve,5)));
+      const recap=[...document.querySelectorAll(".weekly-recap>div:last-child>span")];
+      if (recap.map(node=>node.dataset.metric).join()!=="Terhelés,Edzésidő,Edzésidő,Terhelhetőség"||!recap[3].textContent.includes("TERHELHETŐSÉG")||!recap[3].dataset.explanation.startsWith("A terhelhetőséged 0 és 100 között")||recap[3].tabIndex!==0||recap[3].querySelector(".metric-help")) throw new Error("A mostani hét értékeinek magyarázata hibás: "+recap.map(node=>node.dataset.metric).join());
       const digest=document.querySelector(".weekly-digest");
-      if (!digest?.textContent.includes("08.10.–08.16.")||!digest.textContent.includes("+12%")||!digest.textContent.includes("FÓKUSZ A KÖVETKEZŐ HÉTRE")) throw new Error("A heti összefoglaló hiányos.");
+      if (!digest?.textContent.includes("08.10.–08.16.")||!digest.textContent.includes("+12%")||!digest.textContent.includes("ERRE FIGYELJ A KÖVETKEZŐ HÉTEN")) throw new Error("A heti összefoglaló hiányos.");
       console.log("OK heti összefoglaló");
     }
     if (label === "Hol tartasz?") {
